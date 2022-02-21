@@ -27,6 +27,7 @@ import { Charts } from './sections/Charts';
 import { Settings } from './sections/Settings';
 import { Values } from './sections/Values';
 import { Refresh } from '@mui/icons-material';
+import { CircularProgress, Icon } from '@mui/material';
 
 const drawerWidth = 240;
 
@@ -106,6 +107,7 @@ interface LastData {
 }
 
 interface AppState {
+  isBusy: boolean;
   menuOpen: boolean;
   section: 'overview'|'charts'|'trades'|'values'|'settings';
   lastData: LastData;
@@ -116,6 +118,7 @@ export default class App extends React.Component<{}, AppState> {
   constructor() {
     super({});
     this.state = {
+      isBusy: false,
       menuOpen: false,
       section: 'overview',
       lastData: {
@@ -136,10 +139,11 @@ export default class App extends React.Component<{}, AppState> {
   loadLastDataDates = () => {
       return fetch('/data/last')
         .then(res => res.json())
-        .then(lastData => this.setState({lastData}));
+        .then(lastData => this.setState({lastData, isBusy: false}));
   }
 
   refreshData = () => {
+    this.setState({isBusy: true});
     return fetch('/historical/update').then(res =>
       fetch('/fx/update').then(res =>
         this.loadLastDataDates()
@@ -173,14 +177,19 @@ export default class App extends React.Component<{}, AppState> {
               <Typography variant="body1" noWrap component="div" >
                 {Object.entries(this.state.lastData).map(([k, v]) => `${k}: ${v}`).join(' | ')}
               </Typography>
-              <IconButton
-                color="inherit"
-                onClick={this.refreshData}
-                edge="start"
-                sx={{marginLeft: '36px'}}
-              >
-                <Refresh />
-              </IconButton>
+              {this.state.isBusy ?
+                <Icon sx={{marginLeft: '36px'}}>
+                  <CircularProgress color="inherit" size="small"/>
+                </Icon>:
+                <IconButton
+                  color="inherit"
+                  onClick={this.refreshData}
+                  edge="start"
+                  sx={{marginLeft: '36px'}}
+                >
+                  <Refresh />
+                </IconButton>
+              }
             </Toolbar>
           </Toolbar>
         </AppBar>
