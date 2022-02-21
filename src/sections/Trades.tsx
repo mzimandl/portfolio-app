@@ -1,6 +1,5 @@
 import * as React from 'react';
 import { Table, TableBody, TableHead, TableContainer, TableRow, TableCell, Box, IconButton, FormControl, Select, InputLabel, MenuItem } from '@mui/material';
-import CircularProgress from '@mui/material/CircularProgress';
 import TextField from '@mui/material/TextField';
 import { AddBox } from '@mui/icons-material';
 import { InstrumentDataRow } from './Settings';
@@ -24,12 +23,21 @@ interface NewDataRow {
     rate: string;
 }
 
-export class Trades extends React.Component<{}, {busy: boolean; trades: Array<DataRow>; newTrade: NewDataRow; instruments: Array<InstrumentDataRow>}> {
+interface TradesState {
+    trades: Array<DataRow>;
+    newTrade: NewDataRow;
+    instruments: Array<InstrumentDataRow>;
+}
 
-    constructor(props:{}) {
+interface TradesProps {
+    displayProgressBar: (isBusy: boolean) => void;
+}
+
+export class Trades extends React.Component<TradesProps, TradesState> {
+
+    constructor(props:TradesProps) {
         super(props);
         this.state = {
-            busy: true,
             trades: [],
             instruments: [],
             newTrade: {
@@ -49,9 +57,10 @@ export class Trades extends React.Component<{}, {busy: boolean; trades: Array<Da
     }
 
     componentDidMount() {
+        this.props.displayProgressBar(true);
         this.loadInstruments().then(() =>
             this.loadTrades().then(() =>
-                this.setState({busy: false})
+                this.props.displayProgressBar(false)
             )
         );
     }
@@ -72,7 +81,7 @@ export class Trades extends React.Component<{}, {busy: boolean; trades: Array<Da
 
     addTrade = () => {
         if (this.state.newTrade.ticker && this.state.newTrade.date) {
-            this.setState({busy: true});
+            this.props.displayProgressBar(true);
             fetch('/trades/new', {method: 'POST', body: JSON.stringify(this.state.newTrade)})
                 .then(res => {
                     this.setState({
@@ -85,7 +94,7 @@ export class Trades extends React.Component<{}, {busy: boolean; trades: Array<Da
                             rate: '',
                         }
                     });
-                    this.loadTrades().then(() => this.setState({busy: false}));
+                    this.loadTrades().then(() => this.props.displayProgressBar(false));
                 });
         }
     }
@@ -93,63 +102,61 @@ export class Trades extends React.Component<{}, {busy: boolean; trades: Array<Da
     render() {
 
         return <Box>
-            {this.state.busy ?
-                <CircularProgress /> :
-                <TableContainer>
-                    <Table size="small">
-                        <TableHead>
-                            <TableRow>
-                                <TableCell>
-                                    <TextField label="Date" variant="outlined" size='small' margin='none' fullWidth
-                                    onChange={(e) => this.setState({newTrade: {...this.state.newTrade, date: e.target.value}})} />
-                                </TableCell>
-                                <TableCell>
-                                    <FormControl fullWidth size='small'>
-                                        <InputLabel id="ticker-select-label">Ticker</InputLabel>
-                                        <Select
-                                            labelId='ticker-select-label'
-                                            value={this.state.newTrade.ticker}
-                                            label="Ticker"
-                                            onChange={(e) => this.setState({newTrade: {...this.state.newTrade, ticker: e.target.value}})}
-                                        >
-                                            {this.state.instruments.map(v => <MenuItem key={v.ticker} value={v.ticker}>{v.ticker}</MenuItem>)}
-                                        </Select>
-                                    </FormControl>
-                                </TableCell>
-                                <TableCell>
-                                    <TextField label="Volume" variant="outlined" size='small' margin='none' fullWidth
-                                    onChange={(e) => this.setState({newTrade: {...this.state.newTrade, volume: e.target.value}})} />
-                                </TableCell>
-                                <TableCell>
-                                    <TextField label="Price" variant="outlined" size='small' margin='none' fullWidth
-                                    onChange={(e) => this.setState({newTrade: {...this.state.newTrade, price: e.target.value}})} />
-                                </TableCell>
-                                <TableCell>
-                                    <TextField label="Exchange rate" variant="outlined" size='small' margin='none' fullWidth
-                                    onChange={(e) => this.setState({newTrade: {...this.state.newTrade, rate: e.target.value}})} />
-                                </TableCell>
-                                <TableCell>
-                                    <TextField label="Fee" variant="outlined" size='small' margin='none' fullWidth
-                                    onChange={(e) => this.setState({newTrade: {...this.state.newTrade, fee: e.target.value}})} />
-                                </TableCell>
-                                <TableCell><IconButton onClick={this.addTrade}><AddBox/></IconButton></TableCell>
+            <TableContainer>
+                <Table size="small">
+                    <TableHead>
+                        <TableRow>
+                            <TableCell>
+                                <TextField label="Date" variant="outlined" size='small' margin='none' fullWidth
+                                onChange={(e) => this.setState({newTrade: {...this.state.newTrade, date: e.target.value}})} />
+                            </TableCell>
+                            <TableCell>
+                                <FormControl fullWidth size='small'>
+                                    <InputLabel id="ticker-select-label">Ticker</InputLabel>
+                                    <Select
+                                        labelId='ticker-select-label'
+                                        value={this.state.newTrade.ticker}
+                                        label="Ticker"
+                                        onChange={(e) => this.setState({newTrade: {...this.state.newTrade, ticker: e.target.value}})}
+                                    >
+                                        {this.state.instruments.map(v => <MenuItem key={v.ticker} value={v.ticker}>{v.ticker}</MenuItem>)}
+                                    </Select>
+                                </FormControl>
+                            </TableCell>
+                            <TableCell>
+                                <TextField label="Volume" variant="outlined" size='small' margin='none' fullWidth
+                                onChange={(e) => this.setState({newTrade: {...this.state.newTrade, volume: e.target.value}})} />
+                            </TableCell>
+                            <TableCell>
+                                <TextField label="Price" variant="outlined" size='small' margin='none' fullWidth
+                                onChange={(e) => this.setState({newTrade: {...this.state.newTrade, price: e.target.value}})} />
+                            </TableCell>
+                            <TableCell>
+                                <TextField label="Exchange rate" variant="outlined" size='small' margin='none' fullWidth
+                                onChange={(e) => this.setState({newTrade: {...this.state.newTrade, rate: e.target.value}})} />
+                            </TableCell>
+                            <TableCell>
+                                <TextField label="Fee" variant="outlined" size='small' margin='none' fullWidth
+                                onChange={(e) => this.setState({newTrade: {...this.state.newTrade, fee: e.target.value}})} />
+                            </TableCell>
+                            <TableCell><IconButton onClick={this.addTrade}><AddBox/></IconButton></TableCell>
+                        </TableRow>
+                    </TableHead>
+                    <TableBody>
+                        {this.state.trades.map(
+                            (item, i) => <TableRow key={i}>
+                                <TableCell>{item.date}</TableCell>
+                                <TableCell>{item.ticker}</TableCell>
+                                <TableCell>{item.volume}</TableCell>
+                                <TableCell>{item.price}</TableCell>
+                                <TableCell>{item.rate}</TableCell>
+                                <TableCell>{item.fee}</TableCell>
+                                <TableCell></TableCell>
                             </TableRow>
-                        </TableHead>
-                        <TableBody>
-                            {this.state.trades.map(
-                                (item, i) => <TableRow key={i}>
-                                    <TableCell>{item.date}</TableCell>
-                                    <TableCell>{item.ticker}</TableCell>
-                                    <TableCell>{item.volume}</TableCell>
-                                    <TableCell>{item.price}</TableCell>
-                                    <TableCell>{item.rate}</TableCell>
-                                    <TableCell>{item.fee}</TableCell>
-                                    <TableCell></TableCell>
-                                </TableRow>
-                            )}
-                        </TableBody>
-                    </Table>
-                </TableContainer>}
+                        )}
+                    </TableBody>
+                </Table>
+            </TableContainer>
         </Box>
     }
 }

@@ -1,6 +1,5 @@
 import * as React from 'react';
 import { Table, TableBody, TableHead, TableContainer, TableRow, TableCell, Box, IconButton, FormControl, Select, InputLabel, MenuItem } from '@mui/material';
-import CircularProgress from '@mui/material/CircularProgress';
 import TextField from '@mui/material/TextField';
 import { AddBox } from '@mui/icons-material';
 import { InstrumentDataRow } from './Settings';
@@ -18,12 +17,21 @@ interface NewDataRow {
     value: string;
 }
 
-export class Values extends React.Component<{}, {busy: boolean; values: Array<DataRow>; newValue: NewDataRow; instruments: Array<InstrumentDataRow>}> {
+interface ValuesState {
+    values: Array<DataRow>;
+    newValue: NewDataRow;
+    instruments: Array<InstrumentDataRow>;
+}
 
-    constructor(props:{}) {
+interface ValuesProps {
+    displayProgressBar: (isBusy: boolean) => void;
+}
+
+export class Values extends React.Component<ValuesProps, ValuesState> {
+
+    constructor(props:ValuesProps) {
         super(props);
         this.state = {
-            busy: true,
             values: [],
             instruments: [],
             newValue: {
@@ -40,9 +48,10 @@ export class Values extends React.Component<{}, {busy: boolean; values: Array<Da
     }
 
     componentDidMount() {
+        this.props.displayProgressBar(true)
         this.loadInstruments().then(() =>
             this.loadValues().then(() =>
-                this.setState({busy: false})
+                this.props.displayProgressBar(false)
             )
         );
     }
@@ -63,7 +72,7 @@ export class Values extends React.Component<{}, {busy: boolean; values: Array<Da
 
     addValue = () => {
         if (this.state.newValue.ticker && this.state.newValue.date && this.state.newValue.value) {
-            this.setState({busy: true});
+            this.props.displayProgressBar(true);
             fetch('/values/new', {method: 'POST', body: JSON.stringify(this.state.newValue)})
                 .then(res => {
                     this.setState({
@@ -73,7 +82,7 @@ export class Values extends React.Component<{}, {busy: boolean; values: Array<Da
                             value: '',
                         }
                     });
-                    this.loadValues().then(() => this.setState({busy: false}));
+                    this.loadValues().then(() => this.props.displayProgressBar(false));
                 });
         }
     }
@@ -81,48 +90,46 @@ export class Values extends React.Component<{}, {busy: boolean; values: Array<Da
     render() {
 
         return <Box>
-            {this.state.busy ?
-                <CircularProgress /> :
-                <TableContainer>
-                    <Table size="small">
-                        <TableHead>
-                            <TableRow>
-                                <TableCell>
-                                    <TextField label="Date" variant="outlined" size='small' margin='none' fullWidth
-                                    onChange={(e) => this.setState({newValue: {...this.state.newValue, date: e.target.value}})} />
-                                </TableCell>
-                                <TableCell>
-                                    <FormControl fullWidth size='small'>
-                                        <InputLabel id="ticker-select-label">Ticker</InputLabel>
-                                        <Select
-                                            labelId='ticker-select-label'
-                                            value={this.state.newValue.ticker}
-                                            label="Ticker"
-                                            onChange={(e) => this.setState({newValue: {...this.state.newValue, ticker: e.target.value}})}
-                                        >
-                                            {this.state.instruments.map(v => <MenuItem key={v.ticker} value={v.ticker}>{v.ticker}</MenuItem>)}
-                                        </Select>
-                                    </FormControl>
-                                </TableCell>
-                                <TableCell>
-                                    <TextField label="Value" variant="outlined" size='small' margin='none' fullWidth
-                                    onChange={(e) => this.setState({newValue: {...this.state.newValue, value: e.target.value}})} />
-                                </TableCell>
-                                <TableCell><IconButton onClick={this.addValue}><AddBox/></IconButton></TableCell>
+            <TableContainer>
+                <Table size="small">
+                    <TableHead>
+                        <TableRow>
+                            <TableCell>
+                                <TextField label="Date" variant="outlined" size='small' margin='none' fullWidth
+                                onChange={(e) => this.setState({newValue: {...this.state.newValue, date: e.target.value}})} />
+                            </TableCell>
+                            <TableCell>
+                                <FormControl fullWidth size='small'>
+                                    <InputLabel id="ticker-select-label">Ticker</InputLabel>
+                                    <Select
+                                        labelId='ticker-select-label'
+                                        value={this.state.newValue.ticker}
+                                        label="Ticker"
+                                        onChange={(e) => this.setState({newValue: {...this.state.newValue, ticker: e.target.value}})}
+                                    >
+                                        {this.state.instruments.map(v => <MenuItem key={v.ticker} value={v.ticker}>{v.ticker}</MenuItem>)}
+                                    </Select>
+                                </FormControl>
+                            </TableCell>
+                            <TableCell>
+                                <TextField label="Value" variant="outlined" size='small' margin='none' fullWidth
+                                onChange={(e) => this.setState({newValue: {...this.state.newValue, value: e.target.value}})} />
+                            </TableCell>
+                            <TableCell><IconButton onClick={this.addValue}><AddBox/></IconButton></TableCell>
+                        </TableRow>
+                    </TableHead>
+                    <TableBody>
+                        {this.state.values.map(
+                            (item, i) => <TableRow key={i}>
+                                <TableCell>{item.date}</TableCell>
+                                <TableCell>{item.ticker}</TableCell>
+                                <TableCell>{item.value}</TableCell>
+                                <TableCell></TableCell>
                             </TableRow>
-                        </TableHead>
-                        <TableBody>
-                            {this.state.values.map(
-                                (item, i) => <TableRow key={i}>
-                                    <TableCell>{item.date}</TableCell>
-                                    <TableCell>{item.ticker}</TableCell>
-                                    <TableCell>{item.value}</TableCell>
-                                    <TableCell></TableCell>
-                                </TableRow>
-                            )}
-                        </TableBody>
-                    </Table>
-                </TableContainer>}
+                        )}
+                    </TableBody>
+                </Table>
+            </TableContainer>
         </Box>
     }
 }

@@ -1,6 +1,5 @@
 import * as React from 'react';
 import { Box } from '@mui/material';
-import CircularProgress from '@mui/material/CircularProgress';
 import { LineChart, CartesianGrid, Line, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
 
@@ -12,28 +11,42 @@ interface ChartDataRow {
     profit: number;
 }
 
-export class Charts extends React.Component<{}, {busy: boolean; data: Array<ChartDataRow>}> {
+interface ChartState {
+    isBusy: boolean;
+    data: Array<ChartDataRow>;
+}
 
-    constructor(props:{}) {
+interface ChartProps {
+    displayProgressBar: (isBusy: boolean) => void;
+}
+
+export class Charts extends React.Component<ChartProps, ChartState> {
+
+    constructor(props:ChartProps) {
         super(props);
         this.state = {
-            busy: true,
+            isBusy: false,
             data: [],
         };
     }
 
     componentDidMount() {
+        this.setState({isBusy: true});
+        this.props.displayProgressBar(true);
         fetch('/detail')
             .then<Array<ChartDataRow>>(res => res.json())
-            .then(data => this.setState({busy: false, data}));
+            .then(data => {
+                this.setState({isBusy: false, data});
+                this.props.displayProgressBar(false);
+            });
     }
 
     render() {
 
         return <Box>
             <p>TODO Correction for old value + newer investments</p>
-            {this.state.busy ?
-                <CircularProgress /> :
+            {this.state.isBusy ?
+                null :
                 <ResponsiveContainer width="100%" height={500}>
                     <LineChart data={this.state.data} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
                         <CartesianGrid strokeDasharray="3 3" />

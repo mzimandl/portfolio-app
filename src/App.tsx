@@ -27,7 +27,7 @@ import { Charts } from './sections/Charts';
 import { Settings } from './sections/Settings';
 import { Values } from './sections/Values';
 import { Refresh } from '@mui/icons-material';
-import { CircularProgress, Icon } from '@mui/material';
+import { CircularProgress, Icon, LinearProgress } from '@mui/material';
 
 const drawerWidth = 240;
 
@@ -107,6 +107,7 @@ interface LastData {
 }
 
 interface AppState {
+  refreshing: boolean;
   isBusy: boolean;
   menuOpen: boolean;
   section: 'overview'|'charts'|'trades'|'values'|'settings';
@@ -118,6 +119,7 @@ export default class App extends React.Component<{}, AppState> {
   constructor() {
     super({});
     this.state = {
+      refreshing: false,
       isBusy: false,
       menuOpen: false,
       section: 'overview',
@@ -130,6 +132,7 @@ export default class App extends React.Component<{}, AppState> {
 
     this.loadLastDataDates = this.loadLastDataDates.bind(this);
     this.refreshData = this.refreshData.bind(this);
+    this.displayProgressBar = this.displayProgressBar.bind(this);
   }
 
   componentDidMount() {
@@ -139,16 +142,20 @@ export default class App extends React.Component<{}, AppState> {
   loadLastDataDates = () => {
       return fetch('/data/last')
         .then(res => res.json())
-        .then(lastData => this.setState({lastData, isBusy: false}));
+        .then(lastData => this.setState({lastData, refreshing: false}));
   }
 
   refreshData = () => {
-    this.setState({isBusy: true});
+    this.setState({refreshing: true});
     return fetch('/historical/update').then(res =>
       fetch('/fx/update').then(res =>
         this.loadLastDataDates()
       )
     )
+  }
+
+  displayProgressBar(isBusy: boolean) {
+    this.setState({isBusy});
   }
 
   render() {
@@ -177,7 +184,7 @@ export default class App extends React.Component<{}, AppState> {
               <Typography variant="body1" noWrap component="div" >
                 {Object.entries(this.state.lastData).map(([k, v]) => `${k}: ${v}`).join(' | ')}
               </Typography>
-              {this.state.isBusy ?
+              {this.state.refreshing ?
                 <Icon sx={{marginLeft: '36px'}}>
                   <CircularProgress color="inherit" size="small"/>
                 </Icon>:
@@ -192,6 +199,7 @@ export default class App extends React.Component<{}, AppState> {
               }
             </Toolbar>
           </Toolbar>
+          {this.state.isBusy ? <LinearProgress /> : null}
         </AppBar>
         <Drawer variant="permanent" open={this.state.menuOpen}>
           <DrawerHeader>
@@ -223,11 +231,11 @@ export default class App extends React.Component<{}, AppState> {
         </Drawer>
         <Box component="main" sx={{ flexGrow: 1, p: 3 }}>
           <DrawerHeader />
-          {this.state.section === 'overview' ? <Overview /> : null}
-          {this.state.section === 'trades' ? <Trades /> : null}
-          {this.state.section === 'charts' ? <Charts /> : null}
-          {this.state.section === 'settings' ? <Settings /> : null}
-          {this.state.section === 'values' ? <Values /> : null}
+          {this.state.section === 'overview' ? <Overview displayProgressBar={this.displayProgressBar} /> : null}
+          {this.state.section === 'trades' ? <Trades displayProgressBar={this.displayProgressBar} /> : null}
+          {this.state.section === 'charts' ? <Charts displayProgressBar={this.displayProgressBar} /> : null}
+          {this.state.section === 'settings' ? <Settings displayProgressBar={this.displayProgressBar} /> : null}
+          {this.state.section === 'values' ? <Values displayProgressBar={this.displayProgressBar} /> : null}
         </Box>
       </Box>
     );
