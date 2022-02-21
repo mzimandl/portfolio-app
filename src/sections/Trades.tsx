@@ -1,4 +1,4 @@
-import * as React from 'react';
+import { AbstractSection, SectionProps } from './common';
 import { Table, TableBody, TableHead, TableContainer, TableRow, TableCell, Box, IconButton, FormControl, Select, InputLabel, MenuItem } from '@mui/material';
 import TextField from '@mui/material/TextField';
 import { AddBox } from '@mui/icons-material';
@@ -29,13 +29,13 @@ interface TradesState {
     instruments: Array<InstrumentDataRow>;
 }
 
-interface TradesProps {
-    displayProgressBar: (isBusy: boolean) => void;
-}
+interface TradesProps {}
 
-export class Trades extends React.Component<TradesProps, TradesState> {
+export class Trades extends AbstractSection<TradesProps, TradesState> {
 
-    constructor(props:TradesProps) {
+    sectionName = () => 'Trades';
+
+    constructor(props:TradesProps & SectionProps) {
         super(props);
         this.state = {
             trades: [],
@@ -57,6 +57,7 @@ export class Trades extends React.Component<TradesProps, TradesState> {
     }
 
     componentDidMount() {
+        super.componentDidMount();
         this.props.displayProgressBar(true);
         this.loadInstruments().then(() =>
             this.loadTrades().then(() =>

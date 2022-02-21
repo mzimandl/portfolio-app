@@ -1,5 +1,5 @@
-import * as React from 'react';
 import { Table, TableBody, TableHead, TableContainer, TableRow, TableCell, Box, Typography, Card, CardContent, Grid } from '@mui/material';
+import { AbstractSection, SectionProps } from './common';
 
 
 interface OverviewDataRow {
@@ -20,13 +20,13 @@ interface OverviewState {
     overview: Array<OverviewDataRow>;
 }
 
-interface OverviewProps {
-    displayProgressBar: (isBusy: boolean) => void;
-}
+interface OverviewProps {}
 
-export class Overview extends React.Component<OverviewProps, OverviewState> {
+export class Overview extends AbstractSection<OverviewProps, OverviewState> {
 
-    constructor(props:OverviewProps) {
+    sectionName = () => 'Overview';
+
+    constructor(props: OverviewProps & SectionProps) {
         super(props);
         this.state = {
             investment: 0,
@@ -40,6 +40,7 @@ export class Overview extends React.Component<OverviewProps, OverviewState> {
     }
 
     componentDidMount() {
+        super.componentDidMount();
         this.props.displayProgressBar(true)
         this.loadOverview().then(() =>
             this.props.displayProgressBar(false)

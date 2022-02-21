@@ -29,6 +29,8 @@ import { Values } from './sections/Values';
 import { Refresh } from '@mui/icons-material';
 import { CircularProgress, Icon, LinearProgress } from '@mui/material';
 
+import { Routes, Route, Navigate, Link } from 'react-router-dom';
+
 const drawerWidth = 240;
 
 const openedMixin = (theme: Theme): CSSObject => ({
@@ -110,8 +112,8 @@ interface AppState {
   refreshing: boolean;
   isBusy: boolean;
   menuOpen: boolean;
-  section: 'overview'|'charts'|'trades'|'values'|'settings';
   lastData: LastData;
+  heading: string;
 }
 
 export default class App extends React.Component<{}, AppState> {
@@ -122,17 +124,18 @@ export default class App extends React.Component<{}, AppState> {
       refreshing: false,
       isBusy: false,
       menuOpen: false,
-      section: 'overview',
       lastData: {
         historical: '',
         fx: '',
         manual_value: '',
-      }
+      },
+      heading: '',
     }
 
     this.loadLastDataDates = this.loadLastDataDates.bind(this);
     this.refreshData = this.refreshData.bind(this);
     this.displayProgressBar = this.displayProgressBar.bind(this);
+    this.setHeading = this.setHeading.bind(this);
   }
 
   componentDidMount() {
@@ -158,6 +161,10 @@ export default class App extends React.Component<{}, AppState> {
     this.setState({isBusy});
   }
 
+  setHeading(heading: string) {
+    this.setState({heading});
+  }
+
   render() {
     return (
       <Box sx={{ display: 'flex' }}>
@@ -176,9 +183,7 @@ export default class App extends React.Component<{}, AppState> {
             >
               <MenuIcon />
             </IconButton>
-            <Typography variant="h6" noWrap component="div">
-              {this.state.section[0].toUpperCase() + this.state.section.slice(1)}
-            </Typography>
+            <Typography variant="h6" noWrap component="div">{this.state.heading}</Typography>
 
             <Toolbar sx={{marginLeft: 'auto'}} >
               <Typography variant="body1" noWrap component="div" >
@@ -207,35 +212,48 @@ export default class App extends React.Component<{}, AppState> {
           </DrawerHeader>
           <Divider />
           <List>
-            <ListItem button key="overview" onClick={() => this.setState({section: 'overview'})}>
-              <ListItemIcon><AnalyticsOutlinedIcon /></ListItemIcon>
-              <ListItemText primary="Overview" />
-            </ListItem>
-            <ListItem button key="charts" onClick={() => this.setState({section: 'charts'})}>
-              <ListItemIcon><TimelineIcon /></ListItemIcon>
-              <ListItemText primary="Charts" />
-            </ListItem>
-            <ListItem button key="trades" onClick={() => this.setState({section: 'trades'})}>
-              <ListItemIcon><CurrencyExchangeIcon /></ListItemIcon>
-              <ListItemText primary="Trades" />
-            </ListItem>
-            <ListItem button key="values" onClick={() => this.setState({section: 'values'})}>
-              <ListItemIcon><AccountBalanceOutlinedIcon /></ListItemIcon>
-              <ListItemText primary="Values" />
-            </ListItem>
-            <ListItem button key="settings" onClick={() => this.setState({section: 'settings'})}>
-              <ListItemIcon><SettingsOutlinedIcon /></ListItemIcon>
-              <ListItemText primary="Settings" />
-            </ListItem>
+            <Link to="/overview" style={{color: 'inherit', textDecoration: 'none'}}>
+              <ListItem button key="overview">
+                <ListItemIcon><AnalyticsOutlinedIcon /></ListItemIcon>
+                <ListItemText primary="Overview" />
+              </ListItem>
+            </Link>
+            <Link to="/charts" style={{color: 'inherit', textDecoration: 'none'}}>
+              <ListItem button key="charts">
+                <ListItemIcon><TimelineIcon /></ListItemIcon>
+                <ListItemText primary="Charts" />
+              </ListItem>
+            </Link>
+            <Link to="/trades" style={{color: 'inherit', textDecoration: 'none'}}>
+              <ListItem button key="trades">
+                <ListItemIcon><CurrencyExchangeIcon /></ListItemIcon>
+                <ListItemText primary="Trades" />
+              </ListItem>
+            </Link>
+            <Link to="/values" style={{color: 'inherit', textDecoration: 'none'}}>
+              <ListItem button key="values">
+                <ListItemIcon><AccountBalanceOutlinedIcon /></ListItemIcon>
+                <ListItemText primary="Values" />
+              </ListItem>
+            </Link>
+            <Link to="/settings" style={{color: 'inherit', textDecoration: 'none'}}>
+              <ListItem button key="settings">
+                <ListItemIcon><SettingsOutlinedIcon /></ListItemIcon>
+                <ListItemText primary="Settings" />
+              </ListItem>
+            </Link>
           </List>
         </Drawer>
         <Box component="main" sx={{ flexGrow: 1, p: 3 }}>
           <DrawerHeader />
-          {this.state.section === 'overview' ? <Overview displayProgressBar={this.displayProgressBar} /> : null}
-          {this.state.section === 'trades' ? <Trades displayProgressBar={this.displayProgressBar} /> : null}
-          {this.state.section === 'charts' ? <Charts displayProgressBar={this.displayProgressBar} /> : null}
-          {this.state.section === 'settings' ? <Settings displayProgressBar={this.displayProgressBar} /> : null}
-          {this.state.section === 'values' ? <Values displayProgressBar={this.displayProgressBar} /> : null}
+          <Routes>
+            <Route path="/overview" element={<Overview setHeading={this.setHeading} displayProgressBar={this.displayProgressBar} />}/>
+            <Route path="/trades" element={<Trades setHeading={this.setHeading} displayProgressBar={this.displayProgressBar} />}/>
+            <Route path="/charts" element={<Charts setHeading={this.setHeading} displayProgressBar={this.displayProgressBar} />}/>
+            <Route path="/settings" element={<Settings setHeading={this.setHeading} displayProgressBar={this.displayProgressBar} />}/>
+            <Route path="/values" element={<Values setHeading={this.setHeading} displayProgressBar={this.displayProgressBar} />}/>
+            <Route path="*" element={<Navigate to="/overview" />} />
+          </Routes>
         </Box>
       </Box>
     );

@@ -1,4 +1,5 @@
 import * as React from 'react';
+import { AbstractSection, SectionProps } from './common';
 import { Table, TableBody, TableHead, TableContainer, TableRow, TableCell, Box, IconButton, FormControl, Select, InputLabel, MenuItem } from '@mui/material';
 import TextField from '@mui/material/TextField';
 import { AddBox } from '@mui/icons-material';
@@ -23,13 +24,13 @@ interface ValuesState {
     instruments: Array<InstrumentDataRow>;
 }
 
-interface ValuesProps {
-    displayProgressBar: (isBusy: boolean) => void;
-}
+interface ValuesProps {}
 
-export class Values extends React.Component<ValuesProps, ValuesState> {
+export class Values extends AbstractSection<ValuesProps, ValuesState> {
 
-    constructor(props:ValuesProps) {
+    sectionName = () => 'Values';
+
+    constructor(props: ValuesProps & SectionProps) {
         super(props);
         this.state = {
             values: [],
@@ -41,13 +42,11 @@ export class Values extends React.Component<ValuesProps, ValuesState> {
             }
         };
 
-        this.loadInstruments = this.loadInstruments.bind(this);
-        this.loadValues = this.loadValues.bind(this);
-
         this.addValue = this.addValue.bind(this);
     }
 
     componentDidMount() {
+        super.componentDidMount();
         this.props.displayProgressBar(true)
         this.loadInstruments().then(() =>
             this.loadValues().then(() =>

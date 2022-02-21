@@ -1,4 +1,4 @@
-import * as React from 'react';
+import { AbstractSection, SectionProps } from './common';
 import { Table, TableBody, TableHead, TableContainer, TableRow, TableCell, Box, IconButton, FormControl, Grid, InputLabel, Select, MenuItem } from '@mui/material';
 import TextField from '@mui/material/TextField';
 import { AddBox } from '@mui/icons-material';
@@ -22,13 +22,13 @@ interface SettingsState {
     }
 }
 
-interface SettingsProps {
-    displayProgressBar: (isBusy: boolean) => void;
-}
+interface SettingsProps {}
 
-export class Settings extends React.Component<SettingsProps, SettingsState> {
+export class Settings extends AbstractSection<SettingsProps, SettingsState> {
 
-    constructor(props:SettingsProps) {
+    sectionName = () => 'Settings';
+
+    constructor(props: SettingsProps & SectionProps) {
         super(props);
         this.state = {
             instruments: [],
@@ -55,6 +55,7 @@ export class Settings extends React.Component<SettingsProps, SettingsState> {
     }
 
     componentDidMount() {
+        super.componentDidMount();
         this.props.displayProgressBar(true)
         this.loadCurrencies().then(() =>
             this.loadTypes().then(() =>

@@ -1,6 +1,6 @@
-import * as React from 'react';
 import { Box } from '@mui/material';
 import { LineChart, CartesianGrid, Line, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { AbstractSection, SectionProps } from './common';
 
 
 interface ChartDataRow {
@@ -16,13 +16,13 @@ interface ChartState {
     data: Array<ChartDataRow>;
 }
 
-interface ChartProps {
-    displayProgressBar: (isBusy: boolean) => void;
-}
+interface ChartProps {}
 
-export class Charts extends React.Component<ChartProps, ChartState> {
+export class Charts extends AbstractSection<ChartProps, ChartState> {
 
-    constructor(props:ChartProps) {
+    sectionName = () => 'Charts';
+
+    constructor(props: ChartProps & SectionProps) {
         super(props);
         this.state = {
             isBusy: false,
@@ -31,6 +31,7 @@ export class Charts extends React.Component<ChartProps, ChartState> {
     }
 
     componentDidMount() {
+        super.componentDidMount();
         this.setState({isBusy: true});
         this.props.displayProgressBar(true);
         fetch('/detail')
