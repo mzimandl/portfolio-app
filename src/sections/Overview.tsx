@@ -49,7 +49,7 @@ export class Overview extends React.Component<OverviewProps, OverviewState> {
     loadOverview() {
         const params = new URLSearchParams();
         // params.append('ticker', 'CEZ.PR');
-        return fetch(`/overview?${params.toString()}`)
+        return fetch(`/overview/get?${params.toString()}`)
             .then<Array<OverviewDataRow>>(res => res.json())
             .then(overview => this.setState({
                 overview,

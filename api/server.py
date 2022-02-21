@@ -122,7 +122,7 @@ async def handler(request:sanic.Request):
     return sanic.response.json({'success': True})
 
 
-@app.get("/overview")
+@app.get("/overview/get")
 async def handler(request:sanic.Request):
     cursor = db.cursor()
     cursor.execute('''
