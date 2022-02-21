@@ -34,7 +34,7 @@ export class Charts extends AbstractSection<ChartProps, ChartState> {
         super.componentDidMount();
         this.setState({isBusy: true});
         this.props.displayProgressBar(true);
-        fetch('/detail')
+        fetch('/charts/get')
             .then<Array<ChartDataRow>>(res => res.json())
             .then(data => {
                 this.setState({isBusy: false, data});
@@ -45,7 +45,6 @@ export class Charts extends AbstractSection<ChartProps, ChartState> {
     render() {
 
         return <Box>
-            <p>TODO Correction for old value + newer investments</p>
             {this.state.isBusy ?
                 null :
                 <ResponsiveContainer width="100%" height={500}>

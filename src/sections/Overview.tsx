@@ -63,8 +63,9 @@ export class Overview extends AbstractSection<OverviewProps, OverviewState> {
 
     render() {
 
-        return <Box>
+        return (
             <Box>
+                <p>TODO Correction for old value + newer investments</p>
                 <Grid container spacing={2}>
                     <Grid item xs={3}>
                         <Card elevation={3}>
@@ -129,6 +130,6 @@ export class Overview extends AbstractSection<OverviewProps, OverviewState> {
                     </Table>
                 </TableContainer>
             </Box>
-        </Box>
+        )
     }
 }

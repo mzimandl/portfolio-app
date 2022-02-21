@@ -131,16 +131,17 @@ async def handler(request:sanic.Request):
             sum(volume) as volume,
             sum(CASE WHEN fee THEN fee ELSE 0 END) as fee,
             sum(price*(CASE WHEN volume THEN volume ELSE 1 END)/(CASE WHEN rate THEN rate ELSE 1 END)) as invested,
-            (select close from historical as t where t.ticker = it.ticker order by t.date desc limit 1) as last_price,
+            (select close from historical where ticker = it.ticker order by date desc) as last_price,
             (case when it.value_mode = 'manual' then
                 (case when it.currency = ? then 1 else
-                    (select close from fx as t where t.from_curr = it.currency and t.to_curr = ? order by t.date desc limit 1)
-                end)*
-                (select value from manual_values as t where t.ticker = it.ticker order by t.date desc limit 1)
+                    (select close from fx where from_curr = it.currency and to_curr = ? order by date desc)
+                end)*(
+                    (select value from manual_values where ticker = it.ticker order by date desc)
+                )
             else
-                (select close from historical as t where t.ticker = it.ticker order by t.date desc limit 1)*
+                (select close from historical where ticker = it.ticker order by date desc)*
                 (case when it.currency = ? then 1 else
-                    (select close from fx as t where t.from_curr = it.currency and t.to_curr = ? order by t.date desc limit 1)
+                    (select close from fx where from_curr = it.currency and to_curr = ? order by date desc)
                 end)*
                 sum(volume)
             end) as value
@@ -156,35 +157,50 @@ async def handler(request:sanic.Request):
     } for d in cursor])
 
 
-@app.get("/detail")
+@app.get("/charts/get")
 async def handler(request:sanic.Request):
     cursor = db.cursor()
     cursor.execute('''
         select
             date,
-            sum(case when value_mode='manual' THEN fx_price*manual_value ELSE fx_price*last_price*volume END) as value,
             sum(fee) as fee,
             sum(investment) as investment,
-            sum(case when value_mode='manual' THEN fx_price*manual_value ELSE fx_price*last_price*volume END)-sum(investment)-sum(fee) as profit
+            sum(case when value_mode='manual'
+                THEN fx_price*(manual_value+(case when manual_value_correction then manual_value_correction else 0 end))
+                ELSE fx_price*last_price*volume
+            END) as value,
+            sum(case when value_mode='manual'
+                THEN fx_price*(manual_value+(case when manual_value_correction then manual_value_correction else 0 end))
+                ELSE fx_price*last_price*volume
+            END)-sum(investment)-sum(fee) as profit
         from (
             select
                 dt.date,
                 it.ticker,
                 it.value_mode,
                 sum(
-                    (case when tt.volume then tt.volume else 1 end)*
-                    tt.price/
+                    (case when tt.volume then tt.volume else 1 end)*tt.price/
                     (case when tt.rate then tt.rate else 1 end)
                 ) over (PARTITION BY it.ticker ORDER BY dt.date RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) as investment,
                 sum(tt.volume) over (PARTITION BY it.ticker ORDER BY dt.date RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) as volume,
-                (select close from historical as t where t.date <= dt.date and t.ticker = it.ticker order by t.date desc limit 1) as last_price,
+                (select close from historical where date <= dt.date and ticker = it.ticker order by date desc) as last_price,
                 (case when it.currency = ? then 1 else
-                    (select close from fx as t where t.from_curr = it.currency and t.to_curr = ? order by t.date desc limit 1)
+                    (select close from fx where from_curr = it.currency and to_curr = ? order by date desc)
                 end) as fx_price,
                 sum(tt.fee) over (PARTITION BY it.ticker ORDER BY dt.date RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) as fee,
                 (case when it.value_mode='manual' then
-                    (select value from manual_values as t where t.date <= dt.date and t.ticker = it.ticker order by t.date desc limit 1)
-                else null end) as manual_value
+                    (select value from manual_values where date <= dt.date and ticker = it.ticker order by date desc)
+                else null end) as manual_value,
+                (case when it.value_mode='manual' then
+                    (select
+                        sum(
+                            (case when volume then volume else 1 end)*price/
+                            (case when rate then rate else 1 end)
+                        ) from trades
+                        where date <= dt.date and ticker = it.ticker and date >
+                            (select date from manual_values where date <= dt.date and ticker = it.ticker order by date desc)
+                    )
+                else null end) as manual_value_correction
             from (
                 select distinct date from fx UNION
                 select distinct date from trades UNION
@@ -314,8 +330,8 @@ async def handler(request:sanic.Request):
     return sanic.response.json({'success': True})
 
 
-@app.get("/")
-async def handler(request):
+@app.route("/<path:path>")
+async def handler(request, path):
     return await sanic.response.file(os.path.join(FILE_PATH, "../build/index.html"))
 
 
