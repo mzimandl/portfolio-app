@@ -43,8 +43,6 @@ export class Overview extends AbstractSection<OverviewProps, OverviewState> {
             profit: 0,
             overview: [],
         };
-
-        this.loadOverview = this.loadOverview.bind(this);
     }
 
     componentDidMount() {

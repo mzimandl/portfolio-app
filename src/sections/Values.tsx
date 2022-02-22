@@ -1,4 +1,3 @@
-import * as React from 'react';
 import { AbstractSection, SectionProps } from './common';
 import { Table, TableBody, TableHead, TableContainer, TableRow, TableCell, Box, IconButton, FormControl, Select, InputLabel, MenuItem } from '@mui/material';
 import TextField from '@mui/material/TextField';

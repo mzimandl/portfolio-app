@@ -132,8 +132,6 @@ export default class App extends React.Component<{}, AppState> {
       heading: '',
     }
 
-    this.loadLastDataDates = this.loadLastDataDates.bind(this);
-    this.refreshData = this.refreshData.bind(this);
     this.displayProgressBar = this.displayProgressBar.bind(this);
     this.setHeading = this.setHeading.bind(this);
   }

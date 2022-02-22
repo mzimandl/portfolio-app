@@ -50,9 +50,6 @@ export class Settings extends AbstractSection<SettingsProps, SettingsState> {
             },
         };
 
-        this.loadInstruments = this.loadInstruments.bind(this);
-        this.loadCurrencies = this.loadCurrencies.bind(this);
-        this.loadTypes = this.loadTypes.bind(this);
         this.addInstrument = this.addInstrument.bind(this);
         this.addCurrency = this.addCurrency.bind(this);
         this.addType = this.addType.bind(this);

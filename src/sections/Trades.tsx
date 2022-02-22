@@ -50,9 +50,6 @@ export class Trades extends AbstractSection<TradesProps, TradesState> {
             }
         };
 
-        this.loadInstruments = this.loadInstruments.bind(this);
-        this.loadTrades = this.loadTrades.bind(this);
-
         this.addTrade = this.addTrade.bind(this);
     }
 
