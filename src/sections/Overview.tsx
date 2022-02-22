@@ -11,6 +11,7 @@ interface OverviewDataRow {
     fee: number;
     invested: number;
     profit: number;
+    manual_value_correction: number;
 }
 
 interface OverviewResponse {
@@ -69,7 +70,6 @@ export class Overview extends AbstractSection<OverviewProps, OverviewState> {
 
         return (
             <Box>
-                <p>TODO Correction for old value + newer investments</p>
                 <Grid container spacing={2}>
                     <Grid item xs={3}>
                         <Card elevation={3}>

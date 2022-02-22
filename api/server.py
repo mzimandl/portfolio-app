@@ -143,7 +143,17 @@ async def handler(request:sanic.Request):
                     (select close from fx where from_curr = it.currency and to_curr = ? order by date desc)
                 end)*
                 sum(volume)
-            end) as value
+            end) as value,
+            (case when it.evaluation='manual' then
+                (select
+                    sum(
+                        (case when volume then volume else 1 end)*price/
+                        (case when rate then rate else 1 end)
+                    ) from trades
+                    where ticker = it.ticker and date >
+                        (select date from manual_values where ticker = it.ticker order by date desc)
+                )
+            else null end) as manual_value_correction
         FROM trades as tt
         JOIN instruments as it on it.ticker = tt.ticker
         GROUP BY tt.ticker
@@ -154,7 +164,8 @@ async def handler(request:sanic.Request):
         'base_currency': config.base_currency,
         'overview': [{
             **dict(d),
-            'profit': d['value'] - d['invested'] - d['fee']
+            'value': d['value'] + (d['manual_value_correction'] if d['manual_value_correction'] else 0),
+            'profit': d['value'] - d['invested'] - d['fee'] + (d['manual_value_correction'] if d['manual_value_correction'] else 0),
         } for d in cursor]
     })
 
