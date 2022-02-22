@@ -314,7 +314,7 @@ async def handler(request:sanic.Request):
         FROM trades AS tt
         JOIN instruments AS it ON it.ticker = tt.ticker
         {f'WHERE {sql_where}' if where else ''}
-        ORDER BY date''',
+        ORDER BY date DESC''',
         [v for _, v in where]
     )
 
@@ -348,7 +348,7 @@ async def handler(request:sanic.Request):
         FROM manual_values AS mvt
         JOIN instruments AS it ON it.ticker = mvt.ticker
         {f'WHERE {sql_where}' if where else ''}
-        ORDER BY date''',
+        ORDER BY date DESC''',
         [v for _, v in where]
     )
     return sanic.response.json([dict(d) for d in cursor])
