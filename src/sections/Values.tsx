@@ -108,7 +108,10 @@ export class Values extends AbstractSection<ValuesProps, ValuesState> {
                                         label="Ticker"
                                         onChange={(e) => this.setState({newValue: {...this.state.newValue, ticker: e.target.value}})}
                                     >
-                                        {this.state.instruments.map(v => <MenuItem key={v.ticker} value={v.ticker}>{v.ticker}</MenuItem>)}
+                                        {this.state.instruments
+                                            .filter(v => v.evaluation === 'manual')
+                                            .map(v => <MenuItem key={v.ticker} value={v.ticker}>{v.ticker}</MenuItem>)
+                                        }
                                     </Select>
                                 </FormControl>
                             </TableCell>

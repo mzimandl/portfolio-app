@@ -4,11 +4,13 @@ import TextField from '@mui/material/TextField';
 import { AddBox } from '@mui/icons-material';
 
 
+type EvaluationType = 'yfinance'|'manual'|'http';
+
 export interface InstrumentDataRow {
     ticker: string;
     currency: string;
     type: string;
-    evaluation: string;
+    evaluation: EvaluationType;
     eval_param: string;
 }
 
@@ -44,7 +46,7 @@ export class Settings extends AbstractSection<SettingsProps, SettingsState> {
                     ticker: '',
                     currency: '',
                     type: '',
-                    evaluation: '',
+                    evaluation: 'yfinance',
                     eval_param: '',
                 },
                 currency: '',
@@ -99,7 +101,7 @@ export class Settings extends AbstractSection<SettingsProps, SettingsState> {
                                 ticker: '',
                                 currency: '',
                                 type: '',
-                                evaluation: '',
+                                evaluation: 'yfinance',
                                 eval_param: '',
                             }
                         }
@@ -226,7 +228,7 @@ export class Settings extends AbstractSection<SettingsProps, SettingsState> {
                                                 labelId='vmode-select-label'
                                                 value={this.state.new.instrument.evaluation}
                                                 label="Value mode"
-                                                onChange={(e) => this.setState({new: {...this.state.new, instrument: {...this.state.new.instrument, evaluation: e.target.value}}})}
+                                                onChange={(e) => this.setState({new: {...this.state.new, instrument: {...this.state.new.instrument, evaluation: e.target.value as EvaluationType}}})}
                                             >
                                                 <MenuItem value="yfinance">yfinance</MenuItem>
                                                 <MenuItem value="manual">manual</MenuItem>
