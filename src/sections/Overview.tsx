@@ -4,6 +4,7 @@ import { AbstractSection, SectionProps } from './common';
 
 interface OverviewDataRow {
     ticker: string;
+    currency: string;
     last_price: number;
     volume: number;
     value: number;
@@ -12,7 +13,13 @@ interface OverviewDataRow {
     profit: number;
 }
 
+interface OverviewResponse {
+    base_currency: string;
+    overview: Array<OverviewDataRow>;
+}
+
 interface OverviewState {
+    base_currency: string|undefined;
     investment: number;
     fees: number;
     value: number;
@@ -29,6 +36,7 @@ export class Overview extends AbstractSection<OverviewProps, OverviewState> {
     constructor(props: OverviewProps & SectionProps) {
         super(props);
         this.state = {
+            base_currency: undefined,
             investment: 0,
             fees: 0,
             value: 0,
@@ -51,14 +59,26 @@ export class Overview extends AbstractSection<OverviewProps, OverviewState> {
         const params = new URLSearchParams();
         // params.append('ticker', 'CEZ.PR');
         return fetch(`/overview/get?${params.toString()}`)
-            .then<Array<OverviewDataRow>>(res => res.json())
-            .then(overview => this.setState({
-                overview,
-                investment: overview.reduce((prev, cur, i) => prev + cur.invested, 0),
-                fees: overview.reduce((prev, cur, i) => prev + cur.fee, 0),
-                value: overview.reduce((prev, cur, i) => prev + cur.value, 0),
-                profit: overview.reduce((prev, cur, i) => prev + cur.profit, 0),
+            .then<OverviewResponse>(res => res.json())
+            .then(data => this.setState({
+                ...data,
+                investment: data.overview.reduce((prev, cur, i) => prev + cur.invested, 0),
+                fees: data.overview.reduce((prev, cur, i) => prev + cur.fee, 0),
+                value: data.overview.reduce((prev, cur, i) => prev + cur.value, 0),
+                profit: data.overview.reduce((prev, cur, i) => prev + cur.profit, 0),
             }));
+    }
+
+    formatCurrency(value: number, currency?: string): string|null {
+        if (value && (this.state.base_currency || currency))
+            return value.toLocaleString(undefined, {style: 'currency', currency: currency ? currency : this.state.base_currency});
+        return null;
+    }
+
+    formatPercents(value: number): string|null {
+        if (value)
+            return value.toLocaleString(undefined, {style: 'percent', minimumFractionDigits: 1});
+        return null;
     }
 
     render() {
@@ -71,7 +91,9 @@ export class Overview extends AbstractSection<OverviewProps, OverviewState> {
                         <Card elevation={3}>
                             <CardContent>
                                 <Typography variant="h5" component="div">Investment</Typography>
-                                <Typography sx={{ mb: 1.5 }} color="text.secondary">{this.state.investment.toFixed()}</Typography>
+                                <Typography sx={{ mb: 1.5 }} color="text.secondary">
+                                    {this.formatCurrency(this.state.investment)}
+                                </Typography>
                             </CardContent>
                         </Card>
                     </Grid>
@@ -79,7 +101,9 @@ export class Overview extends AbstractSection<OverviewProps, OverviewState> {
                         <Card elevation={3}>
                             <CardContent>
                                 <Typography variant="h5" component="div">Fees</Typography>
-                                <Typography sx={{ mb: 1.5 }} color="text.secondary">{this.state.fees.toFixed(2)}</Typography>
+                                <Typography sx={{ mb: 1.5 }} color="text.secondary">
+                                    {this.formatCurrency(this.state.fees)}
+                                </Typography>
                             </CardContent>
                         </Card>
                     </Grid>
@@ -87,7 +111,9 @@ export class Overview extends AbstractSection<OverviewProps, OverviewState> {
                         <Card elevation={3}>
                             <CardContent>
                                 <Typography variant="h5" component="div">Value</Typography>
-                                <Typography sx={{ mb: 1.5 }} color="text.secondary">{this.state.value.toFixed()}</Typography>
+                                <Typography sx={{ mb: 1.5 }} color="text.secondary">
+                                    {this.formatCurrency(this.state.value)}
+                                </Typography>
                             </CardContent>
                         </Card>
                     </Grid>
@@ -95,35 +121,38 @@ export class Overview extends AbstractSection<OverviewProps, OverviewState> {
                         <Card elevation={3}>
                             <CardContent>
                                 <Typography variant="h5" component="div">Profit</Typography>
-                                <Typography sx={{ mb: 1.5 }} color="text.secondary">{this.state.profit.toFixed(2)} ({(100*this.state.profit/this.state.investment).toFixed(1)}%)</Typography>
+                                <Typography sx={{ mb: 1.5 }} color="text.secondary">
+                                    {this.formatCurrency(this.state.profit)} ({this.formatPercents(this.state.profit/this.state.investment)})
+                                </Typography>
                             </CardContent>
                         </Card>
                     </Grid>
                 </Grid>
-            
+
                 <TableContainer>
                     <Table size="small">
                         <TableHead>
                             <TableRow>
                                 <TableCell>Ticker</TableCell>
-                                <TableCell>Last price</TableCell>
-                                <TableCell>Volume</TableCell>
-                                <TableCell>Invested</TableCell>
-                                <TableCell>Fee</TableCell>
-                                <TableCell>Value</TableCell>
-                                <TableCell>Profit</TableCell>
+                                <TableCell align='right'>Last price</TableCell>
+                                <TableCell align='center'>Volume</TableCell>
+                                <TableCell align='right'>Invested</TableCell>
+                                <TableCell align='right'>Fee</TableCell>
+                                <TableCell align='right'>Value</TableCell>
+                                <TableCell colSpan={2} align='center'>Profit</TableCell>
                             </TableRow>
                         </TableHead>
                         <TableBody>
                             {this.state.overview.map(
-                                (item, i) => <TableRow key={i} sx={{backgroundColor: item.profit < 0 ? 'rgba(255,0,0,0.3)' : 'rgba(0,255,0,0.3)'}}>
+                                (item, i) => <TableRow key={i} sx={{backgroundColor: item.profit < 0 ? 'rgba(255,0,0,0.25)' : 'rgba(0,255,0,0.25)'}}>
                                     <TableCell>{item.ticker}</TableCell>
-                                    <TableCell>{item.last_price ? item.last_price.toFixed(2) : null}</TableCell>
-                                    <TableCell>{item.volume ? item.volume : null}</TableCell>
-                                    <TableCell>{item.invested.toFixed()}</TableCell>
-                                    <TableCell>{item.fee.toFixed(2)}</TableCell>
-                                    <TableCell>{item.value.toFixed()}</TableCell>
-                                    <TableCell>{item.profit.toFixed(2)} ({(100*item.profit/item.invested).toFixed(1)}%)</TableCell>
+                                    <TableCell align='right'>{this.formatCurrency(item.last_price, item.currency)}</TableCell>
+                                    <TableCell align='center'>{item.volume ? item.volume : null}</TableCell>
+                                    <TableCell align='right'>{this.formatCurrency(item.invested)}</TableCell>
+                                    <TableCell align='right'>{this.formatCurrency(item.fee)}</TableCell>
+                                    <TableCell align='right'>{this.formatCurrency(item.value)}</TableCell>
+                                    <TableCell align='right'>{this.formatCurrency(item.profit)}</TableCell>
+                                    <TableCell align='right'>{this.formatPercents(item.profit/item.invested)}</TableCell>
                                 </TableRow>
                             )}
                         </TableBody>

@@ -1,7 +1,9 @@
 import os
 import time
 import datetime
+import json
 import sqlite3
+from typing import NamedTuple
 import webbrowser
 
 import requests
@@ -10,8 +12,6 @@ import sanic.response
 import yfinance
 
 FILE_PATH = os.path.dirname(__file__)
-BASE_CURRENCY = 'CZK'
-
 
 yfinance_fx = {
     ('USD', 'CZK'): 'CZK=X'
@@ -22,6 +22,11 @@ def get_yfinance_fx_ticker(from_curr: str, to_curr: str):
     except KeyError:
         return f'{from_curr}{to_curr}=X'
 
+class Config(NamedTuple):
+    base_currency: str
+
+with open(os.path.join(FILE_PATH, '../config.json')) as f:
+    config = Config(**json.load(f))
 
 app = sanic.Sanic("PortfolioApp")
 app.static('/static', os.path.join(FILE_PATH, '../build/static'))
@@ -102,12 +107,12 @@ async def handler(request:sanic.Request):
         DO UPDATE SET open = excluded.open, high = excluded.high, low = excluded.low, close = excluded.close
     '''
     for currency in currencies:
-        if currency != BASE_CURRENCY:
-            ticker = get_yfinance_fx_ticker(currency, BASE_CURRENCY)
+        if currency != config.base_currency:
+            ticker = get_yfinance_fx_ticker(currency, config.base_currency)
             yticker = yfinance.Ticker(ticker)
             df = yticker.history(start=datetime.datetime(*first_trade))
             cursor.executemany(sql, [
-                (date.strftime('%Y-%m-%d'), currency, BASE_CURRENCY, row['Open'], row['High'], row['Low'], row['Close'])
+                (date.strftime('%Y-%m-%d'), currency, config.base_currency, row['Open'], row['High'], row['Low'], row['Close'])
                 for date, row in df.iterrows()
             ])
             db.commit()
@@ -121,6 +126,7 @@ async def handler(request:sanic.Request):
     cursor.execute('''
         SELECT
             tt.ticker,
+            it.currency,
             sum(volume) as volume,
             sum(CASE WHEN fee THEN fee ELSE 0 END) as fee,
             sum(price*(CASE WHEN volume THEN volume ELSE 1 END)/(CASE WHEN rate THEN rate ELSE 1 END)) as invested,
@@ -142,12 +148,15 @@ async def handler(request:sanic.Request):
         JOIN instruments as it on it.ticker = tt.ticker
         GROUP BY tt.ticker
         ORDER BY tt.ticker
-        ''', [BASE_CURRENCY, BASE_CURRENCY, BASE_CURRENCY, BASE_CURRENCY]
+        ''', [config.base_currency, config.base_currency, config.base_currency, config.base_currency]
     )
-    return sanic.response.json([{
-        **dict(d),
-        'profit': d['value'] - d['invested'] - d['fee']
-    } for d in cursor])
+    return sanic.response.json({
+        'base_currency': config.base_currency,
+        'overview': [{
+            **dict(d),
+            'profit': d['value'] - d['invested'] - d['fee']
+        } for d in cursor]
+    })
 
 
 @app.get("/charts/get")
@@ -208,7 +217,7 @@ async def handler(request:sanic.Request):
         group by date
         having sum(investment)
         order by date
-    ''', [BASE_CURRENCY, BASE_CURRENCY])
+    ''', [config.base_currency, config.base_currency])
     return sanic.response.json([dict(row) for row in cursor])
 
 
@@ -239,7 +248,10 @@ async def handler(request:sanic.Request):
 async def handler(request:sanic.Request):
     cursor = db.cursor()
     cursor.execute('SELECT * FROM currencies ORDER BY name')
-    return sanic.response.json([d['name'] for d in cursor])
+    return sanic.response.json({
+        'base_currency': config.base_currency,
+        'currencies': [d['name'] for d in cursor],
+    })
 
 
 @app.post("/currencies/new")

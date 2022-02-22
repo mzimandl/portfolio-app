@@ -13,6 +13,7 @@ export interface InstrumentDataRow {
 }
 
 interface SettingsState {
+    base_currency: string;
     instruments: Array<InstrumentDataRow>;
     currencies: Array<string>;
     types: Array<string>;
@@ -32,6 +33,7 @@ export class Settings extends AbstractSection<SettingsProps, SettingsState> {
     constructor(props: SettingsProps & SectionProps) {
         super(props);
         this.state = {
+            base_currency: '',
             instruments: [],
             currencies: [],
             types: [],
@@ -77,7 +79,7 @@ export class Settings extends AbstractSection<SettingsProps, SettingsState> {
     loadCurrencies = () => {
         return fetch('/currencies/list')
             .then(res => res.json())
-            .then(currencies => this.setState({currencies}));
+            .then(data => this.setState(data));
     }
 
     loadTypes = () => {
@@ -155,7 +157,7 @@ export class Settings extends AbstractSection<SettingsProps, SettingsState> {
                             </TableHead>
                             <TableBody>
                                 {this.state.currencies.map(
-                                    (item, i) => <TableRow key={i}>
+                                    (item, i) => <TableRow key={i} sx={{backgroundColor: item === this.state.base_currency ? 'rgba(0,0,255,0.25)' : null}}>
                                         <TableCell>{item}</TableCell>
                                     </TableRow>
                                 )}
