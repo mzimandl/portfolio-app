@@ -8,7 +8,8 @@ export interface InstrumentDataRow {
     ticker: string;
     currency: string;
     type: string;
-    value_mode: string
+    evaluation: string;
+    eval_param: string;
 }
 
 interface SettingsState {
@@ -39,7 +40,8 @@ export class Settings extends AbstractSection<SettingsProps, SettingsState> {
                     ticker: '',
                     currency: '',
                     type: '',
-                    value_mode: '',
+                    evaluation: '',
+                    eval_param: '',
                 },
                 currency: '',
                 type: '',
@@ -96,7 +98,8 @@ export class Settings extends AbstractSection<SettingsProps, SettingsState> {
                                 ticker: '',
                                 currency: '',
                                 type: '',
-                                value_mode: '',
+                                evaluation: '',
+                                eval_param: '',
                             }
                         }
                     });
@@ -217,17 +220,22 @@ export class Settings extends AbstractSection<SettingsProps, SettingsState> {
                                     </TableCell>
                                     <TableCell>
                                         <FormControl fullWidth size='small'>
-                                            <InputLabel id="vmode-select-label">ValueMode</InputLabel>
+                                            <InputLabel id="vmode-select-label">Evaluation</InputLabel>
                                             <Select
                                                 labelId='vmode-select-label'
-                                                value={this.state.new.instrument.value_mode}
+                                                value={this.state.new.instrument.evaluation}
                                                 label="Value mode"
-                                                onChange={(e) => this.setState({new: {...this.state.new, instrument: {...this.state.new.instrument, value_mode: e.target.value}}})}
+                                                onChange={(e) => this.setState({new: {...this.state.new, instrument: {...this.state.new.instrument, evaluation: e.target.value}}})}
                                             >
-                                                <MenuItem value="">---</MenuItem>
+                                                <MenuItem value="yfinance">yfinance</MenuItem>
                                                 <MenuItem value="manual">manual</MenuItem>
+                                                <MenuItem value="http">http</MenuItem>
                                             </Select>
                                         </FormControl>
+                                    </TableCell>
+                                    <TableCell>
+                                        <TextField label="EvalParam" variant="outlined" size='small' margin='none' fullWidth value={this.state.new.instrument.eval_param}
+                                        onChange={(e) => this.setState({new: {...this.state.new, instrument: {...this.state.new.instrument, eval_param: e.target.value}}})} />
                                     </TableCell>
                                     <TableCell><IconButton onClick={this.addInstrument}><AddBox/></IconButton></TableCell>
                                 </TableRow>
@@ -238,7 +246,8 @@ export class Settings extends AbstractSection<SettingsProps, SettingsState> {
                                         <TableCell>{item.ticker}</TableCell>
                                         <TableCell>{item.currency}</TableCell>
                                         <TableCell>{item.type}</TableCell>
-                                        <TableCell>{item.value_mode}</TableCell>
+                                        <TableCell>{item.evaluation}</TableCell>
+                                        <TableCell>{item.eval_param}</TableCell>
                                         <TableCell></TableCell>
                                     </TableRow>
                                 )}

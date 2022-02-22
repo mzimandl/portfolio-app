@@ -9,44 +9,25 @@ import sanic
 import sanic.response
 import yfinance
 
-
+FILE_PATH = os.path.dirname(__file__)
 BASE_CURRENCY = 'CZK'
 
-yfinance_czk_fx = {
-    'USD': 'CZK=X'
+
+yfinance_fx = {
+    ('USD', 'CZK'): 'CZK=X'
 }
 def get_yfinance_fx_ticker(from_curr: str, to_curr: str):
-    if to_curr == 'CZK':
-        try:
-            return yfinance_czk_fx[from_curr]
-        except KeyError:
-            pass
-    return f'{from_curr}{to_curr}=X'
-
-yfinance_ticker_map = {
-    'BTC': 'BTC-USD',
-    'ETH': 'ETH-USD',
-    'LTC': 'LTC-USD',
-    'XRP': 'XRP-USD',
-    'ADA': 'ADA-USD',
-}
-def map_yfinance_ticker(k: str):
     try:
-        return yfinance_ticker_map[k]
+        return yfinance_fx[(from_curr, to_curr)]
     except KeyError:
-        return k
+        return f'{from_curr}{to_curr}=X'
 
-
-
-FILE_PATH = os.path.dirname(__file__)
 
 app = sanic.Sanic("PortfolioApp")
-
+app.static('/static', os.path.join(FILE_PATH, '../build/static'))
 #app.ctx.db = sqlite3.connect(os.path.join(FILE_PATH, '../portfolio.db'))
 db = sqlite3.connect(os.path.join(FILE_PATH, '../portfolio.db'))
 db.row_factory = sqlite3.Row
-
-app.static('/static', os.path.join(FILE_PATH, '../build/static'))
 
 
 @app.get("/data/last")
@@ -65,32 +46,44 @@ async def handler(request:sanic.Request):
 @app.get("/historical/update")
 async def handler(request:sanic.Request):
     cursor = db.cursor()
-    cursor.execute('SELECT ticker, min(date) as first_date FROM trades GROUP BY ticker')
-    first_trades = {d['ticker']: tuple(int(t) for t in d['first_date'].split('-')) for d in cursor}
+    cursor.execute('''
+        SELECT tt.ticker, min(date) as first_date, it.evaluation, it.eval_param
+        FROM trades AS tt
+        JOIN instruments AS it ON it.ticker = tt.ticker
+        GROUP BY tt.ticker
+    ''')
+    first_trades = {
+        d['ticker']: {
+            'first_date': datetime.datetime(*tuple(int(t) for t in d['first_date'].split('-'))),
+            'evaluation': d['evaluation'],
+            'eval_param': d['eval_param'],
+        } for d in cursor}
 
     sql = '''
         INSERT OR IGNORE INTO historical(date, ticker, open, high, low, close, dividends, splits) values (?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT (date, ticker)
         DO UPDATE SET open = excluded.open, high = excluded.high, low = excluded.low, close = excluded.close, dividends = excluded.dividends, splits = excluded.splits
     '''
-    for ticker, first_date in first_trades.items():
-        if ticker == 'FFGLOB':
-            resp = requests.get('https://www.fiofondy.cz/cs/podilove-fondy/globalni-akciovy-fond?do=getFundChartData')
-            cursor.executemany(sql, [
-                (d['x'], 'FFGLOB', 0, 0, 0, d['value'], 0, 0)
-                for d in resp.json()
-            ])
-        else:
-            yticker = yfinance.Ticker(map_yfinance_ticker(ticker))
-            df = yticker.history(start=datetime.datetime(*first_date))
+    for ticker, ticker_info in first_trades.items():
+        if ticker_info['evaluation'] == 'yfinance':
+            yticker = yfinance.Ticker(ticker_info['eval_param'] if ticker_info['eval_param'] else ticker)
+            df = yticker.history(start=ticker_info['first_date'])
             cursor.executemany(sql, [
                 (date.strftime('%Y-%m-%d'), ticker, row['Open'], row['High'], row['Low'], row['Close'], row['Dividends'], row['Stock Splits'])
                 for date, row in df.iterrows()
             ])
+
+        # only FFGLOB for now
+        elif ticker_info['evaluation'] == 'http':
+            resp = requests.get('https://www.fiofondy.cz/cs/podilove-fondy/globalni-akciovy-fond?do=getFundChartData')
+            cursor.executemany(sql, [
+                (d['x'], ticker, 0, 0, 0, d['value'], 0, 0)
+                for d in resp.json()
+            ])
+
         db.commit()
 
     return sanic.response.json({'success': True})
-
 
 
 @app.get("/fx/update")
@@ -132,7 +125,7 @@ async def handler(request:sanic.Request):
             sum(CASE WHEN fee THEN fee ELSE 0 END) as fee,
             sum(price*(CASE WHEN volume THEN volume ELSE 1 END)/(CASE WHEN rate THEN rate ELSE 1 END)) as invested,
             (select close from historical where ticker = it.ticker order by date desc) as last_price,
-            (case when it.value_mode = 'manual' then
+            (case when it.evaluation = 'manual' then
                 (case when it.currency = ? then 1 else
                     (select close from fx where from_curr = it.currency and to_curr = ? order by date desc)
                 end)*(
@@ -165,11 +158,11 @@ async def handler(request:sanic.Request):
             date,
             sum(fee) as fee,
             sum(investment) as investment,
-            sum(case when value_mode='manual'
+            sum(case when evaluation='manual'
                 THEN fx_price*(manual_value+(case when manual_value_correction then manual_value_correction else 0 end))
                 ELSE fx_price*last_price*volume
             END) as value,
-            sum(case when value_mode='manual'
+            sum(case when evaluation='manual'
                 THEN fx_price*(manual_value+(case when manual_value_correction then manual_value_correction else 0 end))
                 ELSE fx_price*last_price*volume
             END)-sum(investment)-sum(fee) as profit
@@ -177,7 +170,7 @@ async def handler(request:sanic.Request):
             select
                 dt.date,
                 it.ticker,
-                it.value_mode,
+                it.evaluation,
                 sum(
                     (case when tt.volume then tt.volume else 1 end)*tt.price/
                     (case when tt.rate then tt.rate else 1 end)
@@ -188,10 +181,10 @@ async def handler(request:sanic.Request):
                     (select close from fx where from_curr = it.currency and to_curr = ? order by date desc)
                 end) as fx_price,
                 sum(tt.fee) over (PARTITION BY it.ticker ORDER BY dt.date RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) as fee,
-                (case when it.value_mode='manual' then
+                (case when it.evaluation='manual' then
                     (select value from manual_values where date <= dt.date and ticker = it.ticker order by date desc)
                 else null end) as manual_value,
-                (case when it.value_mode='manual' then
+                (case when it.evaluation='manual' then
                     (select
                         sum(
                             (case when volume then volume else 1 end)*price/
@@ -231,15 +224,16 @@ async def handler(request:sanic.Request):
     data = request.json
     cursor = db.cursor()
     cursor.execute('''
-        INSERT INTO instruments(ticker, currency, type, value_mode)
-        VALUES (?, ?, ?, ?)
+        INSERT INTO instruments(ticker, currency, type, evaluation, eval_param)
+        VALUES (?, ?, ?, ?, ?)
         ON CONFLICT (ticker)
-        DO UPDATE SET currency = excluded.currency, type = excluded.type, value_mode = excluded.value_mode
+        DO UPDATE SET currency = excluded.currency, type = excluded.type, evaluation = excluded.evaluation, eval_param = excluded.eval_param
         ''',
-        [data['ticker'], data['currency'], data['type'], data['value_mode']]
+        [data['ticker'], data['currency'], data['type'], data['evaluation'], data['eval_param']]
     )
     db.commit()
     return sanic.response.json({'success': True})
+
 
 @app.get("/currencies/list")
 async def handler(request:sanic.Request):
@@ -258,6 +252,7 @@ async def handler(request:sanic.Request):
     )
     db.commit()
     return sanic.response.json({'success': True})
+
 
 @app.get("/types/list")
 async def handler(request:sanic.Request):

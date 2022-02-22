@@ -10,7 +10,8 @@ create table instruments(
 	ticker TEXT NOT NULL UNIQUE,
 	currency TEXT NOT NULL,
 	type TEXT NOT NULL,
-	value_mode TEXT,
+	evaluation TEXT CHECK (evaluation IN ('yfinance', 'manual', 'http')) NOT NULL,
+	eval_param TEXT,
 	FOREIGN KEY(currency) REFERENCES currencies(name),
 	FOREIGN KEY(type) REFERENCES types(name)
 );
