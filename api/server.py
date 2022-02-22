@@ -265,10 +265,7 @@ async def handler(request:sanic.Request):
 async def handler(request:sanic.Request):
     cursor = db.cursor()
     cursor.execute('SELECT * FROM currencies ORDER BY name')
-    return sanic.response.json({
-        'base_currency': config.base_currency,
-        'currencies': [d['name'] for d in cursor],
-    })
+    return sanic.response.json([d['name'] for d in cursor])
 
 
 @app.post("/currencies/new")
