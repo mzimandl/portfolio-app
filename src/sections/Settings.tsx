@@ -13,7 +13,6 @@ export interface InstrumentDataRow {
 }
 
 interface SettingsState {
-    base_currency: string;
     instruments: Array<InstrumentDataRow>;
     currencies: Array<string>;
     types: Array<string>;
@@ -22,6 +21,11 @@ interface SettingsState {
         currency: string,
         type: string,
     }
+}
+
+interface CurrenciesResponse {
+    base_currency: string;
+    currencies: Array<string>;
 }
 
 interface SettingsProps {}
@@ -33,7 +37,6 @@ export class Settings extends AbstractSection<SettingsProps, SettingsState> {
     constructor(props: SettingsProps & SectionProps) {
         super(props);
         this.state = {
-            base_currency: '',
             instruments: [],
             currencies: [],
             types: [],
@@ -69,19 +72,19 @@ export class Settings extends AbstractSection<SettingsProps, SettingsState> {
 
     loadInstruments = () => {
         return fetch('/instruments/list')
-            .then(res => res.json())
+            .then<Array<InstrumentDataRow>>(res => res.json())
             .then(instruments => this.setState({instruments}));
     }
 
     loadCurrencies = () => {
         return fetch('/currencies/list')
-            .then(res => res.json())
+            .then<CurrenciesResponse>(res => res.json())
             .then(data => this.setState(data));
     }
 
     loadTypes = () => {
         return fetch('/types/list')
-            .then(res => res.json())
+            .then<Array<string>>(res => res.json())
             .then(types => this.setState({types}));
     }
 
@@ -155,7 +158,7 @@ export class Settings extends AbstractSection<SettingsProps, SettingsState> {
                             <TableBody>
                                 {this.state.currencies.map(
                                     (item, i) => <TableRow key={i} sx={{backgroundColor: item === this.state.base_currency ? 'rgba(0,0,255,0.25)' : null}}>
-                                        <TableCell>{item}</TableCell>
+                                        <TableCell colSpan={2}>{item}</TableCell>
                                     </TableRow>
                                 )}
                             </TableBody>
@@ -175,7 +178,7 @@ export class Settings extends AbstractSection<SettingsProps, SettingsState> {
                             <TableBody>
                                 {this.state.types.map(
                                     (item, i) => <TableRow key={i}>
-                                        <TableCell>{item}</TableCell>
+                                        <TableCell colSpan={2}>{item}</TableCell>
                                     </TableRow>
                                 )}
                             </TableBody>
@@ -246,8 +249,7 @@ export class Settings extends AbstractSection<SettingsProps, SettingsState> {
                                         <TableCell>{item.currency}</TableCell>
                                         <TableCell>{item.type}</TableCell>
                                         <TableCell>{item.evaluation}</TableCell>
-                                        <TableCell>{item.eval_param}</TableCell>
-                                        <TableCell></TableCell>
+                                        <TableCell colSpan={2}>{item.eval_param}</TableCell>
                                     </TableRow>
                                 )}
                             </TableBody>

@@ -19,7 +19,6 @@ interface OverviewResponse {
 }
 
 interface OverviewState {
-    base_currency: string|undefined;
     investment: number;
     fees: number;
     value: number;
@@ -36,7 +35,6 @@ export class Overview extends AbstractSection<OverviewProps, OverviewState> {
     constructor(props: OverviewProps & SectionProps) {
         super(props);
         this.state = {
-            base_currency: undefined,
             investment: 0,
             fees: 0,
             value: 0,
@@ -65,18 +63,6 @@ export class Overview extends AbstractSection<OverviewProps, OverviewState> {
                 value: data.overview.reduce((prev, cur, i) => prev + cur.value, 0),
                 profit: data.overview.reduce((prev, cur, i) => prev + cur.profit, 0),
             }));
-    }
-
-    formatCurrency(value: number, currency?: string): string|null {
-        if (value && (this.state.base_currency || currency))
-            return value.toLocaleString(undefined, {style: 'currency', currency: currency ? currency : this.state.base_currency});
-        return null;
-    }
-
-    formatPercents(value: number): string|null {
-        if (value)
-            return value.toLocaleString(undefined, {style: 'percent', minimumFractionDigits: 1});
-        return null;
     }
 
     render() {

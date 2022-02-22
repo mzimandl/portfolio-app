@@ -9,12 +9,18 @@ interface DataRow {
     date: string;
     ticker: string;
     value: number;
+    currency: string;
 }
 
 interface NewDataRow {
     date: string;
     ticker: string;
     value: string;
+}
+
+interface ValuesResponse {
+    base_currency: string;
+    values: Array<DataRow>;
 }
 
 interface ValuesState {
@@ -56,7 +62,7 @@ export class Values extends AbstractSection<ValuesProps, ValuesState> {
 
     loadInstruments = () => {
         return fetch('/instruments/list')
-            .then(res => res.json())
+            .then<Array<InstrumentDataRow>>(res => res.json())
             .then(instruments => this.setState({instruments}));
     }
 
@@ -64,8 +70,8 @@ export class Values extends AbstractSection<ValuesProps, ValuesState> {
         const params = new URLSearchParams();
         // params.append('ticker', 'CEZ.PR');
         return fetch(`/values/list?${params.toString()}`)
-            .then(res => res.json())
-            .then(values => this.setState({values}));
+            .then<ValuesResponse>(res => res.json())
+            .then(values => this.setState(values));
     }
 
     addValue = () => {
@@ -121,8 +127,7 @@ export class Values extends AbstractSection<ValuesProps, ValuesState> {
                             (item, i) => <TableRow key={i}>
                                 <TableCell>{item.date}</TableCell>
                                 <TableCell>{item.ticker}</TableCell>
-                                <TableCell>{item.value}</TableCell>
-                                <TableCell></TableCell>
+                                <TableCell colSpan={2}>{this.formatCurrency(item.value, item.currency)}</TableCell>
                             </TableRow>
                         )}
                     </TableBody>

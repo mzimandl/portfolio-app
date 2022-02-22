@@ -11,6 +11,11 @@ interface ChartDataRow {
     profit: number;
 }
 
+interface ChartResponse {
+    base_currency: string;
+    data: Array<ChartDataRow>;
+}
+
 interface ChartState {
     isBusy: boolean;
     data: Array<ChartDataRow>;
@@ -35,9 +40,9 @@ export class Charts extends AbstractSection<ChartProps, ChartState> {
         this.setState({isBusy: true});
         this.props.displayProgressBar(true);
         fetch('/charts/get')
-            .then<Array<ChartDataRow>>(res => res.json())
+            .then<ChartResponse>(res => res.json())
             .then(data => {
-                this.setState({isBusy: false, data});
+                this.setState({...data, isBusy: false});
                 this.props.displayProgressBar(false);
             });
     }
@@ -54,7 +59,7 @@ export class Charts extends AbstractSection<ChartProps, ChartState> {
                         <Line type="monotone" dataKey="investment" dot={false} stroke="#82ca9d" />
                         <Line type="monotone" dataKey="profit" dot={false} stroke="#ff704d" />
                         <XAxis dataKey="date" />
-                        <YAxis />
+                        <YAxis unit={this.state.base_currency} />
                         <Tooltip />
                         <Legend />
                     </LineChart>

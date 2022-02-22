@@ -218,7 +218,10 @@ async def handler(request:sanic.Request):
         having sum(investment)
         order by date
     ''', [config.base_currency, config.base_currency])
-    return sanic.response.json([dict(row) for row in cursor])
+    return sanic.response.json({
+        'base_currency': config.base_currency,
+        'data': [dict(row) for row in cursor],
+    })
 
 
 @app.get("/instruments/list")
@@ -293,9 +296,21 @@ async def handler(request:sanic.Request):
         where.append(('ticker', ticker))
     if where:
         sql_where = ' AND '.join(f'{k} = ?' for k, _ in where)
+
     cursor = db.cursor()
-    cursor.execute(f"SELECT * FROM trades {f'WHERE {sql_where}' if where else ''} ORDER BY date", [v for _, v in where])
-    return sanic.response.json([dict(d) for d in cursor])
+    cursor.execute(f'''
+        SELECT id, date, tt.ticker, volume, price, fee, rate, it.currency
+        FROM trades AS tt
+        JOIN instruments AS it ON it.ticker = tt.ticker
+        {f'WHERE {sql_where}' if where else ''}
+        ORDER BY date''',
+        [v for _, v in where]
+    )
+
+    return sanic.response.json({
+        'base_currency': config.base_currency,
+        'trades': [dict(d) for d in cursor],
+    })
 
 
 @app.post("/trades/new")
@@ -303,9 +318,10 @@ async def handler(request:sanic.Request):
     data = request.json
     cursor = db.cursor()
     cursor.execute('''
-    INSERT INTO trades(date, ticker, volume, price, fee, rate) VALUES (?, ?, ?, ?, ?, ?)
-    ''',
-    [data['date'], data['ticker'], data['volume'], data['price'], data['fee'], data['rate']])
+        INSERT INTO trades(date, ticker, volume, price, fee, rate)
+        VALUES (?, ?, ?, ?, ?, ?)''',
+        [data['date'], data['ticker'], data['volume'], data['price'], data['fee'], data['rate']]
+    )
     db.commit()
     return sanic.response.json({'success': True})
 
@@ -319,8 +335,18 @@ async def handler(request:sanic.Request):
     if where:
         sql_where = ' AND '.join(f'{k} = ?' for k, _ in where)
     cursor = db.cursor()
-    cursor.execute(f"SELECT * FROM manual_values {f'WHERE {sql_where}' if where else ''} ORDER BY date", [v for _, v in where])
-    return sanic.response.json([dict(d) for d in cursor])
+    cursor.execute(f'''
+        SELECT date, mvt.ticker, value, it.currency
+        FROM manual_values AS mvt
+        JOIN instruments AS it ON it.ticker = mvt.ticker
+        {f'WHERE {sql_where}' if where else ''}
+        ORDER BY date''',
+        [v for _, v in where]
+    )
+    return sanic.response.json({
+        'base_currency': config.base_currency,
+        'values': [dict(d) for d in cursor],
+    })
 
 
 @app.post("/values/new")
@@ -328,11 +354,11 @@ async def handler(request:sanic.Request):
     data = request.json
     cursor = db.cursor()
     cursor.execute('''
-    INSERT INTO manual_values(date, ticker, value) VALUES (?, ?, ?)
-    ON CONFLICT (date, ticker)
-    DO UPDATE SET value = excluded.value
-    ''',
-    [data['date'], data['ticker'], data['value']])
+        INSERT INTO manual_values(date, ticker, value) VALUES (?, ?, ?)
+        ON CONFLICT (date, ticker)
+        DO UPDATE SET value = excluded.value''',
+        [data['date'], data['ticker'], data['value']]
+    )
     db.commit()
     return sanic.response.json({'success': True})
 

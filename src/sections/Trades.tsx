@@ -12,6 +12,7 @@ interface DataRow {
     price: number;
     fee: number;
     rate: number;
+    currency: string;
 }
 
 interface NewDataRow {
@@ -24,6 +25,7 @@ interface NewDataRow {
 }
 
 interface TradesState {
+    base_currency?: string;
     trades: Array<DataRow>;
     newTrade: NewDataRow;
     instruments: Array<InstrumentDataRow>;
@@ -65,7 +67,7 @@ export class Trades extends AbstractSection<TradesProps, TradesState> {
 
     loadInstruments = () => {
         return fetch('/instruments/list')
-            .then(res => res.json())
+            .then<Array<InstrumentDataRow>>(res => res.json())
             .then(instruments => this.setState({instruments}));
     }
 
@@ -74,7 +76,7 @@ export class Trades extends AbstractSection<TradesProps, TradesState> {
         // params.append('ticker', 'CEZ.PR');
         return fetch(`/trades/list?${params.toString()}`)
             .then(res => res.json())
-            .then(trades => this.setState({trades}));
+            .then(data => this.setState(data));
     }
 
     addTrade = () => {
@@ -146,10 +148,9 @@ export class Trades extends AbstractSection<TradesProps, TradesState> {
                                 <TableCell>{item.date}</TableCell>
                                 <TableCell>{item.ticker}</TableCell>
                                 <TableCell>{item.volume}</TableCell>
-                                <TableCell>{item.price}</TableCell>
-                                <TableCell>{item.rate}</TableCell>
-                                <TableCell>{item.fee}</TableCell>
-                                <TableCell></TableCell>
+                                <TableCell>{this.formatCurrency(item.price, item.currency)}</TableCell>
+                                <TableCell>{this.formatCurrency(item.rate, item.currency)}</TableCell>
+                                <TableCell colSpan={2}>{this.formatCurrency(item.fee)}</TableCell>
                             </TableRow>
                         )}
                     </TableBody>
