@@ -76,14 +76,16 @@ export class Values extends AbstractSection<ValuesProps, ValuesState> {
             this.props.displayProgressBar(true);
             fetch('/values/new', {method: 'POST', body: JSON.stringify(this.state.newValue)})
                 .then(res => {
-                    this.setState({
-                        newValue: {
-                            date: '',
-                            ticker: '',
-                            value: '',
-                        }
+                    this.loadValues().then(() => {
+                        this.props.displayProgressBar(false);
+                        this.setState({
+                            newValue: {
+                                date: '',
+                                ticker: '',
+                                value: '',
+                            }
+                        });
                     });
-                    this.loadValues().then(() => this.props.displayProgressBar(false));
                 });
         }
     }

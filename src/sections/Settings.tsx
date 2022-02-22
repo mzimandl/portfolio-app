@@ -94,19 +94,21 @@ export class Settings extends AbstractSection<SettingsProps, SettingsState> {
             this.props.displayProgressBar(true);
             fetch('/instruments/new', {method: 'POST', body: JSON.stringify(this.state.new.instrument)})
                 .then(res => {
-                    this.setState({
-                        new: {
-                            ...this.state.new,
-                            instrument: {
-                                ticker: '',
-                                currency: '',
-                                type: '',
-                                evaluation: 'yfinance',
-                                eval_param: '',
+                    this.loadInstruments().then(() => {
+                        this.setState({
+                            new: {
+                                ...this.state.new,
+                                instrument: {
+                                    ticker: '',
+                                    currency: '',
+                                    type: '',
+                                    evaluation: 'yfinance',
+                                    eval_param: '',
+                                }
                             }
-                        }
+                        });
+                        this.props.displayProgressBar(false)
                     });
-                    this.loadInstruments().then(() => this.props.displayProgressBar(false));
                 });
         }
     }
@@ -116,13 +118,15 @@ export class Settings extends AbstractSection<SettingsProps, SettingsState> {
             this.props.displayProgressBar(true);
             fetch('/currencies/new', {method: 'POST', body: JSON.stringify({currency: this.state.new.currency})})
                 .then(res => {
-                    this.setState({
-                        new: {
-                            ...this.state.new,
-                            currency: '',
-                        }
+                    this.loadCurrencies().then(() => {
+                        this.setState({
+                            new: {
+                                ...this.state.new,
+                                currency: '',
+                            }
+                        });
+                        this.props.displayProgressBar(false)
                     });
-                    this.loadCurrencies().then(() => this.props.displayProgressBar(false));
                 });
         }
     }
@@ -132,13 +136,15 @@ export class Settings extends AbstractSection<SettingsProps, SettingsState> {
             this.props.displayProgressBar(true);
             fetch('/types/new', {method: 'POST', body: JSON.stringify({type: this.state.new.type})})
                 .then(res => {
-                    this.setState({
-                        new: {
-                            ...this.state.new,
-                            type: '',
-                        }
+                    this.loadTypes().then(() => {
+                        this.setState({
+                            new: {
+                                ...this.state.new,
+                                type: '',
+                            }
+                        });
+                        this.props.displayProgressBar(false)
                     });
-                    this.loadTypes().then(() => this.props.displayProgressBar(false));
                 });
         }
     }

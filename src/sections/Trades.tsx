@@ -85,17 +85,19 @@ export class Trades extends AbstractSection<TradesProps, TradesState> {
             this.props.displayProgressBar(true);
             fetch('/trades/new', {method: 'POST', body: JSON.stringify(this.state.newTrade)})
                 .then(res => {
-                    this.setState({
-                        newTrade: {
-                            date: '',
-                            ticker: '',
-                            volume: '',
-                            price: '',
-                            fee: '',
-                            rate: '',
-                        }
+                    this.loadTrades().then(() => {
+                        this.setState({
+                            newTrade: {
+                                date: '',
+                                ticker: '',
+                                volume: '',
+                                price: '',
+                                fee: '',
+                                rate: '',
+                            }
+                        });
+                        this.props.displayProgressBar(false);
                     });
-                    this.loadTrades().then(() => this.props.displayProgressBar(false));
                 });
         }
     }
