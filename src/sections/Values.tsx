@@ -1,4 +1,4 @@
-import { AbstractSection, SectionProps } from './common';
+import { AbstractSection, SectionProps } from '../common';
 import { Table, TableBody, TableHead, TableContainer, TableRow, TableCell, Box, IconButton, FormControl, Select, InputLabel, MenuItem } from '@mui/material';
 import TextField from '@mui/material/TextField';
 import { AddBox } from '@mui/icons-material';
@@ -18,10 +18,7 @@ interface NewDataRow {
     value: string;
 }
 
-interface ValuesResponse {
-    base_currency: string;
-    values: Array<DataRow>;
-}
+type ValuesResponse = Array<DataRow>;
 
 interface ValuesState {
     values: Array<DataRow>;
@@ -71,7 +68,7 @@ export class Values extends AbstractSection<ValuesProps, ValuesState> {
         // params.append('ticker', 'CEZ.PR');
         return fetch(`/values/list?${params.toString()}`)
             .then<ValuesResponse>(res => res.json())
-            .then(values => this.setState(values));
+            .then(values => this.setState({values}));
     }
 
     addValue = () => {

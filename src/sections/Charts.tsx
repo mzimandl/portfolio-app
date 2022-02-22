@@ -1,6 +1,6 @@
 import { Box } from '@mui/material';
 import { LineChart, CartesianGrid, Line, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { AbstractSection, SectionProps } from './common';
+import { AbstractSection, SectionProps } from '../common';
 
 
 interface ChartDataRow {
@@ -11,10 +11,7 @@ interface ChartDataRow {
     profit: number;
 }
 
-interface ChartResponse {
-    base_currency: string;
-    data: Array<ChartDataRow>;
-}
+type ChartResponse = Array<ChartDataRow>;
 
 interface ChartState {
     isBusy: boolean;
@@ -42,7 +39,7 @@ export class Charts extends AbstractSection<ChartProps, ChartState> {
         fetch('/charts/get')
             .then<ChartResponse>(res => res.json())
             .then(data => {
-                this.setState({...data, isBusy: false});
+                this.setState({data, isBusy: false});
                 this.props.displayProgressBar(false);
             });
     }
@@ -59,7 +56,7 @@ export class Charts extends AbstractSection<ChartProps, ChartState> {
                         <Line type="monotone" dataKey="investment" dot={false} stroke="#82ca9d" />
                         <Line type="monotone" dataKey="profit" dot={false} stroke="#ff704d" />
                         <XAxis dataKey="date" />
-                        <YAxis unit={this.state.base_currency} />
+                        <YAxis unit={this.props.config.base_currency} />
                         <Tooltip />
                         <Legend />
                     </LineChart>

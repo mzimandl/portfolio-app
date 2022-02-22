@@ -1,5 +1,5 @@
 import { Table, TableBody, TableHead, TableContainer, TableRow, TableCell, Box, Typography, Card, CardContent, Grid } from '@mui/material';
-import { AbstractSection, SectionProps } from './common';
+import { AbstractSection, SectionProps } from '../common';
 
 
 interface OverviewDataRow {
@@ -14,10 +14,7 @@ interface OverviewDataRow {
     manual_value_correction: number;
 }
 
-interface OverviewResponse {
-    base_currency: string;
-    overview: Array<OverviewDataRow>;
-}
+type OverviewResponse = Array<OverviewDataRow>;
 
 interface OverviewState {
     investment: number;
@@ -57,12 +54,12 @@ export class Overview extends AbstractSection<OverviewProps, OverviewState> {
         // params.append('ticker', 'CEZ.PR');
         return fetch(`/overview/get?${params.toString()}`)
             .then<OverviewResponse>(res => res.json())
-            .then(data => this.setState({
-                ...data,
-                investment: data.overview.reduce((prev, cur, i) => prev + cur.invested, 0),
-                fees: data.overview.reduce((prev, cur, i) => prev + cur.fee, 0),
-                value: data.overview.reduce((prev, cur, i) => prev + cur.value, 0),
-                profit: data.overview.reduce((prev, cur, i) => prev + cur.profit, 0),
+            .then(overview => this.setState({
+                overview,
+                investment: overview.reduce((prev, cur, i) => prev + cur.invested, 0),
+                fees: overview.reduce((prev, cur, i) => prev + cur.fee, 0),
+                value: overview.reduce((prev, cur, i) => prev + cur.value, 0),
+                profit: overview.reduce((prev, cur, i) => prev + cur.profit, 0),
             }));
     }
 

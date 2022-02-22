@@ -1,4 +1,4 @@
-import { AbstractSection, SectionProps } from './common';
+import { AbstractSection, SectionProps } from '../common';
 import { Table, TableBody, TableHead, TableContainer, TableRow, TableCell, Box, IconButton, FormControl, Grid, InputLabel, Select, MenuItem } from '@mui/material';
 import TextField from '@mui/material/TextField';
 import { AddBox } from '@mui/icons-material';
@@ -23,10 +23,9 @@ interface SettingsState {
     }
 }
 
-interface CurrenciesResponse {
-    base_currency: string;
-    currencies: Array<string>;
-}
+type CurrenciesResponse = Array<string>;
+type TypesResponse = Array<string>;
+export type InstrumentsResponse = Array<InstrumentDataRow>;
 
 interface SettingsProps {}
 
@@ -72,19 +71,19 @@ export class Settings extends AbstractSection<SettingsProps, SettingsState> {
 
     loadInstruments = () => {
         return fetch('/instruments/list')
-            .then<Array<InstrumentDataRow>>(res => res.json())
+            .then<InstrumentsResponse>(res => res.json())
             .then(instruments => this.setState({instruments}));
     }
 
     loadCurrencies = () => {
         return fetch('/currencies/list')
             .then<CurrenciesResponse>(res => res.json())
-            .then(data => this.setState(data));
+            .then(currencies => this.setState({currencies}));
     }
 
     loadTypes = () => {
         return fetch('/types/list')
-            .then<Array<string>>(res => res.json())
+            .then<TypesResponse>(res => res.json())
             .then(types => this.setState({types}));
     }
 
@@ -157,7 +156,7 @@ export class Settings extends AbstractSection<SettingsProps, SettingsState> {
                             </TableHead>
                             <TableBody>
                                 {this.state.currencies.map(
-                                    (item, i) => <TableRow key={i} sx={{backgroundColor: item === this.state.base_currency ? 'rgba(0,0,255,0.25)' : null}}>
+                                    (item, i) => <TableRow key={i} sx={{backgroundColor: item === this.props.config.base_currency ? 'rgba(0,0,255,0.25)' : null}}>
                                         <TableCell colSpan={2}>{item}</TableCell>
                                     </TableRow>
                                 )}

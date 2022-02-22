@@ -30,6 +30,7 @@ import { Refresh } from '@mui/icons-material';
 import { CircularProgress, Icon, LinearProgress } from '@mui/material';
 
 import { Routes, Route, Navigate, Link } from 'react-router-dom';
+import { Config } from './common';
 
 const drawerWidth = 240;
 
@@ -114,6 +115,7 @@ interface AppState {
   menuOpen: boolean;
   lastData: LastData;
   heading: string;
+  config: Config;
 }
 
 export default class App extends React.Component<{}, AppState> {
@@ -121,6 +123,10 @@ export default class App extends React.Component<{}, AppState> {
   constructor(props:{}) {
     super(props);
     this.state = {
+      config: {
+        base_currency: '',
+        language_locale: '',
+      },
       refreshing: false,
       isBusy: false,
       menuOpen: false,
@@ -137,13 +143,20 @@ export default class App extends React.Component<{}, AppState> {
   }
 
   componentDidMount() {
+    this.loadConfig();
     this.loadLastDataDates();
   }
 
+  loadConfig = () => {
+    return fetch('/config/get')
+      .then<Config>(res => res.json())
+      .then(config => this.setState({config}));
+  }
+
   loadLastDataDates = () => {
-      return fetch('/data/last')
-        .then(res => res.json())
-        .then(lastData => this.setState({lastData, refreshing: false}));
+    return fetch('/data/last')
+      .then(res => res.json())
+      .then(lastData => this.setState({lastData, refreshing: false}));
   }
 
   refreshData = () => {
@@ -245,12 +258,22 @@ export default class App extends React.Component<{}, AppState> {
         <Box component="main" sx={{ flexGrow: 1, p: 3 }}>
           <DrawerHeader />
           <Routes>
-            <Route path="/overview" element={<Overview setHeading={this.setHeading} displayProgressBar={this.displayProgressBar} />}/>
-            <Route path="/trades" element={<Trades setHeading={this.setHeading} displayProgressBar={this.displayProgressBar} />}/>
-            <Route path="/charts" element={<Charts setHeading={this.setHeading} displayProgressBar={this.displayProgressBar} />}/>
-            <Route path="/settings" element={<Settings setHeading={this.setHeading} displayProgressBar={this.displayProgressBar} />}/>
-            <Route path="/values" element={<Values setHeading={this.setHeading} displayProgressBar={this.displayProgressBar} />}/>
-            <Route path="*" element={<Navigate to="/overview" />} />
+            <Route path="/overview" element={
+              <Overview config={this.state.config} setHeading={this.setHeading} displayProgressBar={this.displayProgressBar} />
+            }/>
+            <Route path="/trades" element={
+              <Trades config={this.state.config} setHeading={this.setHeading} displayProgressBar={this.displayProgressBar} />
+            }/>
+            <Route path="/charts" element={
+              <Charts config={this.state.config} setHeading={this.setHeading} displayProgressBar={this.displayProgressBar} />
+            }/>
+            <Route path="/settings" element={
+              <Settings config={this.state.config} setHeading={this.setHeading} displayProgressBar={this.displayProgressBar} />
+            }/>
+            <Route path="/values" element={
+              <Values config={this.state.config} setHeading={this.setHeading} displayProgressBar={this.displayProgressBar} />
+            }/>
+            <Route path="/" element={<Navigate to="/overview" />} />
           </Routes>
         </Box>
       </Box>

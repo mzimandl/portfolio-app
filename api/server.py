@@ -24,6 +24,7 @@ def get_yfinance_fx_ticker(from_curr: str, to_curr: str):
 
 class Config(NamedTuple):
     base_currency: str
+    language_locale: str
 
 with open(os.path.join(FILE_PATH, '../config.json')) as f:
     config = Config(**json.load(f))
@@ -33,6 +34,11 @@ app.static('/static', os.path.join(FILE_PATH, '../build/static'))
 #app.ctx.db = sqlite3.connect(os.path.join(FILE_PATH, '../portfolio.db'))
 db = sqlite3.connect(os.path.join(FILE_PATH, '../portfolio.db'))
 db.row_factory = sqlite3.Row
+
+
+@app.get("/config/get")
+async def handler(request:sanic.Request):
+    return sanic.response.json(config._asdict())
 
 
 @app.get("/data/last")
@@ -160,14 +166,14 @@ async def handler(request:sanic.Request):
         ORDER BY tt.ticker
         ''', [config.base_currency, config.base_currency, config.base_currency, config.base_currency]
     )
-    return sanic.response.json({
-        'base_currency': config.base_currency,
-        'overview': [{
+    return sanic.response.json([
+        {
             **dict(d),
             'value': d['value'] + (d['manual_value_correction'] if d['manual_value_correction'] else 0),
             'profit': d['value'] - d['invested'] - d['fee'] + (d['manual_value_correction'] if d['manual_value_correction'] else 0),
-        } for d in cursor]
-    })
+        }
+        for d in cursor
+    ])
 
 
 @app.get("/charts/get")
@@ -229,10 +235,7 @@ async def handler(request:sanic.Request):
         having sum(investment)
         order by date
     ''', [config.base_currency, config.base_currency])
-    return sanic.response.json({
-        'base_currency': config.base_currency,
-        'data': [dict(row) for row in cursor],
-    })
+    return sanic.response.json([dict(row) for row in cursor])
 
 
 @app.get("/instruments/list")
@@ -318,10 +321,7 @@ async def handler(request:sanic.Request):
         [v for _, v in where]
     )
 
-    return sanic.response.json({
-        'base_currency': config.base_currency,
-        'trades': [dict(d) for d in cursor],
-    })
+    return sanic.response.json([dict(d) for d in cursor])
 
 
 @app.post("/trades/new")
@@ -354,10 +354,7 @@ async def handler(request:sanic.Request):
         ORDER BY date''',
         [v for _, v in where]
     )
-    return sanic.response.json({
-        'base_currency': config.base_currency,
-        'values': [dict(d) for d in cursor],
-    })
+    return sanic.response.json([dict(d) for d in cursor])
 
 
 @app.post("/values/new")

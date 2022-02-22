@@ -1,8 +1,8 @@
-import { AbstractSection, SectionProps } from './common';
+import { AbstractSection, SectionProps } from '../common';
 import { Table, TableBody, TableHead, TableContainer, TableRow, TableCell, Box, IconButton, FormControl, Select, InputLabel, MenuItem } from '@mui/material';
 import TextField from '@mui/material/TextField';
 import { AddBox } from '@mui/icons-material';
-import { InstrumentDataRow } from './Settings';
+import { InstrumentDataRow, InstrumentsResponse } from './Settings';
 
 
 interface DataRow {
@@ -24,8 +24,9 @@ interface NewDataRow {
     rate: string;
 }
 
+type TradesResponse = Array<DataRow>;
+
 interface TradesState {
-    base_currency?: string;
     trades: Array<DataRow>;
     newTrade: NewDataRow;
     instruments: Array<InstrumentDataRow>;
@@ -67,7 +68,7 @@ export class Trades extends AbstractSection<TradesProps, TradesState> {
 
     loadInstruments = () => {
         return fetch('/instruments/list')
-            .then<Array<InstrumentDataRow>>(res => res.json())
+            .then<InstrumentsResponse>(res => res.json())
             .then(instruments => this.setState({instruments}));
     }
 
@@ -75,8 +76,8 @@ export class Trades extends AbstractSection<TradesProps, TradesState> {
         const params = new URLSearchParams();
         // params.append('ticker', 'CEZ.PR');
         return fetch(`/trades/list?${params.toString()}`)
-            .then(res => res.json())
-            .then(data => this.setState(data));
+            .then<TradesResponse>(res => res.json())
+            .then(trades => this.setState({trades}));
     }
 
     addTrade = () => {

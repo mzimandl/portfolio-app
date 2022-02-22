@@ -1,14 +1,17 @@
 import React from "react";
 
+export interface Config {
+    base_currency: string;
+    language_locale: string;
+}
 
 export interface SectionProps {
+    config: Config;
     setHeading: (name:string) => void;
     displayProgressBar: (isBusy: boolean) => void;
 }
 
-export interface SectionState {
-    base_currency?: string;
-}
+export interface SectionState {}
 
 export abstract class AbstractSection<P = {}, S = {}, SS = {}> extends React.Component<P & SectionProps, S & SectionState, SS> {
 
@@ -19,14 +22,14 @@ export abstract class AbstractSection<P = {}, S = {}, SS = {}> extends React.Com
     }
 
     formatCurrency(value: number, currency?: string): string|null {
-        if (value && (this.state.base_currency || currency))
-            return value.toLocaleString(undefined, {style: 'currency', currency: currency ? currency : this.state.base_currency});
+        if (value && (this.props.config.base_currency || currency))
+            return value.toLocaleString(this.props.config.language_locale, {style: 'currency', currency: currency ? currency : this.props.config.base_currency});
         return null;
     }
 
     formatPercents(value: number): string|null {
         if (value)
-            return value.toLocaleString(undefined, {style: 'percent', minimumFractionDigits: 1});
+            return value.toLocaleString(this.props.config.language_locale, {style: 'percent', minimumFractionDigits: 1});
         return null;
     }
 }
