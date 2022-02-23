@@ -1,5 +1,5 @@
 import { AbstractSection, SectionProps } from '../common';
-import { Table, TableBody, TableHead, TableContainer, TableRow, TableCell, Box, IconButton, FormControl, Grid, InputLabel, Select, MenuItem } from '@mui/material';
+import { Table, TableBody, TableHead, TableContainer, TableRow, TableCell, Box, IconButton, FormControl, Grid, InputLabel, Select, MenuItem, Autocomplete } from '@mui/material';
 import TextField from '@mui/material/TextField';
 import { AddBox } from '@mui/icons-material';
 
@@ -14,14 +14,22 @@ export interface InstrumentDataRow {
     eval_param: string;
 }
 
+export interface NewInstrument {
+    ticker: string|null;
+    currency: string|null;
+    type: string|null;
+    evaluation: EvaluationType;
+    eval_param: string|null;
+}
+
 interface SettingsState {
     instruments: Array<InstrumentDataRow>;
     currencies: Array<string>;
     types: Array<string>;
     new: {
-        instrument: InstrumentDataRow,
-        currency: string,
-        type: string,
+        instrument: NewInstrument,
+        currency: string|null,
+        type: string|null,
     }
 }
 
@@ -43,14 +51,14 @@ export class Settings extends AbstractSection<SettingsProps, SettingsState> {
             types: [],
             new: {
                 instrument: {
-                    ticker: '',
-                    currency: '',
-                    type: '',
+                    ticker: null,
+                    currency: null,
+                    type: null,
                     evaluation: 'yfinance',
-                    eval_param: '',
+                    eval_param: null,
                 },
-                currency: '',
-                type: '',
+                currency: null,
+                type: null,
             },
         };
 
@@ -202,30 +210,20 @@ export class Settings extends AbstractSection<SettingsProps, SettingsState> {
                                         onChange={(e) => this.setState({new: {...this.state.new, instrument: {...this.state.new.instrument, ticker: e.target.value}}})} />
                                     </TableCell>
                                     <TableCell>
-                                        <FormControl fullWidth size='small'>
-                                            <InputLabel id="currency-select-label">Currency</InputLabel>
-                                            <Select
-                                                labelId='currency-select-label'
-                                                value={this.state.new.instrument.currency}
-                                                label="Currency"
-                                                onChange={(e) => this.setState({new: {...this.state.new, instrument: {...this.state.new.instrument, currency: e.target.value}}})}
-                                            >
-                                                {this.state.currencies.map(v => <MenuItem key={v} value={v}>{v}</MenuItem>)}
-                                            </Select>
-                                        </FormControl>
+                                        <Autocomplete
+                                            value={this.state.new.instrument.currency}
+                                            onChange={(e, newValue) => this.setState({new: {...this.state.new, instrument: {...this.state.new.instrument, currency: newValue}}})}
+                                            options={this.state.currencies}
+                                            renderInput={(params) => <TextField {...params} size='small' label="Currency" />}
+                                        />
                                     </TableCell>
                                     <TableCell>
-                                        <FormControl fullWidth size='small'>
-                                            <InputLabel id="type-select-label">Type</InputLabel>
-                                            <Select
-                                                labelId='type-select-label'
-                                                value={this.state.new.instrument.type}
-                                                label="Type"
-                                                onChange={(e) => this.setState({new: {...this.state.new, instrument: {...this.state.new.instrument, type: e.target.value}}})}
-                                            >
-                                                {this.state.types.map(v => <MenuItem key={v} value={v}>{v}</MenuItem>)}
-                                            </Select>
-                                        </FormControl>
+                                        <Autocomplete
+                                            value={this.state.new.instrument.type}
+                                            onChange={(e, newValue) => this.setState({new: {...this.state.new, instrument: {...this.state.new.instrument, type: newValue}}})}
+                                            options={this.state.types}
+                                            renderInput={(params) => <TextField {...params} size='small' label="Type" />}
+                                        />
                                     </TableCell>
                                     <TableCell>
                                         <FormControl fullWidth size='small'>
