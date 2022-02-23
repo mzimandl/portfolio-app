@@ -49,14 +49,14 @@ export class Charts extends AbstractSection<ChartProps, ChartState> {
         return <Box>
             {this.state.isBusy ?
                 null :
-                <ResponsiveContainer width="100%" height={500}>
+                <ResponsiveContainer width="100%" height={600}>
                     <LineChart data={this.state.data} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
                         <CartesianGrid strokeDasharray="3 3" />
                         <Line type="monotone" dataKey="value" dot={false} stroke="#8884d8" />
                         <Line type="monotone" dataKey="investment" dot={false} stroke="#82ca9d" />
                         <Line type="monotone" dataKey="profit" dot={false} stroke="#ff704d" />
-                        <XAxis dataKey="date" />
-                        <YAxis unit={this.props.config.base_currency} />
+                        <XAxis dataKey="date" angle={30} dy={30} dx={6} height={80}/>
+                        <YAxis tickFormatter={(v, i) => this.formatCurrency(v)||''} width={100}/>
                         <Tooltip />
                         <Legend />
                     </LineChart>

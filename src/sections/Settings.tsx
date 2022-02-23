@@ -164,8 +164,8 @@ export class Settings extends AbstractSection<SettingsProps, SettingsState> {
                             </TableHead>
                             <TableBody>
                                 {this.state.currencies.map(
-                                    (item, i) => <TableRow key={i} sx={{backgroundColor: item === this.props.config.base_currency ? 'rgba(0,0,255,0.25)' : null}}>
-                                        <TableCell colSpan={2}>{item}</TableCell>
+                                    (item, i) => <TableRow key={i}>
+                                        <TableCell colSpan={2}>{item} {item === this.props.config.base_currency ? '(base)' : null}</TableCell>
                                     </TableRow>
                                 )}
                             </TableBody>

@@ -23,13 +23,24 @@ export abstract class AbstractSection<P = {}, S = {}, SS = {}> extends React.Com
 
     formatCurrency(value: number, currency?: string): string|null {
         if (value && (this.props.config.base_currency || currency))
-            return value.toLocaleString(this.props.config.language_locale, {style: 'currency', currency: currency ? currency : this.props.config.base_currency});
+            return value.toLocaleString(
+                this.props.config.language_locale,
+                {
+                    style: 'currency',
+                    currency: currency ? currency : this.props.config.base_currency,
+                }
+            );
         return null;
     }
 
     formatPercents(value: number): string|null {
         if (value)
-            return value.toLocaleString(this.props.config.language_locale, {style: 'percent', minimumFractionDigits: 1});
+            return value.toLocaleString(
+                this.props.config.language_locale,
+                {
+                    style: 'percent', minimumFractionDigits: 1
+                }
+            );
         return null;
     }
 }
