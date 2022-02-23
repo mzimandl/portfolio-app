@@ -1,6 +1,7 @@
-import { Box } from '@mui/material';
+import { Box, FormControl, InputLabel, Select, MenuItem, ListSubheader } from '@mui/material';
 import { LineChart, CartesianGrid, Line, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { AbstractSection, SectionProps } from '../common';
+import { InstrumentDataRow } from './Settings';
 
 
 interface ChartDataRow {
@@ -14,8 +15,10 @@ interface ChartDataRow {
 type ChartResponse = Array<ChartDataRow>;
 
 interface ChartState {
-    isBusy: boolean;
-    data: Array<ChartDataRow>;
+    chartData: Array<ChartDataRow>;
+    instruments: Array<InstrumentDataRow>;
+    types: Array<string>;
+    filter: string|null;
 }
 
 interface ChartProps {}
@@ -27,30 +30,66 @@ export class Charts extends AbstractSection<ChartProps, ChartState> {
     constructor(props: ChartProps & SectionProps) {
         super(props);
         this.state = {
-            isBusy: false,
-            data: [],
+            chartData: [],
+            instruments: [],
+            types: [],
+            filter: null,
         };
     }
 
     componentDidMount() {
         super.componentDidMount();
-        this.setState({isBusy: true});
         this.props.displayProgressBar(true);
-        fetch('/charts/get')
-            .then<ChartResponse>(res => res.json())
-            .then(data => {
-                this.setState({data, isBusy: false});
-                this.props.displayProgressBar(false);
+        fetch('/instruments/list')
+        .then<Array<InstrumentDataRow>>(res => res.json())
+        .then(instruments => {
+            fetch('/types/list')
+            .then<Array<string>>(res => res.json())
+            .then(types => {
+                fetch('/charts/get')
+                .then<ChartResponse>(res => res.json())
+                .then(chartData => {
+                    this.setState({chartData, instruments, types});
+                    this.props.displayProgressBar(false);
+                });
             });
+        });
+    }
+
+    handleFilterChange(filter: string|null) {
+        this.setState({filter});
+        this.props.displayProgressBar(true);
+        const params = new URLSearchParams();
+        if (filter) params.append('filter', filter);
+        fetch(`/charts/get?${params.toString()}`)
+        .then<ChartResponse>(res => res.json())
+        .then(chartData => {
+            this.setState({chartData});
+            this.props.displayProgressBar(false);
+        });
     }
 
     render() {
-
         return <Box>
-            {this.state.isBusy ?
-                null :
+            <FormControl fullWidth size='small'>
+                <InputLabel id="filter-select-label">Filter</InputLabel>
+                <Select
+                    labelId='filter-select-label'
+                    value={this.state.filter}
+                    label="Filter"
+                    onChange={(e) => this.handleFilterChange(e.target.value)}
+                >
+                    <MenuItem>---</MenuItem>
+                    <ListSubheader>types</ListSubheader>
+                    {this.state.types.map(v => <MenuItem value={v}>{v}</MenuItem>)}
+                    <ListSubheader>instruments</ListSubheader>
+                    {this.state.instruments.map(v => <MenuItem value={v.ticker}>{v.ticker}</MenuItem>)}
+                </Select>
+            </FormControl>
+
+            {this.state.chartData.length > 0 ?
                 <ResponsiveContainer width="100%" height={600}>
-                    <LineChart data={this.state.data} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                    <LineChart data={this.state.chartData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
                         <CartesianGrid strokeDasharray="3 3" />
                         <Line type="monotone" dataKey="value" dot={false} stroke="#8884d8" />
                         <Line type="monotone" dataKey="investment" dot={false} stroke="#82ca9d" />
@@ -60,7 +99,8 @@ export class Charts extends AbstractSection<ChartProps, ChartState> {
                         <Tooltip />
                         <Legend />
                     </LineChart>
-                </ResponsiveContainer>
+                </ResponsiveContainer> :
+                null
             }
         </Box>
     }

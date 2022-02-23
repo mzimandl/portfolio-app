@@ -178,8 +178,9 @@ async def handler(request:sanic.Request):
 
 @app.get("/charts/get")
 async def handler(request:sanic.Request):
+    filter = request.args.get('filter')
     cursor = db.cursor()
-    cursor.execute('''
+    cursor.execute(f'''
         select
             date,
             sum(fee) as fee,
@@ -230,11 +231,12 @@ async def handler(request:sanic.Request):
             left join fx as ft on ft.from_curr = it.currency and ft.date = dt.date
             left join trades as tt on tt.ticker = it.ticker and tt.date = dt.date
             left join historical as ht on ht.ticker = it.ticker and ht.date = dt.date
+            {'where it.ticker = ? or it.type = ?' if filter else ''}
         )
         group by date
         having sum(investment)
         order by date
-    ''', [config.base_currency, config.base_currency])
+    ''', [config.base_currency, config.base_currency] + ([filter, filter] if filter else []))
     return sanic.response.json([dict(row) for row in cursor])
 
 
