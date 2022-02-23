@@ -133,6 +133,7 @@ async def handler(request:sanic.Request):
         SELECT
             tt.ticker,
             it.currency,
+            it.type,
             sum(volume) as volume,
             sum(CASE WHEN fee THEN fee ELSE 0 END) as fee,
             sum(price*(CASE WHEN volume THEN volume ELSE 1 END)/(CASE WHEN rate THEN rate ELSE 1 END)) as invested,
