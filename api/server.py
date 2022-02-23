@@ -67,7 +67,7 @@ async def handler(request:sanic.Request):
         d['ticker']: {
             'first_date': datetime.datetime(*tuple(int(t) for t in d['first_date'].split('-'))),
             'evaluation': d['evaluation'],
-            'eval_param': d['eval_param'],
+            'eval_param': json.loads(d['eval_param']) if d['evaluation'] == 'http' else d['eval_param'],
         } for d in cursor}
 
     sql = '''
@@ -84,11 +84,26 @@ async def handler(request:sanic.Request):
                 for date, row in df.iterrows()
             ])
 
-        # only FFGLOB for now
         elif ticker_info['evaluation'] == 'http':
-            resp = requests.get('https://www.fiofondy.cz/cs/podilove-fondy/globalni-akciovy-fond?do=getFundChartData')
+            resp = requests.get(ticker_info['eval_param']['url'])
+            date_key = ticker_info['eval_param']['date']
+            open_key = ticker_info['eval_param'].get('open')
+            close_key = ticker_info['eval_param'].get('close')
+            high_key = ticker_info['eval_param'].get('high')
+            low_key = ticker_info['eval_param'].get('low')
+            dvd_key = ticker_info['eval_param'].get('dividends')
+            split_key = ticker_info['eval_param'].get('stock_splits')
             cursor.executemany(sql, [
-                (d['x'], ticker, 0, 0, 0, d['value'], 0, 0)
+                (
+                    d[date_key],
+                    ticker,
+                    d.get(open_key, 0),
+                    d.get(high_key, 0),
+                    d.get(low_key, 0),
+                    d.get(close_key, 0),
+                    d.get(dvd_key, 0),
+                    d.get(split_key, 0),
+                )
                 for d in resp.json()
             ])
 
