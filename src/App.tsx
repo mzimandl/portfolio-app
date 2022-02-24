@@ -1,4 +1,6 @@
 import * as React from 'react';
+import { Routes, Route, Navigate, Link } from 'react-router-dom';
+
 import { styled, Theme, CSSObject } from '@mui/material/styles';
 import Box from '@mui/material/Box';
 import MuiDrawer from '@mui/material/Drawer';
@@ -20,17 +22,17 @@ import AnalyticsOutlinedIcon from '@mui/icons-material/AnalyticsOutlined';
 import TimelineIcon from '@mui/icons-material/Timeline';
 import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined';
 import AccountBalanceOutlinedIcon from '@mui/icons-material/AccountBalanceOutlined';
+import SearchIcon from '@mui/icons-material/Search';
+import { Refresh } from '@mui/icons-material';
+import { CircularProgress, Icon, LinearProgress } from '@mui/material';
 
+import { Config } from './common';
 import { Trades } from './sections/Trades';
 import { Overview } from './sections/Overview';
 import { Charts } from './sections/Charts';
 import { Settings } from './sections/Settings';
 import { Values } from './sections/Values';
-import { Refresh } from '@mui/icons-material';
-import { CircularProgress, Icon, LinearProgress } from '@mui/material';
-
-import { Routes, Route, Navigate, Link } from 'react-router-dom';
-import { Config } from './common';
+import { Prices } from './sections/Prices';
 
 const drawerWidth = 240;
 
@@ -247,6 +249,12 @@ export default class App extends React.Component<{}, AppState> {
                 <ListItemText primary="Values" />
               </ListItem>
             </Link>
+            <Link to="/prices" style={{color: 'inherit', textDecoration: 'none'}}>
+              <ListItem button key="prices">
+                <ListItemIcon><SearchIcon /></ListItemIcon>
+                <ListItemText primary="Prices" />
+              </ListItem>
+            </Link>
             <Link to="/settings" style={{color: 'inherit', textDecoration: 'none'}}>
               <ListItem button key="settings">
                 <ListItemIcon><SettingsOutlinedIcon /></ListItemIcon>
@@ -272,6 +280,9 @@ export default class App extends React.Component<{}, AppState> {
             }/>
             <Route path="/values" element={
               <Values config={this.state.config} setHeading={this.setHeading} displayProgressBar={this.displayProgressBar} />
+            }/>
+            <Route path="/prices" element={
+              <Prices config={this.state.config} setHeading={this.setHeading} displayProgressBar={this.displayProgressBar} />
             }/>
             <Route path="/" element={<Navigate to="/overview" />} />
           </Routes>

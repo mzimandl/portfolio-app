@@ -256,6 +256,14 @@ async def handler(request:sanic.Request):
     return sanic.response.json([dict(row) for row in cursor])
 
 
+@app.get("/prices/get")
+async def handler(request:sanic.Request):
+    filter = request.args.get('filter')
+    cursor = db.cursor()
+    cursor.execute('select * from historical where ticker = ?', [filter])
+    return sanic.response.json([dict(row) for row in cursor])
+
+
 @app.get("/instruments/list")
 async def handler(request:sanic.Request):
     cursor = db.cursor()
