@@ -1,5 +1,5 @@
 import { Box, FormControl, InputLabel, Select, MenuItem, Slider } from '@mui/material';
-import { CartesianGrid, XAxis, YAxis, Tooltip, Area, ResponsiveContainer, ComposedChart, Bar, Cell } from 'recharts';
+import { CartesianGrid, XAxis, YAxis, Tooltip, Area, ResponsiveContainer, ComposedChart, Bar, Cell, Line } from 'recharts';
 import { AbstractSection, SectionProps } from '../common';
 import { InstrumentDataRow } from './Settings';
 
@@ -67,6 +67,8 @@ export class Prices extends AbstractSection<PricesProps, PricesState> {
     }
 
     render() {
+        const onlyClose = this.state.chartData.every(item => !item.open && !item.high && !item.low);
+
         return <Box>
             <FormControl fullWidth size='small'>
                 <InputLabel id="filter-select-label">Filter</InputLabel>
@@ -92,12 +94,17 @@ export class Prices extends AbstractSection<PricesProps, PricesState> {
                 <ResponsiveContainer width="100%" height={600}>
                     <ComposedChart data={this.state.chartData.slice(this.state.dateRange[0], this.state.dateRange[1])} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
                         <CartesianGrid strokeDasharray="3 3" />
-                        <Area dataKey={obj => [obj['low'], obj['high']]} stroke="#8884d8" opacity={0.4} name="Low/high"/>
-                        <Bar dataKey={obj => [obj['open'], obj['close']]} name="Open/close" >
-                            {this.state.chartData.map((item, index) =>
-                                <Cell key={`cell-${index}`} fill={item['close'] >= item['open'] ? '#56DD00' : '#FF3737'} />
-                            )}
-                        </Bar>
+                        {onlyClose ?
+                            <Line dataKey="close" stroke="#8884d8" dot={false} /> :
+                            [
+                                <Area dataKey={obj => [obj['low'], obj['high']]} stroke="#8884d8" opacity={0.4} name="Low/high"/>,
+                                <Bar dataKey={obj => [obj['open'], obj['close']]} name="Open/close" >
+                                    {this.state.chartData.map((item, index) =>
+                                        <Cell key={`cell-${index}`} fill={item['close'] >= item['open'] ? '#56DD00' : '#FF3737'} />
+                                    )}
+                                </Bar>
+                            ]
+                        }
                         <XAxis dataKey="date" angle={30} dy={30} dx={6} height={80}/>
                         <YAxis tickFormatter={(v, i) => this.formatCurrency(v, this.state.currency)||''} width={100}/>
                         <Tooltip formatter={(value: number) => this.formatCurrency(value, this.state.currency)} />
