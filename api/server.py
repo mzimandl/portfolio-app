@@ -192,6 +192,28 @@ async def handler(request:sanic.Request):
     ])
 
 
+@app.get("/dividends/calc")
+async def handler(request:sanic.Request):
+    cursor = db.cursor()
+    cursor.execute('''
+        SELECT
+            dt.ticker,
+            sum(dt.dividends) as dividends,
+            it.currency
+        FROM (
+            SELECT
+                ht.date,
+                ht.ticker,
+                ht.dividends * (select sum(volume) from trades where date <= ht.date and ticker = ht.ticker) as dividends
+            FROM historical as ht
+            WHERE dividends > 0
+        ) dt
+        JOIN instruments as it on it.ticker = dt.ticker
+        GROUP BY dt.ticker
+    ''')
+    return sanic.response.json({d['ticker']: dict(d) for d in cursor})
+
+
 @app.get("/charts/get")
 async def handler(request:sanic.Request):
     filter = request.args.get('filter')

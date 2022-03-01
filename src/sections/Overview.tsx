@@ -15,7 +15,14 @@ interface OverviewDataRow {
     type: string;
 }
 
+interface DividendsDataRow {
+    ticker: string;
+    currency: string;
+    dividends: number;
+}
+
 type OverviewResponse = Array<OverviewDataRow>;
+type DividendsResponse = {[ticker:string]:DividendsDataRow};
 
 interface OverviewState {
     investment: number;
@@ -23,6 +30,7 @@ interface OverviewState {
     value: number;
     profit: number;
     overview: Array<OverviewDataRow>;
+    dividends: DividendsResponse;
     types: Array<string>;
     groupByType: boolean;
 }
@@ -41,6 +49,7 @@ export class Overview extends AbstractSection<OverviewProps, OverviewState> {
             value: 0,
             profit: 0,
             overview: [],
+            dividends: {},
             types: [],
             groupByType: false,
         };
@@ -50,7 +59,9 @@ export class Overview extends AbstractSection<OverviewProps, OverviewState> {
         super.componentDidMount();
         this.props.displayProgressBar(true)
         this.loadOverview().then(() =>
-            this.props.displayProgressBar(false)
+            this.loadDividends().then(() =>
+                this.props.displayProgressBar(false)
+            )
         );
     }
 
@@ -71,6 +82,14 @@ export class Overview extends AbstractSection<OverviewProps, OverviewState> {
                     value: overview.reduce((prev, cur, i) => prev + cur.value, 0),
                     profit: overview.reduce((prev, cur, i) => prev + cur.profit, 0),
                 });
+            });
+    }
+
+    loadDividends() {
+        return fetch('/dividends/calc')
+            .then<DividendsResponse>(res => res.json())
+            .then(dividends => {
+                this.setState({dividends});
             });
     }
 
@@ -140,6 +159,7 @@ export class Overview extends AbstractSection<OverviewProps, OverviewState> {
                                                 <TableCell align='right'>Fee</TableCell>
                                                 <TableCell align='right'>Value</TableCell>
                                                 <TableCell colSpan={2} align='center'>Profit</TableCell>
+                                                <TableCell align='right'>Dividends</TableCell>
                                             </TableRow>
                                         </TableHead>
                                         <TableBody>
@@ -153,6 +173,7 @@ export class Overview extends AbstractSection<OverviewProps, OverviewState> {
                                                     <TableCell align='right'>{this.formatCurrency(item.value)}</TableCell>
                                                     <TableCell align='right'>{this.formatCurrency(item.profit)}</TableCell>
                                                     <TableCell align='right'>{this.formatPercents(item.profit/item.invested)}</TableCell>
+                                                    <TableCell align='right'>{this.state.dividends[item.ticker] ? this.formatCurrency(this.state.dividends[item.ticker].dividends, this.state.dividends[item.ticker].currency) : null}</TableCell>
                                                 </TableRow>
                                             )}
                                         </TableBody>
@@ -174,6 +195,7 @@ export class Overview extends AbstractSection<OverviewProps, OverviewState> {
                                             <TableCell align='right'>Fee</TableCell>
                                             <TableCell align='right'>Value</TableCell>
                                             <TableCell colSpan={2} align='center'>Profit</TableCell>
+                                            <TableCell align='right'>Dividends</TableCell>
                                         </TableRow>
                                     </TableHead>
                                     <TableBody>
@@ -187,6 +209,7 @@ export class Overview extends AbstractSection<OverviewProps, OverviewState> {
                                                 <TableCell align='right'>{this.formatCurrency(item.value)}</TableCell>
                                                 <TableCell align='right'>{this.formatCurrency(item.profit)}</TableCell>
                                                 <TableCell align='right'>{this.formatPercents(item.profit/item.invested)}</TableCell>
+                                                <TableCell align='right'>{this.state.dividends[item.ticker] ? this.formatCurrency(this.state.dividends[item.ticker].dividends, this.state.dividends[item.ticker].currency) : null}</TableCell>
                                             </TableRow>
                                         )}
                                     </TableBody>
