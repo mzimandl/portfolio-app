@@ -29,6 +29,8 @@ interface OverviewState {
     fees: number;
     value: number;
     profit: number;
+    savingsDeposit: number;
+    savingsValue: number;
     overview: Array<OverviewDataRow>;
     dividends: DividendsResponse;
     types: Array<string>;
@@ -48,6 +50,8 @@ export class Overview extends AbstractSection<OverviewProps, OverviewState> {
             fees: 0,
             value: 0,
             profit: 0,
+            savingsDeposit: 0,
+            savingsValue: 0,
             overview: [],
             dividends: {},
             types: [],
@@ -77,10 +81,12 @@ export class Overview extends AbstractSection<OverviewProps, OverviewState> {
                 this.setState({
                     overview,
                     types,
-                    investment: overview.reduce((prev, cur, i) => prev + cur.invested, 0),
-                    fees: overview.reduce((prev, cur, i) => prev + cur.fee, 0),
-                    value: overview.reduce((prev, cur, i) => prev + cur.value, 0),
-                    profit: overview.reduce((prev, cur, i) => prev + cur.profit, 0),
+                    investment: overview.reduce((prev, cur, i) => cur.type === 'savings' ? prev : prev + cur.invested, 0),
+                    fees: overview.reduce((prev, cur, i) => cur.type === 'savings' ? prev : prev + cur.fee, 0),
+                    value: overview.reduce((prev, cur, i) => cur.type === 'savings' ? prev : prev + cur.value, 0),
+                    profit: overview.reduce((prev, cur, i) => cur.type === 'savings' ? prev : prev + cur.profit, 0),
+                    savingsDeposit: overview.reduce((prev, cur, i) => cur.type === 'savings' ? prev + cur.invested : prev, 0),
+                    savingsValue: overview.reduce((prev, cur, i) => cur.type === 'savings' ? prev + cur.value : prev, 0),
                 });
             });
     }
@@ -97,7 +103,7 @@ export class Overview extends AbstractSection<OverviewProps, OverviewState> {
         return (
             <Box>
                 <Grid container spacing={2}>
-                    <Grid item xs={3}>
+                    <Grid item xs={2}>
                         <Card elevation={3}>
                             <CardContent>
                                 <Typography variant="h5" component="div">Investment</Typography>
@@ -107,7 +113,7 @@ export class Overview extends AbstractSection<OverviewProps, OverviewState> {
                             </CardContent>
                         </Card>
                     </Grid>
-                    <Grid item xs={3}>
+                    <Grid item xs={2}>
                         <Card elevation={3}>
                             <CardContent>
                                 <Typography variant="h5" component="div">Fees</Typography>
@@ -117,7 +123,7 @@ export class Overview extends AbstractSection<OverviewProps, OverviewState> {
                             </CardContent>
                         </Card>
                     </Grid>
-                    <Grid item xs={3}>
+                    <Grid item xs={2}>
                         <Card elevation={3}>
                             <CardContent>
                                 <Typography variant="h5" component="div">Value</Typography>
@@ -127,12 +133,32 @@ export class Overview extends AbstractSection<OverviewProps, OverviewState> {
                             </CardContent>
                         </Card>
                     </Grid>
-                    <Grid item xs={3}>
+                    <Grid item xs={2}>
                         <Card elevation={3}>
                             <CardContent>
                                 <Typography variant="h5" component="div">Profit</Typography>
                                 <Typography sx={{ mb: 1.5 }} color="text.secondary">
                                     {this.formatCurrency(this.state.profit)} ({this.formatPercents(this.state.profit/this.state.investment)})
+                                </Typography>
+                            </CardContent>
+                        </Card>
+                    </Grid>
+                    <Grid item xs={2}>
+                        <Card elevation={3}>
+                            <CardContent>
+                                <Typography variant="h5" component="div">Savings Deposit</Typography>
+                                <Typography sx={{ mb: 1.5 }} color="text.secondary">
+                                    {this.formatCurrency(this.state.savingsDeposit)}
+                                </Typography>
+                            </CardContent>
+                        </Card>
+                    </Grid>
+                    <Grid item xs={2}>
+                        <Card elevation={3}>
+                            <CardContent>
+                                <Typography variant="h5" component="div">Savings Value</Typography>
+                                <Typography sx={{ mb: 1.5 }} color="text.secondary">
+                                    {this.formatCurrency(this.state.savingsValue)} ({this.formatPercents((this.state.savingsValue-this.state.savingsDeposit)/this.state.savingsValue)})
                                 </Typography>
                             </CardContent>
                         </Card>
