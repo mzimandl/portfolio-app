@@ -1,5 +1,5 @@
 import { AbstractSection, SectionProps } from '../common';
-import { Table, TableBody, TableHead, TableContainer, TableRow, TableCell, Box, IconButton, FormControl, Grid, InputLabel, Select, MenuItem, Autocomplete } from '@mui/material';
+import { Table, TableBody, TableHead, TableContainer, TableRow, TableCell, Box, IconButton, FormControl, Grid, InputLabel, Select, MenuItem, Autocomplete, CardContent, Card } from '@mui/material';
 import TextField from '@mui/material/TextField';
 import { AddBox } from '@mui/icons-material';
 
@@ -161,105 +161,117 @@ export class Settings extends AbstractSection<SettingsProps, SettingsState> {
         return <Box>
             <Grid container spacing={2}>
                 <Grid item xs={2}>
-                    <TableContainer>
-                        <Table size="small">
-                            <TableHead>
-                                <TableRow>
-                                    <TableCell><TextField label="Currency" variant="outlined" size='small' margin='none' fullWidth value={this.state.new.currency}
-                                        onChange={(e) => this.setState({new: {...this.state.new, currency: e.target.value}})} /></TableCell>
-                                    <TableCell><IconButton onClick={this.addCurrency}><AddBox/></IconButton></TableCell>
-                                </TableRow>
-                            </TableHead>
-                            <TableBody>
-                                {this.state.currencies.map(
-                                    (item, i) => <TableRow key={i}>
-                                        <TableCell colSpan={2}>{item} {item === this.props.config.base_currency ? '(base)' : null}</TableCell>
-                                    </TableRow>
-                                )}
-                            </TableBody>
-                        </Table>
-                    </TableContainer>
+                    <Card elevation={3}>
+                        <CardContent>
+                            <TableContainer>
+                                <Table size="small">
+                                    <TableHead>
+                                        <TableRow>
+                                            <TableCell><TextField label="Currency" variant="outlined" size='small' margin='none' fullWidth value={this.state.new.currency}
+                                                onChange={(e) => this.setState({new: {...this.state.new, currency: e.target.value}})} /></TableCell>
+                                            <TableCell><IconButton onClick={this.addCurrency}><AddBox/></IconButton></TableCell>
+                                        </TableRow>
+                                    </TableHead>
+                                    <TableBody>
+                                        {this.state.currencies.map(
+                                            (item, i) => <TableRow key={i}>
+                                                <TableCell colSpan={2}>{item} {item === this.props.config.base_currency ? '(base)' : null}</TableCell>
+                                            </TableRow>
+                                        )}
+                                    </TableBody>
+                                </Table>
+                            </TableContainer>
+                        </CardContent>
+                    </Card>
                 </Grid>
                 <Grid item xs={2}>
-                    <TableContainer>
-                        <Table size="small">
-                            <TableHead>
-                                <TableRow>
-                                    <TableCell><TextField label="Type" variant="outlined" size='small' margin='none' fullWidth value={this.state.new.type}
-                                        onChange={(e) => this.setState({new: {...this.state.new, type: e.target.value}})} /></TableCell>
-                                    <TableCell><IconButton onClick={this.addType}><AddBox/></IconButton></TableCell>
-                                </TableRow>
-                            </TableHead>
-                            <TableBody>
-                                {this.state.types.map(
-                                    (item, i) => <TableRow key={i}>
-                                        <TableCell colSpan={2}>{item}</TableCell>
-                                    </TableRow>
-                                )}
-                            </TableBody>
-                        </Table>
-                    </TableContainer>
+                    <Card elevation={3}>
+                        <CardContent>
+                            <TableContainer>
+                                <Table size="small">
+                                    <TableHead>
+                                        <TableRow>
+                                            <TableCell><TextField label="Type" variant="outlined" size='small' margin='none' fullWidth value={this.state.new.type}
+                                                onChange={(e) => this.setState({new: {...this.state.new, type: e.target.value}})} /></TableCell>
+                                            <TableCell><IconButton onClick={this.addType}><AddBox/></IconButton></TableCell>
+                                        </TableRow>
+                                    </TableHead>
+                                    <TableBody>
+                                        {this.state.types.map(
+                                            (item, i) => <TableRow key={i}>
+                                                <TableCell colSpan={2}>{item}</TableCell>
+                                            </TableRow>
+                                        )}
+                                    </TableBody>
+                                </Table>
+                            </TableContainer>
+                        </CardContent>
+                    </Card>
                 </Grid>
                 <Grid item xs={8}>
-                    <TableContainer>
-                        <Table size="small">
-                            <TableHead>
-                                <TableRow>
-                                    <TableCell>
-                                        <TextField label="Ticker" variant="outlined" size='small' margin='none' fullWidth value={this.state.new.instrument.ticker}
-                                        onChange={(e) => this.setState({new: {...this.state.new, instrument: {...this.state.new.instrument, ticker: e.target.value}}})} />
-                                    </TableCell>
-                                    <TableCell>
-                                        <Autocomplete
-                                            value={this.state.new.instrument.currency}
-                                            onChange={(e, newValue) => this.setState({new: {...this.state.new, instrument: {...this.state.new.instrument, currency: newValue}}})}
-                                            options={this.state.currencies}
-                                            renderInput={(params) => <TextField {...params} size='small' label="Currency" />}
-                                        />
-                                    </TableCell>
-                                    <TableCell>
-                                        <Autocomplete
-                                            value={this.state.new.instrument.type}
-                                            onChange={(e, newValue) => this.setState({new: {...this.state.new, instrument: {...this.state.new.instrument, type: newValue}}})}
-                                            options={this.state.types}
-                                            renderInput={(params) => <TextField {...params} size='small' label="Type" />}
-                                        />
-                                    </TableCell>
-                                    <TableCell>
-                                        <FormControl fullWidth size='small'>
-                                            <InputLabel id="vmode-select-label">Evaluation</InputLabel>
-                                            <Select
-                                                labelId='vmode-select-label'
-                                                value={this.state.new.instrument.evaluation}
-                                                label="Value mode"
-                                                onChange={(e) => this.setState({new: {...this.state.new, instrument: {...this.state.new.instrument, evaluation: e.target.value as EvaluationType}}})}
-                                            >
-                                                <MenuItem value="yfinance">yfinance</MenuItem>
-                                                <MenuItem value="manual">manual</MenuItem>
-                                                <MenuItem value="http">http</MenuItem>
-                                            </Select>
-                                        </FormControl>
-                                    </TableCell>
-                                    <TableCell>
-                                        <TextField label="EvalParam" variant="outlined" size='small' margin='none' fullWidth value={this.state.new.instrument.eval_param}
-                                        onChange={(e) => this.setState({new: {...this.state.new, instrument: {...this.state.new.instrument, eval_param: e.target.value}}})} />
-                                    </TableCell>
-                                    <TableCell><IconButton onClick={this.addInstrument}><AddBox/></IconButton></TableCell>
-                                </TableRow>
-                            </TableHead>
-                            <TableBody>
-                                {this.state.instruments.map(
-                                    (item, i) => <TableRow key={i}>
-                                        <TableCell>{item.ticker}</TableCell>
-                                        <TableCell>{item.currency}</TableCell>
-                                        <TableCell>{item.type}</TableCell>
-                                        <TableCell>{item.evaluation}</TableCell>
-                                        <TableCell colSpan={2}>{item.eval_param}</TableCell>
-                                    </TableRow>
-                                )}
-                            </TableBody>
-                        </Table>
-                    </TableContainer>
+                    <Card elevation={3}>
+                        <CardContent>
+                            <TableContainer>
+                                <Table size="small">
+                                    <TableHead>
+                                        <TableRow>
+                                            <TableCell>
+                                                <TextField label="Ticker" variant="outlined" size='small' margin='none' fullWidth value={this.state.new.instrument.ticker}
+                                                onChange={(e) => this.setState({new: {...this.state.new, instrument: {...this.state.new.instrument, ticker: e.target.value}}})} />
+                                            </TableCell>
+                                            <TableCell>
+                                                <Autocomplete
+                                                    value={this.state.new.instrument.currency}
+                                                    onChange={(e, newValue) => this.setState({new: {...this.state.new, instrument: {...this.state.new.instrument, currency: newValue}}})}
+                                                    options={this.state.currencies}
+                                                    renderInput={(params) => <TextField {...params} size='small' label="Currency" />}
+                                                />
+                                            </TableCell>
+                                            <TableCell>
+                                                <Autocomplete
+                                                    value={this.state.new.instrument.type}
+                                                    onChange={(e, newValue) => this.setState({new: {...this.state.new, instrument: {...this.state.new.instrument, type: newValue}}})}
+                                                    options={this.state.types}
+                                                    renderInput={(params) => <TextField {...params} size='small' label="Type" />}
+                                                />
+                                            </TableCell>
+                                            <TableCell>
+                                                <FormControl fullWidth size='small'>
+                                                    <InputLabel id="vmode-select-label">Evaluation</InputLabel>
+                                                    <Select
+                                                        labelId='vmode-select-label'
+                                                        value={this.state.new.instrument.evaluation}
+                                                        label="Value mode"
+                                                        onChange={(e) => this.setState({new: {...this.state.new, instrument: {...this.state.new.instrument, evaluation: e.target.value as EvaluationType}}})}
+                                                    >
+                                                        <MenuItem value="yfinance">yfinance</MenuItem>
+                                                        <MenuItem value="manual">manual</MenuItem>
+                                                        <MenuItem value="http">http</MenuItem>
+                                                    </Select>
+                                                </FormControl>
+                                            </TableCell>
+                                            <TableCell>
+                                                <TextField label="EvalParam" variant="outlined" size='small' margin='none' fullWidth value={this.state.new.instrument.eval_param}
+                                                onChange={(e) => this.setState({new: {...this.state.new, instrument: {...this.state.new.instrument, eval_param: e.target.value}}})} />
+                                            </TableCell>
+                                            <TableCell><IconButton onClick={this.addInstrument}><AddBox/></IconButton></TableCell>
+                                        </TableRow>
+                                    </TableHead>
+                                    <TableBody>
+                                        {this.state.instruments.map(
+                                            (item, i) => <TableRow key={i}>
+                                                <TableCell>{item.ticker}</TableCell>
+                                                <TableCell>{item.currency}</TableCell>
+                                                <TableCell>{item.type}</TableCell>
+                                                <TableCell>{item.evaluation}</TableCell>
+                                                <TableCell colSpan={2}>{item.eval_param}</TableCell>
+                                            </TableRow>
+                                        )}
+                                    </TableBody>
+                                </Table>
+                            </TableContainer>
+                        </CardContent>
+                    </Card>
                 </Grid>
             </Grid>
         </Box>
