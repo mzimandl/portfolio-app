@@ -1,3 +1,4 @@
+import React from "react";
 import { AbstractSection, SectionProps } from '../common';
 import { Table, TableBody, TableHead, TableContainer, TableRow, TableCell, Box, IconButton, FormControl, Select, InputLabel, MenuItem } from '@mui/material';
 import TextField from '@mui/material/TextField';
@@ -28,11 +29,68 @@ type TradesResponse = Array<DataRow>;
 
 interface TradesState {
     trades: Array<DataRow>;
-    newTrade: NewDataRow;
     instruments: Array<InstrumentDataRow>;
 }
 
 interface TradesProps {}
+interface NewTradeTableRowProps {
+    instruments:Array<InstrumentDataRow>;
+    addTrade:(newTrade:NewDataRow) => void;
+}
+
+class NewTradeTableRow extends React.Component<NewTradeTableRowProps, NewDataRow> {
+
+    constructor(props:NewTradeTableRowProps) {
+        super(props);
+        this.state = {
+            date: '',
+            ticker: '',
+            volume: '',
+            price: '',
+            fee: '',
+            rate: '',
+        }
+    }
+
+    render() {
+        return <TableRow>
+            <TableCell>
+                <TextField label="Date" variant="outlined" size='small' margin='none' fullWidth
+                onChange={(e) => this.setState({date: e.target.value})} />
+            </TableCell>
+            <TableCell>
+                <FormControl fullWidth size='small'>
+                    <InputLabel id="ticker-select-label">Ticker</InputLabel>
+                    <Select
+                        labelId='ticker-select-label'
+                        value={this.state.ticker}
+                        label="Ticker"
+                        onChange={(e) => this.setState({ticker: e.target.value})}
+                    >
+                        {this.props.instruments.map(v => <MenuItem key={v.ticker} value={v.ticker}>{v.ticker}</MenuItem>)}
+                    </Select>
+                </FormControl>
+            </TableCell>
+            <TableCell>
+                <TextField label="Volume" variant="outlined" size='small' margin='none' fullWidth
+                onChange={(e) => this.setState({volume: e.target.value})} />
+            </TableCell>
+            <TableCell>
+                <TextField label="Price" variant="outlined" size='small' margin='none' fullWidth
+                onChange={(e) => this.setState({price: e.target.value})} />
+            </TableCell>
+            <TableCell>
+                <TextField label="Exchange rate" variant="outlined" size='small' margin='none' fullWidth
+                onChange={(e) => this.setState({rate: e.target.value})} />
+            </TableCell>
+            <TableCell>
+                <TextField label="Fee" variant="outlined" size='small' margin='none' fullWidth
+                onChange={(e) => this.setState({fee: e.target.value})} />
+            </TableCell>
+            <TableCell><IconButton onClick={e => this.props.addTrade(this.state)}><AddBox/></IconButton></TableCell>
+        </TableRow>
+    }
+}
 
 export class Trades extends AbstractSection<TradesProps, TradesState> {
 
@@ -43,14 +101,6 @@ export class Trades extends AbstractSection<TradesProps, TradesState> {
         this.state = {
             trades: [],
             instruments: [],
-            newTrade: {
-                date: '',
-                ticker: '',
-                volume: '',
-                price: '',
-                fee: '',
-                rate: '',
-            }
         };
 
         this.addTrade = this.addTrade.bind(this);
@@ -80,22 +130,12 @@ export class Trades extends AbstractSection<TradesProps, TradesState> {
             .then(trades => this.setState({trades}));
     }
 
-    addTrade = () => {
-        if (this.state.newTrade.ticker && this.state.newTrade.date) {
+    addTrade = (newTrade:NewDataRow) => {
+        if (newTrade.ticker && newTrade.date) {
             this.props.displayProgressBar(true);
-            fetch('/trades/new', {method: 'POST', body: JSON.stringify(this.state.newTrade)})
+            fetch('/trades/new', {method: 'POST', body: JSON.stringify(newTrade)})
                 .then(res => {
                     this.loadTrades().then(() => {
-                        this.setState({
-                            newTrade: {
-                                date: '',
-                                ticker: '',
-                                volume: '',
-                                price: '',
-                                fee: '',
-                                rate: '',
-                            }
-                        });
                         this.props.displayProgressBar(false);
                     });
                 });
@@ -108,42 +148,7 @@ export class Trades extends AbstractSection<TradesProps, TradesState> {
             <TableContainer>
                 <Table size="small">
                     <TableHead>
-                        <TableRow>
-                            <TableCell>
-                                <TextField label="Date" variant="outlined" size='small' margin='none' fullWidth
-                                onChange={(e) => this.setState({newTrade: {...this.state.newTrade, date: e.target.value}})} />
-                            </TableCell>
-                            <TableCell>
-                                <FormControl fullWidth size='small'>
-                                    <InputLabel id="ticker-select-label">Ticker</InputLabel>
-                                    <Select
-                                        labelId='ticker-select-label'
-                                        value={this.state.newTrade.ticker}
-                                        label="Ticker"
-                                        onChange={(e) => this.setState({newTrade: {...this.state.newTrade, ticker: e.target.value}})}
-                                    >
-                                        {this.state.instruments.map(v => <MenuItem key={v.ticker} value={v.ticker}>{v.ticker}</MenuItem>)}
-                                    </Select>
-                                </FormControl>
-                            </TableCell>
-                            <TableCell>
-                                <TextField label="Volume" variant="outlined" size='small' margin='none' fullWidth
-                                onChange={(e) => this.setState({newTrade: {...this.state.newTrade, volume: e.target.value}})} />
-                            </TableCell>
-                            <TableCell>
-                                <TextField label="Price" variant="outlined" size='small' margin='none' fullWidth
-                                onChange={(e) => this.setState({newTrade: {...this.state.newTrade, price: e.target.value}})} />
-                            </TableCell>
-                            <TableCell>
-                                <TextField label="Exchange rate" variant="outlined" size='small' margin='none' fullWidth
-                                onChange={(e) => this.setState({newTrade: {...this.state.newTrade, rate: e.target.value}})} />
-                            </TableCell>
-                            <TableCell>
-                                <TextField label="Fee" variant="outlined" size='small' margin='none' fullWidth
-                                onChange={(e) => this.setState({newTrade: {...this.state.newTrade, fee: e.target.value}})} />
-                            </TableCell>
-                            <TableCell><IconButton onClick={this.addTrade}><AddBox/></IconButton></TableCell>
-                        </TableRow>
+                        <NewTradeTableRow instruments={this.state.instruments} addTrade={this.addTrade} />
                     </TableHead>
                     <TableBody>
                         {this.state.trades.map(
