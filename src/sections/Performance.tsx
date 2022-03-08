@@ -49,8 +49,8 @@ export class Performance extends AbstractSection<PerformanceProps, PerformanceSt
     render() {
         return (
             <Box>
-                {Object.entries(this.state.data).map(([year, data]) =>
-                    <Card elevation={3} sx={{marginBottom: '1em'}}>
+                {Object.entries(this.state.data).map(([year, data], i) =>
+                    <Card key={i} elevation={3} sx={{marginBottom: '1em'}}>
                         <CardHeader title={year} />
                         <CardContent>
                             <TableContainer>
@@ -59,7 +59,7 @@ export class Performance extends AbstractSection<PerformanceProps, PerformanceSt
                                         <TableRow>
                                             <TableCell>Ticker</TableCell>
                                             <TableCell align='right'>Investment</TableCell>
-                                            <TableCell align='center'>Value</TableCell>
+                                            <TableCell align='right'>Value</TableCell>
                                             <TableCell align='right'>Fee</TableCell>
                                             <TableCell colSpan={2} align='center'>Profit</TableCell>
                                         </TableRow>
@@ -72,7 +72,7 @@ export class Performance extends AbstractSection<PerformanceProps, PerformanceSt
                                                 <TableCell align='right'>{this.formatCurrency(d.value)}</TableCell>
                                                 <TableCell align='right'>{this.formatCurrency(d.fee)}</TableCell>
                                                 <TableCell align='right'>{this.formatCurrency(d.profit)}</TableCell>
-                                                <TableCell align='right'>{this.formatPercents(d.profit/d.investment)}</TableCell>
+                                                <TableCell align='left'>{this.formatPercents(d.profit/d.investment)}</TableCell>
                                             </TableRow>
                                         )}
                                     </TableBody>
