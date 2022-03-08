@@ -23,12 +23,13 @@ import TimelineIcon from '@mui/icons-material/Timeline';
 import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined';
 import AccountBalanceOutlinedIcon from '@mui/icons-material/AccountBalanceOutlined';
 import SearchIcon from '@mui/icons-material/Search';
-import { Refresh } from '@mui/icons-material';
+import { Refresh, Speed } from '@mui/icons-material';
 import { CircularProgress, Icon, LinearProgress } from '@mui/material';
 
 import { Config } from './common';
 import { Trades } from './sections/Trades';
 import { Overview } from './sections/Overview';
+import { Performance } from './sections/Performance';
 import { Charts } from './sections/Charts';
 import { Settings } from './sections/Settings';
 import { Values } from './sections/Values';
@@ -231,6 +232,12 @@ export default class App extends React.Component<{}, AppState> {
                 <ListItemText primary="Overview" />
               </ListItem>
             </Link>
+            <Link to="/performance" style={{color: 'inherit', textDecoration: 'none'}}>
+              <ListItem button key="performance">
+                <ListItemIcon><Speed /></ListItemIcon>
+                <ListItemText primary="Performance" />
+              </ListItem>
+            </Link>
             <Link to="/charts" style={{color: 'inherit', textDecoration: 'none'}}>
               <ListItem button key="charts">
                 <ListItemIcon><TimelineIcon /></ListItemIcon>
@@ -268,6 +275,9 @@ export default class App extends React.Component<{}, AppState> {
           <Routes>
             <Route path="/overview" element={
               <Overview config={this.state.config} setHeading={this.setHeading} displayProgressBar={this.displayProgressBar} />
+            }/>
+            <Route path="/performance" element={
+              <Performance config={this.state.config} setHeading={this.setHeading} displayProgressBar={this.displayProgressBar} />
             }/>
             <Route path="/trades" element={
               <Trades config={this.state.config} setHeading={this.setHeading} displayProgressBar={this.displayProgressBar} />

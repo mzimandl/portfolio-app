@@ -1,4 +1,4 @@
-import { Table, TableBody, TableHead, TableContainer, TableRow, TableCell, Box, Typography, Card, CardContent, Grid, FormGroup, Switch, FormControlLabel } from '@mui/material';
+import { Table, TableBody, TableHead, TableContainer, TableRow, TableCell, Box, Typography, Card, CardHeader, CardContent, Grid, FormGroup, Switch, FormControlLabel } from '@mui/material';
 import { AbstractSection, SectionProps } from '../common';
 
 
@@ -105,8 +105,8 @@ export class Overview extends AbstractSection<OverviewProps, OverviewState> {
                 <Grid container spacing={2}>
                     <Grid item xs={2}>
                         <Card elevation={3}>
+                            <CardHeader title={'Investment'} />
                             <CardContent>
-                                <Typography variant="h5" component="div">Investment</Typography>
                                 <Typography sx={{ mb: 1.5 }} color="text.secondary">
                                     {this.formatCurrency(this.state.investment)}
                                 </Typography>
@@ -115,8 +115,8 @@ export class Overview extends AbstractSection<OverviewProps, OverviewState> {
                     </Grid>
                     <Grid item xs={2}>
                         <Card elevation={3}>
+                            <CardHeader title={'Fees'} />
                             <CardContent>
-                                <Typography variant="h5" component="div">Fees</Typography>
                                 <Typography sx={{ mb: 1.5 }} color="text.secondary">
                                     {this.formatCurrency(this.state.fees)}
                                 </Typography>
@@ -125,8 +125,8 @@ export class Overview extends AbstractSection<OverviewProps, OverviewState> {
                     </Grid>
                     <Grid item xs={2}>
                         <Card elevation={3}>
+                            <CardHeader title={'Value'} />
                             <CardContent>
-                                <Typography variant="h5" component="div">Value</Typography>
                                 <Typography sx={{ mb: 1.5 }} color="text.secondary">
                                     {this.formatCurrency(this.state.value)}
                                 </Typography>
@@ -135,8 +135,8 @@ export class Overview extends AbstractSection<OverviewProps, OverviewState> {
                     </Grid>
                     <Grid item xs={2}>
                         <Card elevation={3}>
+                            <CardHeader title={'Profit'} />
                             <CardContent>
-                                <Typography variant="h5" component="div">Profit</Typography>
                                 <Typography sx={{ mb: 1.5 }} color="text.secondary">
                                     {this.formatCurrency(this.state.profit)} ({this.formatPercents(this.state.profit/this.state.investment)})
                                 </Typography>
@@ -145,8 +145,8 @@ export class Overview extends AbstractSection<OverviewProps, OverviewState> {
                     </Grid>
                     <Grid item xs={2}>
                         <Card elevation={3}>
+                            <CardHeader title={'Savings Deposit'} />
                             <CardContent>
-                                <Typography variant="h5" component="div">Savings Deposit</Typography>
                                 <Typography sx={{ mb: 1.5 }} color="text.secondary">
                                     {this.formatCurrency(this.state.savingsDeposit)}
                                 </Typography>
@@ -155,8 +155,8 @@ export class Overview extends AbstractSection<OverviewProps, OverviewState> {
                     </Grid>
                     <Grid item xs={2}>
                         <Card elevation={3}>
+                            <CardHeader title={'Savings Value'} />
                             <CardContent>
-                                <Typography variant="h5" component="div">Savings Value</Typography>
                                 <Typography sx={{ mb: 1.5 }} color="text.secondary">
                                     {this.formatCurrency(this.state.savingsValue)} ({this.formatPercents((this.state.savingsValue-this.state.savingsDeposit)/this.state.savingsValue)})
                                 </Typography>
@@ -172,8 +172,8 @@ export class Overview extends AbstractSection<OverviewProps, OverviewState> {
                 {this.state.groupByType ?
                     this.state.types.map(type =>
                         <Card elevation={3} sx={{marginBottom: '1em'}}>
+                            <CardHeader title={type} />
                             <CardContent>
-                                <Typography variant="h5" component="div">{type}</Typography>
                                 <TableContainer>
                                     <Table size="small">
                                         <TableHead>

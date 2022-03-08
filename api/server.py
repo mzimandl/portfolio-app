@@ -1,3 +1,4 @@
+from collections import defaultdict
 import os
 import time
 import datetime
@@ -190,6 +191,93 @@ async def handler(request:sanic.Request):
         }
         for d in cursor
     ])
+
+
+@app.get("/performance/get")
+async def handler(request:sanic.Request):
+    cursor = db.cursor()
+    cursor.execute('''
+        select
+            substr(date, 1, 4) as year,
+            max(date) as date,
+            ticker,
+            fee,
+            investment,
+            (case when evaluation='manual'
+                THEN fx_price*(manual_value+(case when manual_value_correction then manual_value_correction else 0 end))
+                ELSE fx_price*last_price*volume
+            END) as value,
+            (case when evaluation='manual'
+                THEN fx_price*(manual_value+(case when manual_value_correction then manual_value_correction else 0 end))
+                ELSE fx_price*last_price*volume
+            END)-investment-fee as profit
+        from (
+            select
+                dt.date,
+                it.ticker,
+                it.evaluation,
+                sum(
+                    (case when tt.volume then tt.volume else 1 end)*tt.price/
+                    (case when tt.rate then tt.rate else 1 end)
+                ) over (PARTITION BY it.ticker ORDER BY dt.date RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) as investment,
+                sum(tt.volume) over (PARTITION BY it.ticker ORDER BY dt.date RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) as volume,
+                (select close from historical where date <= dt.date and ticker = it.ticker order by date desc) as last_price,
+                (case when it.currency = ? then 1 else
+                    (select close from fx where from_curr = it.currency and to_curr = ? order by date desc)
+                end) as fx_price,
+                sum(tt.fee) over (PARTITION BY it.ticker ORDER BY dt.date RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) as fee,
+                (case when it.evaluation='manual' then
+                    (select value from manual_values where date <= dt.date and ticker = it.ticker order by date desc)
+                else null end) as manual_value,
+                (case when it.evaluation='manual' then
+                    (select
+                        sum(
+                            (case when volume then volume else 1 end)*price/
+                            (case when rate then rate else 1 end)
+                        ) from trades
+                        where date <= dt.date and ticker = it.ticker and date >
+                            (select date from manual_values where date <= dt.date and ticker = it.ticker order by date desc)
+                    )
+                else null end) as manual_value_correction
+            from (
+                select distinct date from fx UNION
+                select distinct date from trades UNION
+                select distinct date from historical UNION
+                select distinct date from manual_values
+            ) as dt
+            left join instruments as it
+            left join fx as ft on ft.from_curr = it.currency and ft.date = dt.date
+            left join trades as tt on tt.ticker = it.ticker and tt.date = dt.date
+            left join historical as ht on ht.ticker = it.ticker and ht.date = dt.date
+        )
+        group by year, ticker
+        having investment
+        order by year, ticker
+        ''', [config.base_currency, config.base_currency]
+    )
+    data = defaultdict(dict)
+    for d in cursor:
+        year = int(d['year'])
+        ticker = d['ticker']
+
+        prev_value = 0
+        prev_fee = 0
+        prev_investment = 0
+        prev_profit = 0
+
+        if year-1 in data and ticker in data[year-1]:
+            prev_value = data[year-1][ticker]['value']
+            prev_fee = data[year-1][ticker]['fee']
+            prev_investment = data[year-1][ticker]['investment']
+            prev_profit = data[year-1][ticker]['profit']
+
+        data[year][ticker] = {
+            'fee': d['fee'] - prev_fee,
+            'investment': prev_value + d['investment'] - prev_investment,
+            'value': d['value'],
+            'profit': d['profit'] - prev_profit,
+        }
+    return sanic.response.json(dict(data))
 
 
 @app.get("/dividends/calc")
