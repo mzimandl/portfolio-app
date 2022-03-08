@@ -1,3 +1,4 @@
+import React from 'react';
 import { AbstractSection, SectionProps } from '../common';
 import { Table, TableBody, TableHead, TableContainer, TableRow, TableCell, Box, IconButton, FormControl, Select, InputLabel, MenuItem } from '@mui/material';
 import TextField from '@mui/material/TextField';
@@ -22,11 +23,56 @@ type ValuesResponse = Array<DataRow>;
 
 interface ValuesState {
     values: Array<DataRow>;
-    newValue: NewDataRow;
     instruments: Array<InstrumentDataRow>;
 }
 
 interface ValuesProps {}
+interface NewValueProps {
+    instruments:Array<InstrumentDataRow>;
+    addValue:(newValue: NewDataRow) => void;
+}
+
+class NewValueTableRow extends React.Component<NewValueProps, NewDataRow> {
+
+    constructor(props: NewValueProps) {
+        super(props);
+        this.state = {
+            date: '',
+            ticker: '',
+            value: '',
+        };
+    }
+
+    render() {
+        return <TableRow>
+            <TableCell>
+                <TextField label="Date" variant="outlined" size='small' margin='none' fullWidth
+                onChange={(e) => this.setState({date: e.target.value})} />
+            </TableCell>
+            <TableCell>
+                <FormControl fullWidth size='small'>
+                    <InputLabel id="ticker-select-label">Ticker</InputLabel>
+                    <Select
+                        labelId='ticker-select-label'
+                        value={this.state.ticker}
+                        label="Ticker"
+                        onChange={(e) => this.setState({ticker: e.target.value})}
+                    >
+                        {this.props.instruments
+                            .filter(v => v.evaluation === 'manual')
+                            .map(v => <MenuItem key={v.ticker} value={v.ticker}>{v.ticker}</MenuItem>)
+                        }
+                    </Select>
+                </FormControl>
+            </TableCell>
+            <TableCell>
+                <TextField label="Value" variant="outlined" size='small' margin='none' fullWidth
+                onChange={(e) => this.setState({value: e.target.value})} />
+            </TableCell>
+            <TableCell><IconButton onClick={e => this.props.addValue(this.state)}><AddBox/></IconButton></TableCell>
+        </TableRow>
+    }
+}
 
 export class Values extends AbstractSection<ValuesProps, ValuesState> {
 
@@ -37,11 +83,6 @@ export class Values extends AbstractSection<ValuesProps, ValuesState> {
         this.state = {
             values: [],
             instruments: [],
-            newValue: {
-                date: '',
-                ticker: '',
-                value: '',
-            }
         };
 
         this.addValue = this.addValue.bind(this);
@@ -71,20 +112,13 @@ export class Values extends AbstractSection<ValuesProps, ValuesState> {
             .then(values => this.setState({values}));
     }
 
-    addValue = () => {
-        if (this.state.newValue.ticker && this.state.newValue.date && this.state.newValue.value) {
+    addValue = (newValue: NewDataRow) => {
+        if (newValue.ticker && newValue.date && newValue.value) {
             this.props.displayProgressBar(true);
-            fetch('/values/new', {method: 'POST', body: JSON.stringify(this.state.newValue)})
+            fetch('/values/new', {method: 'POST', body: JSON.stringify(newValue)})
                 .then(res => {
                     this.loadValues().then(() => {
                         this.props.displayProgressBar(false);
-                        this.setState({
-                            newValue: {
-                                date: '',
-                                ticker: '',
-                                value: '',
-                            }
-                        });
                     });
                 });
         }
@@ -96,33 +130,7 @@ export class Values extends AbstractSection<ValuesProps, ValuesState> {
             <TableContainer>
                 <Table size="small">
                     <TableHead>
-                        <TableRow>
-                            <TableCell>
-                                <TextField label="Date" variant="outlined" size='small' margin='none' fullWidth
-                                onChange={(e) => this.setState({newValue: {...this.state.newValue, date: e.target.value}})} />
-                            </TableCell>
-                            <TableCell>
-                                <FormControl fullWidth size='small'>
-                                    <InputLabel id="ticker-select-label">Ticker</InputLabel>
-                                    <Select
-                                        labelId='ticker-select-label'
-                                        value={this.state.newValue.ticker}
-                                        label="Ticker"
-                                        onChange={(e) => this.setState({newValue: {...this.state.newValue, ticker: e.target.value}})}
-                                    >
-                                        {this.state.instruments
-                                            .filter(v => v.evaluation === 'manual')
-                                            .map(v => <MenuItem key={v.ticker} value={v.ticker}>{v.ticker}</MenuItem>)
-                                        }
-                                    </Select>
-                                </FormControl>
-                            </TableCell>
-                            <TableCell>
-                                <TextField label="Value" variant="outlined" size='small' margin='none' fullWidth
-                                onChange={(e) => this.setState({newValue: {...this.state.newValue, value: e.target.value}})} />
-                            </TableCell>
-                            <TableCell><IconButton onClick={this.addValue}><AddBox/></IconButton></TableCell>
-                        </TableRow>
+                        <NewValueTableRow instruments={this.state.instruments} addValue={this.addValue} />
                     </TableHead>
                     <TableBody>
                         {this.state.values.map(
