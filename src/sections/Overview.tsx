@@ -13,6 +13,7 @@ interface OverviewDataRow {
     profit: number;
     manual_value_correction: number;
     type: string;
+    average_price: number;
 }
 
 interface DividendsDataRow {
@@ -180,6 +181,7 @@ export class Overview extends AbstractSection<OverviewProps, OverviewState> {
                                             <TableRow>
                                                 <TableCell>Ticker</TableCell>
                                                 <TableCell align='right'>Last price</TableCell>
+                                                <TableCell align='right'>Avg price</TableCell>
                                                 <TableCell align='center'>Volume</TableCell>
                                                 <TableCell align='right'>Invested</TableCell>
                                                 <TableCell align='right'>Fee</TableCell>
@@ -193,6 +195,7 @@ export class Overview extends AbstractSection<OverviewProps, OverviewState> {
                                                 <TableRow key={i} sx={{backgroundColor: item.profit < 0 ? 'rgba(255,0,0,0.25)' : 'rgba(0,255,0,0.25)'}}>
                                                     <TableCell>{item.ticker}</TableCell>
                                                     <TableCell align='right'>{this.formatCurrency(item.last_price, item.currency)}</TableCell>
+                                                    <TableCell align='right'>{this.formatCurrency(item.average_price, item.currency)}</TableCell>
                                                     <TableCell align='center'>{item.volume ? item.volume : null}</TableCell>
                                                     <TableCell align='right'>{this.formatCurrency(item.invested)}</TableCell>
                                                     <TableCell align='right'>{this.formatCurrency(item.fee)}</TableCell>
@@ -216,6 +219,7 @@ export class Overview extends AbstractSection<OverviewProps, OverviewState> {
                                         <TableRow>
                                             <TableCell>Ticker</TableCell>
                                             <TableCell align='right'>Last price</TableCell>
+                                            <TableCell align='right'>Avg price</TableCell>
                                             <TableCell align='center'>Volume</TableCell>
                                             <TableCell align='right'>Invested</TableCell>
                                             <TableCell align='right'>Fee</TableCell>
@@ -229,6 +233,7 @@ export class Overview extends AbstractSection<OverviewProps, OverviewState> {
                                             <TableRow key={i} sx={{backgroundColor: item.profit < 0 ? 'rgba(255,0,0,0.25)' : 'rgba(0,255,0,0.25)'}}>
                                                 <TableCell>{item.ticker}</TableCell>
                                                 <TableCell align='right'>{this.formatCurrency(item.last_price, item.currency)}</TableCell>
+                                                <TableCell align='right'>{this.formatCurrency(item.average_price, item.currency)}</TableCell>
                                                 <TableCell align='center'>{item.volume ? item.volume : null}</TableCell>
                                                 <TableCell align='right'>{this.formatCurrency(item.invested)}</TableCell>
                                                 <TableCell align='right'>{this.formatCurrency(item.fee)}</TableCell>

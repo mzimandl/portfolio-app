@@ -176,7 +176,8 @@ async def handler(request:sanic.Request):
                     where ticker = it.ticker and date >
                         (select date from manual_values where ticker = it.ticker order by date desc)
                 )
-            else null end) as manual_value_correction
+            else null end) as manual_value_correction,
+            sum(price*volume)/sum(volume) as average_price
         FROM trades as tt
         JOIN instruments as it on it.ticker = tt.ticker
         GROUP BY tt.ticker
