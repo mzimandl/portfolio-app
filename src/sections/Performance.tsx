@@ -1,4 +1,4 @@
-import { Table, TableBody, TableHead, TableContainer, TableRow, TableCell, Box, Card, CardContent, CardHeader } from '@mui/material';
+import { Table, TableBody, TableHead, TableContainer, TableRow, TableCell, Box, Card, CardContent, CardHeader, FormGroup, Switch, FormControlLabel } from '@mui/material';
 import { AbstractSection, SectionProps } from '../common';
 
 
@@ -15,6 +15,9 @@ interface PerformanceData {
 
 interface PerformanceState {
     data:PerformanceData;
+    years:Array<number>;
+    tickers:Array<string>;
+    detailedView:boolean;
 }
 
 interface PerformanceProps {}
@@ -27,6 +30,9 @@ export class Performance extends AbstractSection<PerformanceProps, PerformanceSt
         super(props);
         this.state = {
             data: {},
+            years: [],
+            tickers: [],
+            detailedView: false,
         };
     }
 
@@ -42,14 +48,32 @@ export class Performance extends AbstractSection<PerformanceProps, PerformanceSt
         return fetch('/performance/get')
             .then<PerformanceData>(res => res.json())
             .then(data => {
-                this.setState({data});
+                this.setState({
+                    data,
+                    years: Object.keys(data).map(v => parseInt(v)).sort(),
+                    tickers: Object.values(data).reduce(
+                        (acc, curr) => {
+                            Object.keys(curr).forEach(ticker => {
+                                if (!acc.includes(ticker)) {
+                                    acc.push(ticker);
+                                }
+                            })
+                            return acc
+                        },
+                        []
+                    ).sort()
+                });
             });
     }
 
     render() {
-        return (
-            <Box>
-                {Object.entries(this.state.data).map(([year, data], i) =>
+        return <Box>
+            <FormGroup>
+                <FormControlLabel control={<Switch checked={this.state.detailedView} onChange={(e, value) => this.setState({detailedView: value})}/>} label="Detailed view" />
+            </FormGroup>
+
+            { this.state.detailedView ?
+                Object.entries(this.state.data).map(([year, data], i) =>
                     <Card key={i} elevation={3} sx={{marginBottom: '1em'}}>
                         <CardHeader title={year} />
                         <CardContent>
@@ -80,8 +104,32 @@ export class Performance extends AbstractSection<PerformanceProps, PerformanceSt
                             </TableContainer>
                         </CardContent>
                     </Card>
-                )}
-            </Box>
-        )
+                ) :
+                <TableContainer>
+                    <Table size="small">
+                        <TableHead>
+                            <TableRow>
+                                <TableCell></TableCell>
+                                {this.state.years.map(year =>
+                                    <TableCell key={year} align='center'>{year}</TableCell>
+                                )}
+                            </TableRow>
+                        </TableHead>
+                        <TableBody>
+                            {this.state.tickers.map(ticker =>
+                                <TableRow key={ticker}>
+                                    <TableCell>{ticker}</TableCell>
+                                    {this.state.years.map(year =>
+                                        <TableCell key={year} align='center'>
+                                            {this.state.data[year][ticker] ? this.formatPercents(this.state.data[year][ticker].profit/this.state.data[year][ticker].investment) : null}
+                                        </TableCell>
+                                    )}
+                                </TableRow>
+                            )}
+                        </TableBody>
+                    </Table>
+                </TableContainer>
+            }
+        </Box>
     }
 }
