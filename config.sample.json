@@ -1,4 +1,5 @@
 {
+    "db": "../portfolio.db",
     "language_locale": "cs",
     "base_currency": "CZK"
 }

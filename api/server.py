@@ -1,10 +1,10 @@
+from typing import NamedTuple
 from collections import defaultdict
 import os
 import time
 import datetime
 import json
 import sqlite3
-from typing import NamedTuple
 import webbrowser
 
 import requests
@@ -24,6 +24,7 @@ def get_yfinance_fx_ticker(from_curr: str, to_curr: str):
         return f'{from_curr}{to_curr}=X'
 
 class Config(NamedTuple):
+    db: str
     base_currency: str
     language_locale: str
 
@@ -32,8 +33,7 @@ with open(os.path.join(FILE_PATH, '../config.json')) as f:
 
 app = sanic.Sanic("PortfolioApp")
 app.static('/static', os.path.join(FILE_PATH, '../build/static'))
-#app.ctx.db = sqlite3.connect(os.path.join(FILE_PATH, '../portfolio.db'))
-db = sqlite3.connect(os.path.join(FILE_PATH, '../portfolio.db'))
+db = sqlite3.connect(os.path.join(FILE_PATH, config.db))
 db.row_factory = sqlite3.Row
 
 
