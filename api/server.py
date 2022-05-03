@@ -297,7 +297,49 @@ async def handler(request:sanic.Request):
             FROM historical as ht
             WHERE dividends > 0
         ) dt
-        JOIN instruments as it on it.ticker = dt.ticker
+        JOIN instruments AS it ON it.ticker = dt.ticker
+        GROUP BY dt.ticker
+    ''')
+    return sanic.response.json({d['ticker']: dict(d) for d in cursor})
+
+
+@app.get("/dividends/list")
+async def handler(request:sanic.Request):
+    cursor = db.cursor()
+    cursor.execute('''
+        SELECT
+            date,
+            ticker,
+            dividend
+        FROM dividends
+        ORDER BY date DESC
+    ''')
+    return sanic.response.json([dict(d) for d in cursor])
+
+
+@app.post("/dividends/new")
+async def handler(request:sanic.Request):
+    data = request.json
+    cursor = db.cursor()
+    cursor.execute('''
+        INSERT INTO dividends(date, ticker, dividend)
+        VALUES (?, ?, ?)''',
+        [data['date'], data['ticker'], data['dividend']]
+    )
+    db.commit()
+    return sanic.response.json({'success': True})
+
+
+@app.get("/dividends/sum")
+async def handler(request:sanic.Request):
+    cursor = db.cursor()
+    cursor.execute('''
+        SELECT
+            dt.ticker,
+            sum(dt.dividend) as dividends,
+            it.dividend_currency as currency
+        FROM dividends as dt
+        JOIN instruments AS it ON it.ticker = dt.ticker
         GROUP BY dt.ticker
     ''')
     return sanic.response.json({d['ticker']: dict(d) for d in cursor})
@@ -387,12 +429,12 @@ async def handler(request:sanic.Request):
     data = request.json
     cursor = db.cursor()
     cursor.execute('''
-        INSERT INTO instruments(ticker, currency, type, evaluation, eval_param)
-        VALUES (?, ?, ?, ?, ?)
+        INSERT INTO instruments(ticker, currency, dividend_currency, type, evaluation, eval_param)
+        VALUES (?, ?, ?, ?, ?, ?)
         ON CONFLICT (ticker)
-        DO UPDATE SET currency = excluded.currency, type = excluded.type, evaluation = excluded.evaluation, eval_param = excluded.eval_param
+        DO UPDATE SET currency = excluded.currency, dividend_currency = excluded.dividend_currency, type = excluded.type, evaluation = excluded.evaluation, eval_param = excluded.eval_param
         ''',
-        [data['ticker'], data['currency'], data['type'], data['evaluation'], data['eval_param']]
+        [data['ticker'], data['currency'], data['dividend_currency'], data['type'], data['evaluation'], data['eval_param']]
     )
     db.commit()
     return sanic.response.json({'success': True})

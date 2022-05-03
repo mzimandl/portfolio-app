@@ -23,6 +23,7 @@ import TimelineIcon from '@mui/icons-material/Timeline';
 import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined';
 import AccountBalanceOutlinedIcon from '@mui/icons-material/AccountBalanceOutlined';
 import SearchIcon from '@mui/icons-material/Search';
+import NotificationsNoneIcon from '@mui/icons-material/NotificationsNone';
 import { Refresh, Speed } from '@mui/icons-material';
 import { CircularProgress, Icon, LinearProgress } from '@mui/material';
 
@@ -34,6 +35,7 @@ import { Charts } from './sections/Charts';
 import { Settings } from './sections/Settings';
 import { Values } from './sections/Values';
 import { Prices } from './sections/Prices';
+import { Dividends } from './sections/Dividends';
 
 const drawerWidth = 240;
 
@@ -250,6 +252,12 @@ export default class App extends React.Component<{}, AppState> {
                 <ListItemText primary="Trades" />
               </ListItem>
             </Link>
+            <Link to="/dividends" style={{color: 'inherit', textDecoration: 'none'}}>
+              <ListItem button key="dividends">
+                <ListItemIcon><NotificationsNoneIcon /></ListItemIcon>
+                <ListItemText primary="Dividends" />
+              </ListItem>
+            </Link>
             <Link to="/values" style={{color: 'inherit', textDecoration: 'none'}}>
               <ListItem button key="values">
                 <ListItemIcon><AccountBalanceOutlinedIcon /></ListItemIcon>
@@ -281,6 +289,9 @@ export default class App extends React.Component<{}, AppState> {
             }/>
             <Route path="/trades" element={
               <Trades config={this.state.config} setHeading={this.setHeading} displayProgressBar={this.displayProgressBar} />
+            }/>
+            <Route path="/dividends" element={
+              <Dividends config={this.state.config} setHeading={this.setHeading} displayProgressBar={this.displayProgressBar} />
             }/>
             <Route path="/charts" element={
               <Charts config={this.state.config} setHeading={this.setHeading} displayProgressBar={this.displayProgressBar} />

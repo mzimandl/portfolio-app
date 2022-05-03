@@ -13,6 +13,7 @@ export interface InstrumentDataRow {
     type: string;
     evaluation: EvaluationType;
     eval_param: string;
+    dividend_currency: string;
 }
 
 export interface NewInstrument {
@@ -21,6 +22,7 @@ export interface NewInstrument {
     type: string|null;
     evaluation: EvaluationType;
     eval_param: string|null;
+    dividend_currency: string|null;
 }
 
 interface SettingsState {
@@ -74,6 +76,7 @@ class NewInstrumentTableRow extends React.Component<NewInstrumentProps, NewInstr
             type: null,
             evaluation: 'yfinance',
             eval_param: null,
+            dividend_currency: null,
         };
     }
 
@@ -89,6 +92,14 @@ class NewInstrumentTableRow extends React.Component<NewInstrumentProps, NewInstr
                     onChange={(e, newValue) => this.setState({currency: newValue})}
                     options={this.props.currencies}
                     renderInput={(params) => <TextField {...params} size='small' label="Currency" />}
+                />
+            </TableCell>
+            <TableCell>
+                <Autocomplete
+                    value={this.state.dividend_currency}
+                    onChange={(e, newValue) => this.setState({dividend_currency: newValue})}
+                    options={this.props.currencies}
+                    renderInput={(params) => <TextField {...params} size='small' label="Dividend Currency" />}
                 />
             </TableCell>
             <TableCell>
@@ -262,6 +273,7 @@ export class Settings extends AbstractSection<SettingsProps, SettingsState> {
                                             (item, i) => <TableRow key={i}>
                                                 <TableCell>{item.ticker}</TableCell>
                                                 <TableCell>{item.currency}</TableCell>
+                                                <TableCell>{item.dividend_currency}</TableCell>
                                                 <TableCell>{item.type}</TableCell>
                                                 <TableCell>{item.evaluation}</TableCell>
                                                 <TableCell colSpan={2}>{item.eval_param}</TableCell>

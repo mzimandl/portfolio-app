@@ -12,8 +12,10 @@ create table instruments(
 	type TEXT NOT NULL,
 	evaluation TEXT CHECK (evaluation IN ('yfinance', 'manual', 'http')) NOT NULL,
 	eval_param TEXT,
+	dividend_currency TEXT,
 	FOREIGN KEY(currency) REFERENCES currencies(name),
-	FOREIGN KEY(type) REFERENCES types(name)
+	FOREIGN KEY(type) REFERENCES types(name),
+	FOREIGN KEY(dividend_currency) REFERENCES currencies(name)
 );
 
 create table trades(
@@ -24,6 +26,14 @@ create table trades(
 	price REAL,
 	fee REAL,
 	rate REAL,
+	FOREIGN KEY(ticker) REFERENCES instruments(ticker)
+);
+
+create table dividends(
+	id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+	date TEXT NOT NULL,
+	ticker TEXT NOT NULL,
+	dividend REAL,
 	FOREIGN KEY(ticker) REFERENCES instruments(ticker)
 );
 
