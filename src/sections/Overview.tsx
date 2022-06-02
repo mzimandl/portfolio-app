@@ -264,7 +264,6 @@ export class Overview extends AbstractSection<OverviewProps, OverviewState> {
                         </CardContent>
                     </Card>
                 }
-                <Typography component="div">TODO peak investice v grafu? (BTC, ADBE)</Typography>
             </Box>
         )
     }

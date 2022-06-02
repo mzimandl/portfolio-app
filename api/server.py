@@ -364,19 +364,20 @@ async def handler(request:sanic.Request):
             END)-sum(investment)-sum(fee) as profit
         from (
             select
+                max(tt.id),
                 dt.date,
                 it.ticker,
                 it.evaluation,
                 sum(
                     (case when tt.volume then tt.volume else 1 end)*tt.price/
                     (case when tt.rate then tt.rate else 1 end)
-                ) over (PARTITION BY it.ticker ORDER BY dt.date RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) as investment,
-                sum(tt.volume) over (PARTITION BY it.ticker ORDER BY dt.date RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) as volume,
+                ) over (PARTITION BY it.ticker ORDER BY dt.date, tt.id RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) as investment,
+                sum(tt.volume) over (PARTITION BY it.ticker ORDER BY dt.date, tt.id RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) as volume,
                 (select close from historical where date <= dt.date and ticker = it.ticker order by date desc) as last_price,
                 (case when it.currency = ? then 1 else
                     (select close from fx where from_curr = it.currency and to_curr = ? order by date desc)
                 end) as fx_price,
-                sum(tt.fee) over (PARTITION BY it.ticker ORDER BY dt.date RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) as fee,
+                sum(tt.fee) over (PARTITION BY it.ticker ORDER BY dt.date, tt.id RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) as fee,
                 (case when it.evaluation='manual' then
                     (select value from manual_values where date <= dt.date and ticker = it.ticker order by date desc)
                 else null end) as manual_value,
@@ -401,6 +402,7 @@ async def handler(request:sanic.Request):
             left join trades as tt on tt.ticker = it.ticker and tt.date = dt.date
             left join historical as ht on ht.ticker = it.ticker and ht.date = dt.date
             {'where it.ticker = ? or it.type = ?' if filter else ''}
+            group by dt.date, it.ticker
         )
         group by date
         having sum(investment)
