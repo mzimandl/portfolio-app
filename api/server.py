@@ -12,6 +12,8 @@ import sanic
 import sanic.response
 import yfinance
 
+import polars as pl
+
 FILE_PATH = os.path.dirname(__file__)
 
 yfinance_fx = {
@@ -305,16 +307,8 @@ async def handler(request:sanic.Request):
 
 @app.get("/dividends/list")
 async def handler(request:sanic.Request):
-    cursor = db.cursor()
-    cursor.execute('''
-        SELECT
-            date,
-            ticker,
-            dividend
-        FROM dividends
-        ORDER BY date DESC
-    ''')
-    return sanic.response.json([dict(d) for d in cursor])
+    df = pl.read_database("SELECT date, ticker, dividend FROM dividends ORDER BY date DESC", f'sqlite://{config.db}')
+    return sanic.response.json(df.rows(named=True))
 
 
 @app.post("/dividends/new")
