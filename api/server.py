@@ -88,7 +88,7 @@ async def handler(request:sanic.Request):
             ])
 
         elif ticker_info['evaluation'] == 'http':
-            resp = requests.get(ticker_info['eval_param']['url'])
+            resp = requests.get(ticker_info['eval_param']['url'], headers=ticker_info['eval_param'].get('headers'))
             date_key = ticker_info['eval_param']['date']
             open_key = ticker_info['eval_param'].get('open')
             close_key = ticker_info['eval_param'].get('close')
