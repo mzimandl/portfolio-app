@@ -38,12 +38,12 @@ db.row_factory = sqlite3.Row
 
 
 @app.get("/config/get")
-async def handler(request:sanic.Request):
+async def config_get(request:sanic.Request):
     return sanic.response.json(config._asdict())
 
 
 @app.get("/data/last")
-async def handler(request:sanic.Request):
+async def last(request:sanic.Request):
     last_data = {}
     cursor = db.cursor()
     cursor.execute('SELECT max(date) as last_historical FROM historical')
@@ -56,7 +56,7 @@ async def handler(request:sanic.Request):
 
 
 @app.get("/historical/update")
-async def handler(request:sanic.Request):
+async def historical_update(request:sanic.Request):
     cursor = db.cursor()
     cursor.execute('''
         SELECT tt.ticker, min(date) as first_date, it.evaluation, it.eval_param
@@ -114,7 +114,7 @@ async def handler(request:sanic.Request):
 
 
 @app.get("/fx/update")
-async def handler(request:sanic.Request):
+async def fx_update(request:sanic.Request):
     cursor = db.cursor()
     cursor.execute('SELECT min(date) as first_trade FROM trades')
     first_trade = tuple(int(t) for t in (cursor.fetchone())['first_trade'].split('-'))
@@ -143,7 +143,7 @@ async def handler(request:sanic.Request):
 
 
 @app.get("/overview/get")
-async def handler(request:sanic.Request):
+async def overview(request:sanic.Request):
     cursor = db.cursor()
     cursor.execute('''
         SELECT
@@ -195,7 +195,7 @@ async def handler(request:sanic.Request):
 
 
 @app.get("/performance/get")
-async def handler(request:sanic.Request):
+async def performance(request:sanic.Request):
     cursor = db.cursor()
     cursor.execute('''
         select
@@ -282,7 +282,7 @@ async def handler(request:sanic.Request):
 
 
 @app.get("/dividends/calc")
-async def handler(request:sanic.Request):
+async def dividends_calc(request:sanic.Request):
     cursor = db.cursor()
     cursor.execute('''
         SELECT
@@ -304,7 +304,7 @@ async def handler(request:sanic.Request):
 
 
 @app.get("/dividends/list")
-async def handler(request:sanic.Request):
+async def dividends_list(request:sanic.Request):
     cursor = db.cursor()
     cursor.execute('''
         SELECT
@@ -318,7 +318,7 @@ async def handler(request:sanic.Request):
 
 
 @app.post("/dividends/new")
-async def handler(request:sanic.Request):
+async def dividends_new(request:sanic.Request):
     data = request.json
     cursor = db.cursor()
     cursor.execute('''
@@ -331,7 +331,7 @@ async def handler(request:sanic.Request):
 
 
 @app.get("/dividends/sum")
-async def handler(request:sanic.Request):
+async def dividends_sum(request:sanic.Request):
     cursor = db.cursor()
     cursor.execute('''
         SELECT
@@ -346,7 +346,7 @@ async def handler(request:sanic.Request):
 
 
 @app.get("/charts/get")
-async def handler(request:sanic.Request):
+async def charts(request:sanic.Request):
     filter = request.args.get('filter')
     cursor = db.cursor()
     cursor.execute(f'''
@@ -412,7 +412,7 @@ async def handler(request:sanic.Request):
 
 
 @app.get("/prices/get")
-async def handler(request:sanic.Request):
+async def prices(request:sanic.Request):
     filter = request.args.get('filter')
     cursor = db.cursor()
     cursor.execute('select * from historical where ticker = ?', [filter])
@@ -420,14 +420,14 @@ async def handler(request:sanic.Request):
 
 
 @app.get("/instruments/list")
-async def handler(request:sanic.Request):
+async def instruments_list(request:sanic.Request):
     cursor = db.cursor()
     cursor.execute('SELECT * FROM instruments ORDER BY ticker')
     return sanic.response.json([dict(d) for d in cursor])
 
 
 @app.post("/instruments/new")
-async def handler(request:sanic.Request):
+async def instruments_new(request:sanic.Request):
     data = request.json
     cursor = db.cursor()
     cursor.execute('''
@@ -443,14 +443,14 @@ async def handler(request:sanic.Request):
 
 
 @app.get("/currencies/list")
-async def handler(request:sanic.Request):
+async def curr_list(request:sanic.Request):
     cursor = db.cursor()
     cursor.execute('SELECT * FROM currencies ORDER BY name')
     return sanic.response.json([d['name'] for d in cursor])
 
 
 @app.post("/currencies/new")
-async def handler(request:sanic.Request):
+async def curr_new(request:sanic.Request):
     data = request.json
     cursor = db.cursor()
     cursor.execute(
@@ -462,14 +462,14 @@ async def handler(request:sanic.Request):
 
 
 @app.get("/types/list")
-async def handler(request:sanic.Request):
+async def types_list(request:sanic.Request):
     cursor = db.cursor()
     cursor.execute('SELECT * FROM types ORDER BY name')
     return sanic.response.json([d['name'] for d in cursor])
 
 
 @app.post("/types/new")
-async def handler(request:sanic.Request):
+async def types_new(request:sanic.Request):
     data = request.json
     cursor = db.cursor()
     cursor.execute(
@@ -481,7 +481,7 @@ async def handler(request:sanic.Request):
 
 
 @app.get("/trades/list")
-async def handler(request:sanic.Request):
+async def trades_list(request:sanic.Request):
     where = []
     ticker = request.args.get('ticker', None)
     if ticker is not None:
@@ -503,7 +503,7 @@ async def handler(request:sanic.Request):
 
 
 @app.post("/trades/new")
-async def handler(request:sanic.Request):
+async def trades_new(request:sanic.Request):
     data = request.json
     cursor = db.cursor()
     cursor.execute('''
@@ -516,7 +516,7 @@ async def handler(request:sanic.Request):
 
 
 @app.get("/values/list")
-async def handler(request:sanic.Request):
+async def values_list(request:sanic.Request):
     where = []
     ticker = request.args.get('ticker', None)
     if ticker is not None:
@@ -536,7 +536,7 @@ async def handler(request:sanic.Request):
 
 
 @app.post("/values/new")
-async def handler(request:sanic.Request):
+async def values_new(request:sanic.Request):
     data = request.json
     cursor = db.cursor()
     cursor.execute('''
@@ -550,7 +550,7 @@ async def handler(request:sanic.Request):
 
 
 @app.route("/<path:path>")
-async def handler(request, path):
+async def homepage(request, path):
     return await sanic.response.file(os.path.join(FILE_PATH, "../build/index.html"))
 
 
@@ -562,4 +562,4 @@ def open_web_browser():
 
 if __name__ == '__main__':
     # threading.Thread(target=open_web_browser).start()
-    app.run(host='localhost', port='8000', auto_reload=True, debug=True)
+    app.run(host='localhost', port=8000, auto_reload=True, debug=True)
