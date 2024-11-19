@@ -77,38 +77,41 @@ async def historical_update(request:sanic.Request):
         DO UPDATE SET open = excluded.open, high = excluded.high, low = excluded.low, close = excluded.close, dividends = excluded.dividends, splits = excluded.splits
     '''
     for ticker, ticker_info in first_trades.items():
-        if ticker_info['evaluation'] == 'yfinance':
-            yticker = yfinance.Ticker(ticker_info['eval_param'] if ticker_info['eval_param'] else ticker)
-            df = yticker.history(start=ticker_info['first_date'])
-            cursor.executemany(sql, [
-                (date.strftime('%Y-%m-%d'), ticker, row['Open'], row['High'], row['Low'], row['Close'], row['Dividends'], row['Stock Splits'])
-                for date, row in df.iterrows()
-            ])
+        try:
+            if ticker_info['evaluation'] == 'yfinance':
+                yticker = yfinance.Ticker(ticker_info['eval_param'] if ticker_info['eval_param'] else ticker)
+                df = yticker.history(start=ticker_info['first_date'])
+                cursor.executemany(sql, [
+                    (date.strftime('%Y-%m-%d'), ticker, row['Open'], row['High'], row['Low'], row['Close'], row['Dividends'], row['Stock Splits'])
+                    for date, row in df.iterrows()
+                ])
 
-        elif ticker_info['evaluation'] == 'http':
-            resp = requests.get(ticker_info['eval_param']['url'])
-            date_key = ticker_info['eval_param']['date']
-            open_key = ticker_info['eval_param'].get('open')
-            close_key = ticker_info['eval_param'].get('close')
-            high_key = ticker_info['eval_param'].get('high')
-            low_key = ticker_info['eval_param'].get('low')
-            dvd_key = ticker_info['eval_param'].get('dividends')
-            split_key = ticker_info['eval_param'].get('stock_splits')
-            cursor.executemany(sql, [
-                (
-                    d[date_key],
-                    ticker,
-                    d.get(open_key, 0),
-                    d.get(high_key, 0),
-                    d.get(low_key, 0),
-                    d.get(close_key, 0),
-                    d.get(dvd_key, 0),
-                    d.get(split_key, 0),
-                )
-                for d in resp.json()
-            ])
+            elif ticker_info['evaluation'] == 'http':
+                resp = requests.get(ticker_info['eval_param']['url'])
+                date_key = ticker_info['eval_param']['date']
+                open_key = ticker_info['eval_param'].get('open')
+                close_key = ticker_info['eval_param'].get('close')
+                high_key = ticker_info['eval_param'].get('high')
+                low_key = ticker_info['eval_param'].get('low')
+                dvd_key = ticker_info['eval_param'].get('dividends')
+                split_key = ticker_info['eval_param'].get('stock_splits')
+                cursor.executemany(sql, [
+                    (
+                        d[date_key],
+                        ticker,
+                        d.get(open_key, 0),
+                        d.get(high_key, 0),
+                        d.get(low_key, 0),
+                        d.get(close_key, 0),
+                        d.get(dvd_key, 0),
+                        d.get(split_key, 0),
+                    )
+                    for d in resp.json()
+                ])
 
-        db.commit()
+            db.commit()
+        except Exception as e:
+            print("Failed to download data", ticker, ticker_info, e)
 
     return sanic.response.json({'success': True})
 
