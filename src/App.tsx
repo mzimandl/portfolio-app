@@ -13,7 +13,7 @@ import Divider from '@mui/material/Divider';
 import IconButton from '@mui/material/IconButton';
 import MenuIcon from '@mui/icons-material/Menu';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
-import ListItem from '@mui/material/ListItem';
+import ListItemButton from '@mui/material/ListItemButton';
 import ListItemIcon from '@mui/material/ListItemIcon';
 import ListItemText from '@mui/material/ListItemText';
 
@@ -229,52 +229,52 @@ export default class App extends React.Component<{}, AppState> {
           <Divider />
           <List>
             <Link to="/overview" style={{color: 'inherit', textDecoration: 'none'}}>
-              <ListItem button key="overview">
+              <ListItemButton key="overview">
                 <ListItemIcon><AnalyticsOutlinedIcon /></ListItemIcon>
                 <ListItemText primary="Overview" />
-              </ListItem>
+              </ListItemButton>
             </Link>
             <Link to="/performance" style={{color: 'inherit', textDecoration: 'none'}}>
-              <ListItem button key="performance">
+              <ListItemButton key="performance">
                 <ListItemIcon><Speed /></ListItemIcon>
                 <ListItemText primary="Performance" />
-              </ListItem>
+              </ListItemButton>
             </Link>
             <Link to="/charts" style={{color: 'inherit', textDecoration: 'none'}}>
-              <ListItem button key="charts">
+              <ListItemButton key="charts">
                 <ListItemIcon><TimelineIcon /></ListItemIcon>
                 <ListItemText primary="Charts" />
-              </ListItem>
+              </ListItemButton>
             </Link>
             <Link to="/trades" style={{color: 'inherit', textDecoration: 'none'}}>
-              <ListItem button key="trades">
+              <ListItemButton key="trades">
                 <ListItemIcon><CurrencyExchangeIcon /></ListItemIcon>
                 <ListItemText primary="Trades" />
-              </ListItem>
+              </ListItemButton>
             </Link>
             <Link to="/dividends" style={{color: 'inherit', textDecoration: 'none'}}>
-              <ListItem button key="dividends">
+              <ListItemButton key="dividends">
                 <ListItemIcon><NotificationsNoneIcon /></ListItemIcon>
                 <ListItemText primary="Dividends" />
-              </ListItem>
+              </ListItemButton>
             </Link>
             <Link to="/values" style={{color: 'inherit', textDecoration: 'none'}}>
-              <ListItem button key="values">
+              <ListItemButton key="values">
                 <ListItemIcon><AccountBalanceOutlinedIcon /></ListItemIcon>
                 <ListItemText primary="Values" />
-              </ListItem>
+              </ListItemButton>
             </Link>
             <Link to="/prices" style={{color: 'inherit', textDecoration: 'none'}}>
-              <ListItem button key="prices">
+              <ListItemButton key="prices">
                 <ListItemIcon><SearchIcon /></ListItemIcon>
                 <ListItemText primary="Prices" />
-              </ListItem>
+              </ListItemButton>
             </Link>
             <Link to="/settings" style={{color: 'inherit', textDecoration: 'none'}}>
-              <ListItem button key="settings">
+              <ListItemButton key="settings">
                 <ListItemIcon><SettingsOutlinedIcon /></ListItemIcon>
                 <ListItemText primary="Settings" />
-              </ListItem>
+              </ListItemButton>
             </Link>
           </List>
         </Drawer>

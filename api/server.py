@@ -32,7 +32,7 @@ with open(os.path.join(FILE_PATH, '../config.json')) as f:
     config = Config(**json.load(f))
 
 app = sanic.Sanic("PortfolioApp")
-app.static('/static', os.path.join(FILE_PATH, '../build/static'))
+app.static('/assets', os.path.join(FILE_PATH, '../build/assets'))
 db = sqlite3.connect(os.path.join(FILE_PATH, config.db))
 db.row_factory = sqlite3.Row
 
