@@ -1,3 +1,4 @@
+import threading
 from typing import NamedTuple
 from collections import defaultdict
 import os
@@ -11,6 +12,7 @@ import requests
 import sanic
 import sanic.response
 import yfinance
+import sys
 
 FILE_PATH = os.path.dirname(__file__)
 
@@ -559,10 +561,10 @@ async def homepage(request):
 
 def open_web_browser():
     time.sleep(1)
-    # TODO why it opens two tabs
     webbrowser.open_new_tab('http://localhost:8000/')
 
 
 if __name__ == '__main__':
-    # threading.Thread(target=open_web_browser).start()
+    if '--browser' in sys.argv:
+        threading.Thread(target=open_web_browser).start()
     app.run(host='localhost', port=8000, auto_reload=True, debug=True)
