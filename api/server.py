@@ -552,8 +552,8 @@ async def values_new(request:sanic.Request):
     return sanic.response.json({'success': True})
 
 
-@app.route("/<path:path>")
-async def homepage(request, path):
+@app.route("/")
+async def homepage(request):
     return await sanic.response.file(os.path.join(FILE_PATH, "../build/index.html"))
 
 

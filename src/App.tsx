@@ -228,49 +228,49 @@ export default class App extends React.Component<{}, AppState> {
           </DrawerHeader>
           <Divider />
           <List>
-            <Link to="/overview" style={{color: 'inherit', textDecoration: 'none'}}>
+            <Link to="overview" style={{color: 'inherit', textDecoration: 'none'}}>
               <ListItemButton key="overview">
                 <ListItemIcon><AnalyticsOutlinedIcon /></ListItemIcon>
                 <ListItemText primary="Overview" />
               </ListItemButton>
             </Link>
-            <Link to="/performance" style={{color: 'inherit', textDecoration: 'none'}}>
+            <Link to="performance" style={{color: 'inherit', textDecoration: 'none'}}>
               <ListItemButton key="performance">
                 <ListItemIcon><Speed /></ListItemIcon>
                 <ListItemText primary="Performance" />
               </ListItemButton>
             </Link>
-            <Link to="/charts" style={{color: 'inherit', textDecoration: 'none'}}>
+            <Link to="charts" style={{color: 'inherit', textDecoration: 'none'}}>
               <ListItemButton key="charts">
                 <ListItemIcon><TimelineIcon /></ListItemIcon>
                 <ListItemText primary="Charts" />
               </ListItemButton>
             </Link>
-            <Link to="/trades" style={{color: 'inherit', textDecoration: 'none'}}>
+            <Link to="trades" style={{color: 'inherit', textDecoration: 'none'}}>
               <ListItemButton key="trades">
                 <ListItemIcon><CurrencyExchangeIcon /></ListItemIcon>
                 <ListItemText primary="Trades" />
               </ListItemButton>
             </Link>
-            <Link to="/dividends" style={{color: 'inherit', textDecoration: 'none'}}>
+            <Link to="dividends" style={{color: 'inherit', textDecoration: 'none'}}>
               <ListItemButton key="dividends">
                 <ListItemIcon><NotificationsNoneIcon /></ListItemIcon>
                 <ListItemText primary="Dividends" />
               </ListItemButton>
             </Link>
-            <Link to="/values" style={{color: 'inherit', textDecoration: 'none'}}>
+            <Link to="values" style={{color: 'inherit', textDecoration: 'none'}}>
               <ListItemButton key="values">
                 <ListItemIcon><AccountBalanceOutlinedIcon /></ListItemIcon>
                 <ListItemText primary="Values" />
               </ListItemButton>
             </Link>
-            <Link to="/prices" style={{color: 'inherit', textDecoration: 'none'}}>
+            <Link to="prices" style={{color: 'inherit', textDecoration: 'none'}}>
               <ListItemButton key="prices">
                 <ListItemIcon><SearchIcon /></ListItemIcon>
                 <ListItemText primary="Prices" />
               </ListItemButton>
             </Link>
-            <Link to="/settings" style={{color: 'inherit', textDecoration: 'none'}}>
+            <Link to="settings" style={{color: 'inherit', textDecoration: 'none'}}>
               <ListItemButton key="settings">
                 <ListItemIcon><SettingsOutlinedIcon /></ListItemIcon>
                 <ListItemText primary="Settings" />
@@ -281,31 +281,31 @@ export default class App extends React.Component<{}, AppState> {
         <Box component="main" sx={{ flexGrow: 1, p: 3 }}>
           <DrawerHeader />
           <Routes>
-            <Route path="/overview" element={
+            <Route path="overview" element={
               <Overview config={this.state.config} setHeading={this.setHeading} displayProgressBar={this.displayProgressBar} />
             }/>
-            <Route path="/performance" element={
+            <Route path="performance" element={
               <Performance config={this.state.config} setHeading={this.setHeading} displayProgressBar={this.displayProgressBar} />
             }/>
-            <Route path="/trades" element={
+            <Route path="trades" element={
               <Trades config={this.state.config} setHeading={this.setHeading} displayProgressBar={this.displayProgressBar} />
             }/>
-            <Route path="/dividends" element={
+            <Route path="dividends" element={
               <Dividends config={this.state.config} setHeading={this.setHeading} displayProgressBar={this.displayProgressBar} />
             }/>
-            <Route path="/charts" element={
+            <Route path="charts" element={
               <Charts config={this.state.config} setHeading={this.setHeading} displayProgressBar={this.displayProgressBar} />
             }/>
-            <Route path="/settings" element={
+            <Route path="settings" element={
               <Settings config={this.state.config} setHeading={this.setHeading} displayProgressBar={this.displayProgressBar} />
             }/>
-            <Route path="/values" element={
+            <Route path="values" element={
               <Values config={this.state.config} setHeading={this.setHeading} displayProgressBar={this.displayProgressBar} />
             }/>
-            <Route path="/prices" element={
+            <Route path="prices" element={
               <Prices config={this.state.config} setHeading={this.setHeading} displayProgressBar={this.displayProgressBar} />
             }/>
-            <Route path="/" element={<Navigate to="/overview" />} />
+            <Route path="/" element={<Navigate to="overview" />} />
           </Routes>
         </Box>
       </Box>
