@@ -1,5 +1,5 @@
 import threading
-from typing import NamedTuple
+from dataclasses import dataclass, asdict
 from collections import defaultdict
 import os
 import time
@@ -25,7 +25,8 @@ def get_yfinance_fx_ticker(from_curr: str, to_curr: str):
     except KeyError:
         return f'{from_curr}{to_curr}=X'
 
-class Config(NamedTuple):
+@dataclass
+class Config:
     db: str
     base_currency: str
     language_locale: str
@@ -41,7 +42,7 @@ db.row_factory = sqlite3.Row
 
 @app.get("/config/get")
 async def config_get(request:sanic.Request):
-    return sanic.response.json(config._asdict())
+    return sanic.response.json(asdict(config))
 
 
 @app.get("/data/last")
@@ -312,10 +313,7 @@ async def dividends_calc(request:sanic.Request):
 async def dividends_list(request:sanic.Request):
     cursor = db.cursor()
     cursor.execute('''
-        SELECT
-            date,
-            ticker,
-            dividend
+        SELECT date, ticker, dividend
         FROM dividends
         ORDER BY date DESC
     ''')
