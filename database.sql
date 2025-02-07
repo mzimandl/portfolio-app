@@ -22,10 +22,27 @@ create table trades(
 	id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
 	date TEXT NOT NULL,
 	ticker TEXT NOT NULL,
-	volume REAL,
-	price REAL,
-	fee REAL,
-	rate REAL,
+	volume REAL NOT NULL,
+	price REAL NOT NULL,
+	fee REAL DEFAULT 0,
+	rate REAL DEFAULT 1,
+	FOREIGN KEY(ticker) REFERENCES instruments(ticker)
+);
+
+create table staking(
+	id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+	date TEXT NOT NULL,
+	ticker TEXT NOT NULL,
+	volume REAL NOT NULL,
+	FOREIGN KEY(ticker) REFERENCES instruments(ticker)
+);
+
+create table deposits(
+	id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+	date TEXT NOT NULL,
+	ticker TEXT NOT NULL,
+	amount REAL DEFAULT 0,
+	fee REAL DEFAULT 0,
 	FOREIGN KEY(ticker) REFERENCES instruments(ticker)
 );
 
@@ -63,7 +80,7 @@ create table fx(
 	FOREIGN KEY(to_curr) REFERENCES currencies(name)
 );
 
-create table manual_values(
+create table values(
 	date text NOT NULL,
 	ticker text NOT NULL,
 	value real NOT NULL,

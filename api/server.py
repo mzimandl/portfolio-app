@@ -2,6 +2,7 @@ import threading
 from dataclasses import dataclass, asdict
 from collections import defaultdict
 import os
+import sys
 import time
 import datetime
 import json
@@ -12,7 +13,7 @@ import requests
 import sanic
 import sanic.response
 import yfinance
-import sys
+import polars as pl
 
 FILE_PATH = os.path.dirname(__file__)
 
@@ -40,6 +41,12 @@ db = sqlite3.connect(os.path.join(FILE_PATH, config.db))
 db.row_factory = sqlite3.Row
 
 
+@app.get("/test")
+async def test(request:sanic.Request):
+    df = pl.read_database("SELECT * FROM trades", db)
+    return sanic.response.json(df.to_dicts())
+
+
 @app.get("/config/get")
 async def config_get(request:sanic.Request):
     return sanic.response.json(asdict(config))
@@ -53,8 +60,8 @@ async def last(request:sanic.Request):
     last_data['historical'] = cursor.fetchone()['last_historical']
     cursor.execute('SELECT max(date) as fx_historical FROM fx')
     last_data['fx'] = cursor.fetchone()['fx_historical']
-    cursor.execute('SELECT max(date) as last_manual_value FROM manual_values')
-    last_data['manual_value'] = cursor.fetchone()['last_manual_value']
+    cursor.execute('SELECT max(date) as last_value FROM "values"')
+    last_data['manual_value'] = cursor.fetchone()['last_value']
     return sanic.response.json(last_data)
 
 
@@ -164,7 +171,7 @@ async def overview(request:sanic.Request):
                 (case when it.currency = ? then 1 else
                     (select close from fx where from_curr = it.currency and to_curr = ? order by date desc)
                 end)*(
-                    (select value from manual_values where ticker = it.ticker order by date desc)
+                    (select value from "values" where ticker = it.ticker order by date desc)
                 )
             else
                 (select close from historical where ticker = it.ticker order by date desc)*
@@ -180,9 +187,9 @@ async def overview(request:sanic.Request):
                         (case when rate then rate else 1 end)
                     ) from trades
                     where ticker = it.ticker and date >
-                        (select date from manual_values where ticker = it.ticker order by date desc)
+                        (select date from "values" where ticker = it.ticker order by date desc)
                 )
-            else null end) as manual_value_correction,
+            else null end) as value_correction,
             sum(price*volume)/sum(volume) as average_price
         FROM trades as tt
         JOIN instruments as it on it.ticker = tt.ticker
@@ -193,8 +200,8 @@ async def overview(request:sanic.Request):
     return sanic.response.json([
         {
             **dict(d),
-            'value': d['value'] + (d['manual_value_correction'] if d['manual_value_correction'] else 0),
-            'profit': d['value'] - d['invested'] - d['fee'] + (d['manual_value_correction'] if d['manual_value_correction'] else 0),
+            'value': d['value'] + (d['value_correction'] if d['value_correction'] else 0),
+            'profit': d['value'] - d['invested'] - d['fee'] + (d['value_correction'] if d['value_correction'] else 0),
         }
         for d in cursor
     ])
@@ -211,11 +218,11 @@ async def performance(request:sanic.Request):
             fee,
             investment,
             (case when evaluation='manual'
-                THEN fx_price*(manual_value+(case when manual_value_correction then manual_value_correction else 0 end))
+                THEN fx_price*(manual_value+(case when value_correction then value_correction else 0 end))
                 ELSE fx_price*last_price*volume
             END) as value,
             (case when evaluation='manual'
-                THEN fx_price*(manual_value+(case when manual_value_correction then manual_value_correction else 0 end))
+                THEN fx_price*(manual_value+(case when value_correction then value_correction else 0 end))
                 ELSE fx_price*last_price*volume
             END)-investment-fee as profit
         from (
@@ -234,7 +241,7 @@ async def performance(request:sanic.Request):
                 end) as fx_price,
                 sum(tt.fee) over (PARTITION BY it.ticker ORDER BY dt.date RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) as fee,
                 (case when it.evaluation='manual' then
-                    (select value from manual_values where date <= dt.date and ticker = it.ticker order by date desc)
+                    (select value from "values" where date <= dt.date and ticker = it.ticker order by date desc)
                 else null end) as manual_value,
                 (case when it.evaluation='manual' then
                     (select
@@ -243,14 +250,14 @@ async def performance(request:sanic.Request):
                             (case when rate then rate else 1 end)
                         ) from trades
                         where date <= dt.date and ticker = it.ticker and date >
-                            (select date from manual_values where date <= dt.date and ticker = it.ticker order by date desc)
+                            (select date from "values" where date <= dt.date and ticker = it.ticker order by date desc)
                     )
-                else null end) as manual_value_correction
+                else null end) as value_correction
             from (
                 select distinct date from fx UNION
                 select distinct date from trades UNION
                 select distinct date from historical UNION
-                select distinct date from manual_values
+                select distinct date from "values"
             ) as dt
             left join instruments as it
             left join fx as ft on ft.from_curr = it.currency and ft.date = dt.date
@@ -358,11 +365,11 @@ async def charts(request:sanic.Request):
             sum(fee) as fee,
             sum(investment) as investment,
             sum(case when evaluation='manual'
-                THEN fx_price*(manual_value+(case when manual_value_correction then manual_value_correction else 0 end))
+                THEN fx_price*(manual_value+(case when value_correction then value_correction else 0 end))
                 ELSE fx_price*last_price*volume
             END) as value,
             sum(case when evaluation='manual'
-                THEN fx_price*(manual_value+(case when manual_value_correction then manual_value_correction else 0 end))
+                THEN fx_price*(manual_value+(case when value_correction then value_correction else 0 end))
                 ELSE fx_price*last_price*volume
             END)-sum(investment)-sum(fee) as profit
         from (
@@ -382,7 +389,7 @@ async def charts(request:sanic.Request):
                 end) as fx_price,
                 sum(tt.fee) over (PARTITION BY it.ticker ORDER BY dt.date, tt.id RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) as fee,
                 (case when it.evaluation='manual' then
-                    (select value from manual_values where date <= dt.date and ticker = it.ticker order by date desc)
+                    (select value from "values" where date <= dt.date and ticker = it.ticker order by date desc)
                 else null end) as manual_value,
                 (case when it.evaluation='manual' then
                     (select
@@ -391,14 +398,14 @@ async def charts(request:sanic.Request):
                             (case when rate then rate else 1 end)
                         ) from trades
                         where date <= dt.date and ticker = it.ticker and date >
-                            (select date from manual_values where date <= dt.date and ticker = it.ticker order by date desc)
+                            (select date from "values" where date <= dt.date and ticker = it.ticker order by date desc)
                     )
-                else null end) as manual_value_correction
+                else null end) as value_correction
             from (
                 select distinct date from fx UNION
                 select distinct date from trades UNION
                 select distinct date from historical UNION
-                select distinct date from manual_values
+                select distinct date from "values"
             ) as dt
             left join instruments as it
             left join fx as ft on ft.from_curr = it.currency and ft.date = dt.date
@@ -529,7 +536,7 @@ async def values_list(request:sanic.Request):
     cursor = db.cursor()
     cursor.execute(f'''
         SELECT date, mvt.ticker, value, it.currency
-        FROM manual_values AS mvt
+        FROM "values" AS mvt
         JOIN instruments AS it ON it.ticker = mvt.ticker
         {f'WHERE {sql_where}' if where else ''}
         ORDER BY date DESC''',
@@ -543,7 +550,7 @@ async def values_new(request:sanic.Request):
     data = request.json
     cursor = db.cursor()
     cursor.execute('''
-        INSERT INTO manual_values(date, ticker, value) VALUES (?, ?, ?)
+        INSERT INTO "values"(date, ticker, value) VALUES (?, ?, ?)
         ON CONFLICT (date, ticker)
         DO UPDATE SET value = excluded.value''',
         [data['date'], data['ticker'], data['value']]
