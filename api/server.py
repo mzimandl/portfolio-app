@@ -76,8 +76,6 @@ fx_df = pl.read_database(
 
 @app.get("/test")
 async def test(request:sanic.Request):
-    value_expr = pl.col("volume") * pl.col("last_price") * pl.col("fx_rate")
-
     last_price = historical_df\
         .sort("date")\
         .group_by("ticker")\
@@ -89,10 +87,15 @@ async def test(request:sanic.Request):
         .group_by(["from_curr", "to_curr"])\
         .agg(pl.col("close").last().alias("fx_rate"))
     
-    div_df = dividends_df\
+    total_dividends_df = dividends_df\
         .group_by("ticker")\
         .agg(pl.col("dividend").sum())
+    
+    total_staking_df = staking_df\
+        .group_by("ticker")\
+        .agg(pl.col("volume").sum().alias("staking_volume"))
 
+    value_expr = pl.col("total_volume") * pl.col("last_price") * pl.col("fx_rate")
     overview_df = trades_df\
         .group_by("ticker")\
         .agg(
@@ -102,20 +105,21 @@ async def test(request:sanic.Request):
             pl.col("fee").sum().alias("base_fee"),
         )\
         .join(last_price, on="ticker", how="left")\
-        .join(last_fx.filter(pl.col("to_curr") == config.base_currency), left_on="currency", right_on="from_curr", how="left")\
-        .with_columns(pl.col("fx_rate").fill_null(1))\
+        .join(last_fx.filter(pl.col("to_curr") == config.base_currency), left_on="currency", right_on="from_curr", how="left").with_columns(pl.col("fx_rate").fill_null(1))\
+        .join(total_staking_df, on="ticker", how="left").with_columns(pl.col("staking_volume").fill_null(0))\
+        .with_columns((pl.col("volume") + pl.col("staking_volume")).alias("total_volume"))\
         .select(
             pl.col("ticker"),
             pl.col("last_price"),
-            pl.when(pl.col("volume").gt(0)).then(pl.col("fx_investment") / pl.col("volume")).otherwise(None).alias("average_price"),
-            pl.col("volume"),
+            pl.when(pl.col("total_volume").gt(0)).then(pl.col("fx_investment") / pl.col("total_volume")).otherwise(None).alias("average_price"),
             pl.col("investment"),
             value_expr.alias("value"),
             (value_expr - pl.col("fx_investment") * pl.col("fx_rate")).alias("clean_profit"),
-            (value_expr - pl.col("investment")).alias("total_profit"),
             (pl.col("fx_investment") * pl.col("fx_rate") - pl.col("investment")).alias("fx_profit"),
+            (value_expr - pl.col("investment")).alias("total_profit"),
+            (pl.col("staking_volume") * pl.col("last_price") * pl.col("fx_rate")).alias("rewards")
         )\
-        .join(div_df, on="ticker", how="left")\
+        .join(total_dividends_df, on="ticker", how="left")\
         .sort("ticker")
     return sanic.response.json(overview_df.to_dicts())
 
