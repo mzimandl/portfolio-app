@@ -40,11 +40,84 @@ app.static('/assets', os.path.join(FILE_PATH, '../build/assets'))
 db = sqlite3.connect(os.path.join(FILE_PATH, config.db))
 db.row_factory = sqlite3.Row
 
+trades_df = pl.read_database(
+    "SELECT id, date, ticker, volume, price, fee, rate FROM trades", db,
+    schema_overrides={"dates": pl.Date},
+)
+instruments_df = pl.read_database(
+    "SELECT ticker, currency, type, dividend_currency FROM instruments", db,
+    schema_overrides={"dates": pl.Date},
+)
+staking_df = pl.read_database(
+    "SELECT id, date, ticker, volume FROM staking", db,
+    schema_overrides={"dates": pl.Date},
+)
+deposits_df = pl.read_database(
+    "SELECT id, date, ticker, amount, fee FROM deposits", db,
+    schema_overrides={"dates": pl.Date},
+)
+dividends_df = pl.read_database(
+    "SELECT id, date, ticker, dividend FROM dividends", db,
+    schema_overrides={"dates": pl.Date},
+)
+values_df = pl.read_database(
+    "SELECT date, ticker, value FROM \"values\"", db,
+    schema_overrides={"dates": pl.Date},
+)
+historical_df = pl.read_database(
+    "SELECT date, ticker, open, high, low, close, dividends, splits FROM historical", db,
+    schema_overrides={"dates": pl.Date},
+)
+fx_df = pl.read_database(
+    "SELECT date, from_curr, to_curr, open, high, low, close FROM fx", db,
+    schema_overrides={"dates": pl.Date},
+)
+
 
 @app.get("/test")
 async def test(request:sanic.Request):
-    df = pl.read_database("SELECT * FROM trades", db)
-    return sanic.response.json(df.to_dicts())
+    value_expr = pl.col("volume") * pl.col("last_price") * pl.col("fx_rate")
+
+    last_price = historical_df\
+        .sort("date")\
+        .group_by("ticker")\
+        .agg(pl.col("close").last().alias("last_price"))\
+        .join(instruments_df.select(["ticker", "currency"]), on="ticker")
+
+    last_fx = fx_df\
+        .sort("date")\
+        .group_by(["from_curr", "to_curr"])\
+        .agg(pl.col("close").last().alias("fx_rate"))
+    
+    div_df = dividends_df\
+        .group_by("ticker")\
+        .agg(pl.col("dividend").sum())
+
+    overview_df = trades_df\
+        .group_by("ticker")\
+        .agg(
+            pl.col("volume").sum().alias("volume"),
+            (pl.col("volume") * pl.col("price")).sum().alias("fx_investment"),
+            (pl.col("volume") * pl.col("price") / pl.col("rate")).sum().alias("investment"),
+            pl.col("fee").sum().alias("base_fee"),
+        )\
+        .join(last_price, on="ticker", how="left")\
+        .join(last_fx.filter(pl.col("to_curr") == config.base_currency), left_on="currency", right_on="from_curr", how="left")\
+        .with_columns(pl.col("fx_rate").fill_null(1))\
+        .select(
+            pl.col("ticker"),
+            pl.col("last_price"),
+            pl.when(pl.col("volume").gt(0)).then(pl.col("fx_investment") / pl.col("volume")).otherwise(None).alias("average_price"),
+            pl.col("volume"),
+            pl.col("investment"),
+            value_expr.alias("value"),
+            (value_expr - pl.col("fx_investment") * pl.col("fx_rate")).alias("clean_profit"),
+            (value_expr - pl.col("investment")).alias("total_profit"),
+            (pl.col("fx_investment") * pl.col("fx_rate") - pl.col("investment")).alias("fx_profit"),
+        )\
+        .join(div_df, on="ticker", how="left")\
+        .sort("ticker")
+    return sanic.response.json(overview_df.to_dicts())
 
 
 @app.get("/config/get")
