@@ -124,6 +124,22 @@ async def test(request:sanic.Request):
     return sanic.response.json(overview_df.to_dicts())
 
 
+@app.get("/test2")
+async def test2(request:sanic.Request):
+    last_val_df = values_df.sort("date").group_by("ticker").agg(
+        pl.col("date").last(),
+        pl.col("value").last(),
+    )
+
+    df2 = deposits_df.sort("date").join(last_val_df, "ticker", "left").group_by("ticker").agg(
+        pl.col("date").last(),
+        pl.col("amount").sum().alias("deposit"),
+        (pl.col("value").last() + pl.col("amount").filter(pl.col("date") >= pl.col("date_right")).sum()).alias("value"),
+        pl.col("fee").sum().alias("fees"),
+    )
+    return sanic.response.json(df2.to_dicts())
+
+
 @app.get("/config/get")
 async def config_get(request:sanic.Request):
     return sanic.response.json(asdict(config))
