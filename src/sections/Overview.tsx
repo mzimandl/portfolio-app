@@ -4,16 +4,20 @@ import { AbstractSection, SectionProps } from '../common';
 
 interface OverviewDataRow {
     ticker: string;
+    type: string;
     currency: string;
     last_price: number;
+    average_price: number;
+    investment: number;
     volume: number;
     value: number;
-    fee: number;
-    invested: number;
-    profit: number;
-    manual_value_correction: number;
-    type: string;
-    average_price: number;
+    fees: number;
+    clean_profit: number;
+    fx_profit: number;
+    total_profit: number;
+    rewards: number;
+    dividends: number;
+    dividend_currency: string;
 }
 
 interface DividendsDataRow {
@@ -24,7 +28,6 @@ interface DividendsDataRow {
 
 type OverviewResponse = Array<OverviewDataRow>;
 type DividendsResponse = {[ticker:string]:DividendsDataRow};
-type DividendsSumResponse = {[ticker:string]:DividendsDataRow};
 
 interface OverviewState {
     investment: number;
@@ -35,7 +38,6 @@ interface OverviewState {
     savingsValue: number;
     overview: Array<OverviewDataRow>;
     dividends: DividendsResponse;
-    dividendsSum: DividendsSumResponse;
     types: Array<string>;
     groupByType: boolean;
 }
@@ -57,7 +59,6 @@ export class Overview extends AbstractSection<OverviewProps, OverviewState> {
             savingsValue: 0,
             overview: [],
             dividends: {},
-            dividendsSum: {},
             types: [],
             groupByType: false,
         };
@@ -68,9 +69,7 @@ export class Overview extends AbstractSection<OverviewProps, OverviewState> {
         this.props.displayProgressBar(true)
         this.loadOverview().then(() =>
             this.loadDividends().then(() =>
-                this.loadDividendsSum().then(() =>
-                    this.props.displayProgressBar(false)
-                )
+                this.props.displayProgressBar(false)
             )
         );
     }
@@ -87,11 +86,11 @@ export class Overview extends AbstractSection<OverviewProps, OverviewState> {
                 this.setState({
                     overview,
                     types,
-                    investment: overview.reduce((prev, cur, i) => cur.type === 'savings' ? prev : prev + cur.invested, 0),
-                    fees: overview.reduce((prev, cur, i) => cur.type === 'savings' ? prev : prev + cur.fee, 0),
+                    investment: overview.reduce((prev, cur, i) => cur.type === 'savings' ? prev : prev + cur.investment, 0),
+                    fees: overview.reduce((prev, cur, i) => cur.type === 'savings' ? prev : prev + cur.fees, 0),
                     value: overview.reduce((prev, cur, i) => cur.type === 'savings' ? prev : prev + cur.value, 0),
-                    profit: overview.reduce((prev, cur, i) => cur.type === 'savings' ? prev : prev + cur.profit, 0),
-                    savingsDeposit: overview.reduce((prev, cur, i) => cur.type === 'savings' ? prev + cur.invested : prev, 0),
+                    profit: overview.reduce((prev, cur, i) => cur.type === 'savings' ? prev : prev + cur.total_profit, 0),
+                    savingsDeposit: overview.reduce((prev, cur, i) => cur.type === 'savings' ? prev + cur.investment : prev, 0),
                     savingsValue: overview.reduce((prev, cur, i) => cur.type === 'savings' ? prev + cur.value : prev, 0),
                 });
             });
@@ -102,14 +101,6 @@ export class Overview extends AbstractSection<OverviewProps, OverviewState> {
             .then<DividendsResponse>(res => res.json())
             .then(dividends => {
                 this.setState({dividends});
-            });
-    }
-
-    loadDividendsSum() {
-        return fetch('/dividends/sum')
-            .then<DividendsSumResponse>(res => res.json())
-            .then(dividendsSum => {
-                this.setState({dividendsSum});
             });
     }
 
@@ -205,18 +196,18 @@ export class Overview extends AbstractSection<OverviewProps, OverviewState> {
                                         </TableHead>
                                         <TableBody>
                                             {this.state.overview.filter(item => item.type === type).map((item, i) =>
-                                                <TableRow key={i} sx={{backgroundColor: item.profit < 0 ? 'rgba(255,0,0,0.25)' : 'rgba(0,255,0,0.25)'}}>
+                                                <TableRow key={i} sx={{backgroundColor: item.total_profit < 0 ? 'rgba(255,0,0,0.25)' : 'rgba(0,255,0,0.25)'}}>
                                                     <TableCell>{item.ticker}</TableCell>
                                                     <TableCell align='right'>{this.formatCurrency(item.last_price, item.currency)}</TableCell>
                                                     <TableCell align='right'>{this.formatCurrency(item.average_price, item.currency)}</TableCell>
                                                     <TableCell align='center'>{item.volume ? item.volume : null}</TableCell>
-                                                    <TableCell align='right'>{this.formatCurrency(item.invested)}</TableCell>
-                                                    <TableCell align='right'>{this.formatCurrency(item.fee)}</TableCell>
+                                                    <TableCell align='right'>{this.formatCurrency(item.investment)}</TableCell>
+                                                    <TableCell align='right'>{this.formatCurrency(item.fees)}</TableCell>
                                                     <TableCell align='right'>{this.formatCurrency(item.value)}</TableCell>
-                                                    <TableCell align='right'>{this.formatCurrency(item.profit)}</TableCell>
-                                                    <TableCell align='right'>{this.formatPercents(item.profit/item.invested)}</TableCell>
+                                                    <TableCell align='right'>{this.formatCurrency(item.total_profit)}</TableCell>
+                                                    <TableCell align='right'>{this.formatPercents(item.total_profit/item.investment)}</TableCell>
                                                     <TableCell align='right'>{this.state.dividends[item.ticker] ? this.formatCurrency(this.state.dividends[item.ticker].dividends, this.state.dividends[item.ticker].currency) : null}</TableCell>
-                                                    <TableCell align='right'>{this.state.dividendsSum[item.ticker] ? this.formatCurrency(this.state.dividendsSum[item.ticker].dividends, this.state.dividendsSum[item.ticker].currency) : null}</TableCell>
+                                                    <TableCell align='right'>{item.dividends ? this.formatCurrency(item.dividends, item.dividend_currency) : null}</TableCell>
                                                 </TableRow>
                                             )}
                                         </TableBody>
@@ -244,18 +235,18 @@ export class Overview extends AbstractSection<OverviewProps, OverviewState> {
                                     </TableHead>
                                     <TableBody>
                                         {this.state.overview.map((item, i) =>
-                                            <TableRow key={i} sx={{backgroundColor: item.profit < 0 ? 'rgba(255,0,0,0.25)' : 'rgba(0,255,0,0.25)'}}>
+                                            <TableRow key={i} sx={{backgroundColor: item.total_profit < 0 ? 'rgba(255,0,0,0.25)' : 'rgba(0,255,0,0.25)'}}>
                                                 <TableCell>{item.ticker}</TableCell>
                                                 <TableCell align='right'>{this.formatCurrency(item.last_price, item.currency)}</TableCell>
                                                 <TableCell align='right'>{this.formatCurrency(item.average_price, item.currency)}</TableCell>
                                                 <TableCell align='center'>{item.volume ? item.volume : null}</TableCell>
-                                                <TableCell align='right'>{this.formatCurrency(item.invested)}</TableCell>
-                                                <TableCell align='right'>{this.formatCurrency(item.fee)}</TableCell>
+                                                <TableCell align='right'>{this.formatCurrency(item.investment)}</TableCell>
+                                                <TableCell align='right'>{this.formatCurrency(item.fees)}</TableCell>
                                                 <TableCell align='right'>{this.formatCurrency(item.value)}</TableCell>
-                                                <TableCell align='right'>{this.formatCurrency(item.profit)}</TableCell>
-                                                <TableCell align='right'>{this.formatPercents(item.profit/item.invested)}</TableCell>
+                                                <TableCell align='right'>{this.formatCurrency(item.total_profit)}</TableCell>
+                                                <TableCell align='right'>{this.formatPercents(item.total_profit/item.investment)}</TableCell>
                                                 <TableCell align='right'>{this.state.dividends[item.ticker] ? this.formatCurrency(this.state.dividends[item.ticker].dividends, this.state.dividends[item.ticker].currency) : null}</TableCell>
-                                                <TableCell align='right'>{this.state.dividendsSum[item.ticker] ? this.formatCurrency(this.state.dividendsSum[item.ticker].dividends, this.state.dividendsSum[item.ticker].currency) : null}</TableCell>
+                                                <TableCell align='right'>{item.dividends ? this.formatCurrency(item.dividends, item.dividend_currency) : null}</TableCell>
                                             </TableRow>
                                         )}
                                     </TableBody>

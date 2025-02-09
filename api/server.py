@@ -74,56 +74,6 @@ fx_df = pl.read_database(
 )
 
 
-@app.get("/test")
-async def test(request:sanic.Request):
-    last_price = historical_df\
-        .sort("date")\
-        .group_by("ticker")\
-        .agg(pl.col("close").last().alias("last_price"))\
-        .join(instruments_df.select(["ticker", "currency"]), on="ticker")
-
-    last_fx = fx_df\
-        .sort("date")\
-        .group_by(["from_curr", "to_curr"])\
-        .agg(pl.col("close").last().alias("fx_rate"))
-    
-    total_dividends_df = dividends_df\
-        .group_by("ticker")\
-        .agg(pl.col("dividend").sum())
-    
-    total_staking_df = staking_df\
-        .group_by("ticker")\
-        .agg(pl.col("volume").sum().alias("staking_volume"))
-
-    value_expr = pl.col("total_volume") * pl.col("last_price") * pl.col("fx_rate")
-    overview_df = trades_df\
-        .group_by("ticker")\
-        .agg(
-            pl.col("volume").sum().alias("volume"),
-            (pl.col("volume") * pl.col("price")).sum().alias("fx_investment"),
-            (pl.col("volume") * pl.col("price") / pl.col("rate")).sum().alias("investment"),
-            pl.col("fee").sum().alias("base_fee"),
-        )\
-        .join(last_price, on="ticker", how="left")\
-        .join(last_fx.filter(pl.col("to_curr") == config.base_currency), left_on="currency", right_on="from_curr", how="left").with_columns(pl.col("fx_rate").fill_null(1))\
-        .join(total_staking_df, on="ticker", how="left").with_columns(pl.col("staking_volume").fill_null(0))\
-        .with_columns((pl.col("volume") + pl.col("staking_volume")).alias("total_volume"))\
-        .select(
-            pl.col("ticker"),
-            pl.col("last_price"),
-            pl.when(pl.col("total_volume").gt(0)).then(pl.col("fx_investment") / pl.col("total_volume")).otherwise(None).alias("average_price"),
-            pl.col("investment"),
-            value_expr.alias("value"),
-            (value_expr - pl.col("fx_investment") * pl.col("fx_rate")).alias("clean_profit"),
-            (pl.col("fx_investment") * pl.col("fx_rate") - pl.col("investment")).alias("fx_profit"),
-            (value_expr - pl.col("investment")).alias("total_profit"),
-            (pl.col("staking_volume") * pl.col("last_price") * pl.col("fx_rate")).alias("rewards")
-        )\
-        .join(total_dividends_df, on="ticker", how="left")\
-        .sort("ticker")
-    return sanic.response.json(overview_df.to_dicts())
-
-
 @app.get("/test2")
 async def test2(request:sanic.Request):
     last_val_df = values_df.sort("date").group_by("ticker").agg(
@@ -131,13 +81,14 @@ async def test2(request:sanic.Request):
         pl.col("value").last(),
     )
 
-    df2 = deposits_df.sort("date").join(last_val_df, "ticker", "left").group_by("ticker").agg(
+    results = deposits_df.sort("date").join(last_val_df, "ticker", "left").group_by("ticker").agg(
         pl.col("date").last(),
-        pl.col("amount").sum().alias("deposit"),
+        pl.col("amount").filter(pl.col("amount") > 0).sum().alias("deposit"),
+        pl.col("amount").filter(pl.col("amount") < 0).sum().alias("withdraw"),
         (pl.col("value").last() + pl.col("amount").filter(pl.col("date") >= pl.col("date_right")).sum()).alias("value"),
         pl.col("fee").sum().alias("fees"),
-    )
-    return sanic.response.json(df2.to_dicts())
+    ).sort("ticker")
+    return sanic.response.json(results.to_dicts())
 
 
 @app.get("/config/get")
@@ -250,54 +201,51 @@ async def fx_update(request:sanic.Request):
 
 @app.get("/overview/get")
 async def overview(request:sanic.Request):
-    cursor = db.cursor()
-    cursor.execute('''
-        SELECT
-            tt.ticker,
-            it.currency,
-            it.type,
-            sum(volume) as volume,
-            sum(CASE WHEN fee THEN fee ELSE 0 END) as fee,
-            sum(price*(CASE WHEN volume THEN volume ELSE 1 END)/(CASE WHEN rate THEN rate ELSE 1 END)) as invested,
-            (select close from historical where ticker = it.ticker order by date desc) as last_price,
-            (case when it.evaluation = 'manual' then
-                (case when it.currency = ? then 1 else
-                    (select close from fx where from_curr = it.currency and to_curr = ? order by date desc)
-                end)*(
-                    (select value from "values" where ticker = it.ticker order by date desc)
-                )
-            else
-                (select close from historical where ticker = it.ticker order by date desc)*
-                (case when it.currency = ? then 1 else
-                    (select close from fx where from_curr = it.currency and to_curr = ? order by date desc)
-                end)*
-                sum(volume)
-            end) as value,
-            (case when it.evaluation='manual' then
-                (select
-                    sum(
-                        (case when volume then volume else 1 end)*price/
-                        (case when rate then rate else 1 end)
-                    ) from trades
-                    where ticker = it.ticker and date >
-                        (select date from "values" where ticker = it.ticker order by date desc)
-                )
-            else null end) as value_correction,
-            sum(price*volume)/sum(volume) as average_price
-        FROM trades as tt
-        JOIN instruments as it on it.ticker = tt.ticker
-        GROUP BY tt.ticker
-        ORDER BY tt.ticker
-        ''', [config.base_currency, config.base_currency, config.base_currency, config.base_currency]
-    )
-    return sanic.response.json([
-        {
-            **dict(d),
-            'value': d['value'] + (d['value_correction'] if d['value_correction'] else 0),
-            'profit': d['value'] - d['invested'] - d['fee'] + (d['value_correction'] if d['value_correction'] else 0),
-        }
-        for d in cursor
-    ])
+    last_price = historical_df\
+        .sort("date")\
+        .group_by("ticker")\
+        .agg(pl.col("close").last().alias("last_price"))
+
+    last_fx = fx_df\
+        .sort("date")\
+        .group_by(["from_curr", "to_curr"])\
+        .agg(pl.col("close").last().alias("fx_rate"))
+    
+    total_dividends_df = dividends_df\
+        .group_by("ticker")\
+        .agg(pl.col("dividend").sum().alias("dividends"))
+    
+    total_staking_df = staking_df\
+        .group_by("ticker")\
+        .agg(pl.col("volume").sum().alias("staking_volume"))
+
+    value_expr = pl.col("total_volume") * pl.col("last_price") * pl.col("fx_rate")
+    overview = trades_df\
+        .group_by("ticker")\
+        .agg(
+            pl.col("volume").sum().alias("volume"),
+            (pl.col("volume") * pl.col("price")).sum().alias("fx_investment"),
+            (pl.col("volume") * pl.col("price") / pl.col("rate")).sum().alias("investment"),
+            pl.col("fee").sum().alias("fees"),
+        )\
+        .join(last_price, "ticker", "left")\
+        .join(instruments_df, "ticker", "left")\
+        .join(last_fx.filter(pl.col("to_curr") == config.base_currency), left_on="currency", right_on="from_curr", how="left").with_columns(pl.col("fx_rate").fill_null(1))\
+        .join(total_staking_df, "ticker", "left").with_columns(pl.col("staking_volume").fill_null(0))\
+        .with_columns((pl.col("volume") + pl.col("staking_volume")).alias("total_volume"))\
+        .select(
+            "ticker", "type", "currency", "dividend_currency", "last_price",
+            pl.when(pl.col("total_volume").gt(0)).then(pl.col("fx_investment") / pl.col("total_volume")).otherwise(None).alias("average_price"),
+            "investment", "fees", "volume",
+            value_expr.alias("value"),
+            (value_expr - pl.col("fx_investment") * pl.col("fx_rate")).alias("clean_profit"),
+            (pl.col("fx_investment") * pl.col("fx_rate") - pl.col("investment")).alias("fx_profit"),
+            (value_expr - pl.col("investment")).alias("total_profit"),
+            (pl.col("staking_volume") * pl.col("last_price") * pl.col("fx_rate")).alias("rewards")
+        )\
+        .join(total_dividends_df, on="ticker", how="left")\
+        .sort("ticker")
+    return sanic.response.json(overview.to_dicts())
 
 
 @app.get("/performance/get")
