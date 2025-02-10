@@ -40,38 +40,38 @@ app.static('/assets', os.path.join(FILE_PATH, '../build/assets'))
 db = sqlite3.connect(os.path.join(FILE_PATH, config.db))
 db.row_factory = sqlite3.Row
 
-trades_df = pl.read_database(
-    "SELECT id, date, ticker, volume, price, fee, rate FROM trades", db,
-    schema_overrides={"dates": pl.Date},
-)
 instruments_df = pl.read_database(
     "SELECT ticker, currency, type, dividend_currency FROM instruments", db,
     schema_overrides={"dates": pl.Date},
 )
-staking_df = pl.read_database(
-    "SELECT id, date, ticker, volume FROM staking", db,
+trades_df = pl.read_database(
+    "SELECT id, date, ticker, volume, price, fee, rate FROM trades", db,
     schema_overrides={"dates": pl.Date},
-)
+).sort("date")
 deposits_df = pl.read_database(
     "SELECT id, date, ticker, amount, fee FROM deposits", db,
     schema_overrides={"dates": pl.Date},
-)
-dividends_df = pl.read_database(
-    "SELECT id, date, ticker, dividend FROM dividends", db,
-    schema_overrides={"dates": pl.Date},
-)
+).sort("date")
 values_df = pl.read_database(
     "SELECT date, ticker, value FROM \"values\"", db,
     schema_overrides={"dates": pl.Date},
-)
+).sort("date")
+dividends_df = pl.read_database(
+    "SELECT id, date, ticker, dividend FROM dividends", db,
+    schema_overrides={"dates": pl.Date},
+).sort("date")
+staking_df = pl.read_database(
+    "SELECT id, date, ticker, volume FROM staking", db,
+    schema_overrides={"dates": pl.Date},
+).sort("date")
 historical_df = pl.read_database(
     "SELECT date, ticker, open, high, low, close, dividends, splits FROM historical", db,
     schema_overrides={"dates": pl.Date},
-)
+).sort("date")
 fx_df = pl.read_database(
     "SELECT date, from_curr, to_curr, open, high, low, close FROM fx", db,
     schema_overrides={"dates": pl.Date},
-)
+).sort("date")
 
 
 @app.get("/test2")
@@ -84,7 +84,7 @@ async def test2(request:sanic.Request):
     results = deposits_df.sort("date").join(last_val_df, "ticker", "left").group_by("ticker").agg(
         pl.col("date").last(),
         pl.col("amount").filter(pl.col("amount") > 0).sum().alias("deposit"),
-        pl.col("amount").filter(pl.col("amount") < 0).sum().alias("withdraw"),
+        -pl.col("amount").filter(pl.col("amount") < 0).sum().alias("withdraw"),
         (pl.col("value").last() + pl.col("amount").filter(pl.col("date") >= pl.col("date_right")).sum()).alias("value"),
         pl.col("fee").sum().alias("fees"),
     ).sort("ticker")
@@ -224,8 +224,9 @@ async def overview(request:sanic.Request):
         .group_by("ticker")\
         .agg(
             pl.col("volume").sum().alias("volume"),
-            (pl.col("volume") * pl.col("price")).sum().alias("fx_investment"),
-            (pl.col("volume") * pl.col("price") / pl.col("rate")).sum().alias("investment"),
+            (pl.col("volume") * pl.col("price")).filter(pl.col("volume") > 0).sum().alias("fx_investment"),
+            (pl.col("volume") * pl.col("price") / pl.col("rate")).filter(pl.col("volume") > 0).sum().alias("investment"),
+            -(pl.col("volume") * pl.col("price") / pl.col("rate")).filter(pl.col("volume") < 0).sum().alias("withdraw"),
             pl.col("fee").sum().alias("fees"),
         )\
         .join(last_price, "ticker", "left")\
@@ -236,11 +237,11 @@ async def overview(request:sanic.Request):
         .select(
             "ticker", "type", "currency", "dividend_currency", "last_price",
             pl.when(pl.col("total_volume").gt(0)).then(pl.col("fx_investment") / pl.col("total_volume")).otherwise(None).alias("average_price"),
-            "investment", "fees", "volume",
+            "investment", "withdraw", "fees", "volume",
             value_expr.alias("value"),
             (value_expr - pl.col("fx_investment") * pl.col("fx_rate")).alias("clean_profit"),
             (pl.col("fx_investment") * pl.col("fx_rate") - pl.col("investment")).alias("fx_profit"),
-            (value_expr - pl.col("investment")).alias("total_profit"),
+            (value_expr + pl.col("withdraw") - pl.col("investment")).alias("total_profit"),
             (pl.col("staking_volume") * pl.col("last_price") * pl.col("fx_rate")).alias("rewards")
         )\
         .join(total_dividends_df, on="ticker", how="left")\
