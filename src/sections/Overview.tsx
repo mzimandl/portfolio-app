@@ -1,4 +1,4 @@
-import { Table, TableBody, TableHead, TableContainer, TableRow, TableCell, Box, Typography, Card, CardHeader, CardContent, Grid, FormGroup, Switch, FormControlLabel } from '@mui/material';
+import { Table, TableBody, TableHead, TableContainer, TableRow, TableCell, Box, Typography, Card, CardHeader, CardContent, Grid2 as Grid, FormGroup, Switch, FormControlLabel } from '@mui/material';
 import { AbstractSection, SectionProps } from '../common';
 
 
@@ -12,8 +12,9 @@ interface OverviewDataRow {
     volume: number;
     value: number;
     fees: number;
-    clean_profit: number;
+    value_profit: number;
     fx_profit: number;
+    withdraw: number;
     total_profit: number;
     rewards: number;
     dividends: number;
@@ -30,16 +31,19 @@ type OverviewResponse = Array<OverviewDataRow>;
 type DividendsResponse = {[ticker:string]:DividendsDataRow};
 
 interface OverviewState {
+    types: Array<string>;
+    groupByType: boolean;
+    // aggregates
     investment: number;
     fees: number;
     value: number;
     profit: number;
     savingsDeposit: number;
     savingsValue: number;
+    // overview lines
     overview: Array<OverviewDataRow>;
     dividends: DividendsResponse;
-    types: Array<string>;
-    groupByType: boolean;
+    
 }
 
 interface OverviewProps {}
@@ -108,7 +112,7 @@ export class Overview extends AbstractSection<OverviewProps, OverviewState> {
         return (
             <Box>
                 <Grid container spacing={2}>
-                    <Grid item xs={2}>
+                    <Grid size={2}>
                         <Card elevation={3}>
                             <CardHeader title={'Investment'} />
                             <CardContent>
@@ -118,7 +122,7 @@ export class Overview extends AbstractSection<OverviewProps, OverviewState> {
                             </CardContent>
                         </Card>
                     </Grid>
-                    <Grid item xs={2}>
+                    <Grid size={2}>
                         <Card elevation={3}>
                             <CardHeader title={'Fees'} />
                             <CardContent>
@@ -128,7 +132,7 @@ export class Overview extends AbstractSection<OverviewProps, OverviewState> {
                             </CardContent>
                         </Card>
                     </Grid>
-                    <Grid item xs={2}>
+                    <Grid size={2}>
                         <Card elevation={3}>
                             <CardHeader title={'Value'} />
                             <CardContent>
@@ -138,7 +142,7 @@ export class Overview extends AbstractSection<OverviewProps, OverviewState> {
                             </CardContent>
                         </Card>
                     </Grid>
-                    <Grid item xs={2}>
+                    <Grid size={2}>
                         <Card elevation={3}>
                             <CardHeader title={'Profit'} />
                             <CardContent>
@@ -148,7 +152,7 @@ export class Overview extends AbstractSection<OverviewProps, OverviewState> {
                             </CardContent>
                         </Card>
                     </Grid>
-                    <Grid item xs={2}>
+                    <Grid size={2}>
                         <Card elevation={3}>
                             <CardHeader title={'Savings Deposit'} />
                             <CardContent>
@@ -158,7 +162,7 @@ export class Overview extends AbstractSection<OverviewProps, OverviewState> {
                             </CardContent>
                         </Card>
                     </Grid>
-                    <Grid item xs={2}>
+                    <Grid size={2}>
                         <Card elevation={3}>
                             <CardHeader title={'Savings Value'} />
                             <CardContent>
@@ -184,30 +188,44 @@ export class Overview extends AbstractSection<OverviewProps, OverviewState> {
                                         <TableHead>
                                             <TableRow>
                                                 <TableCell>Ticker</TableCell>
-                                                <TableCell align='right'>Last price</TableCell>
-                                                <TableCell align='right'>Avg price</TableCell>
-                                                <TableCell align='center'>Volume</TableCell>
+                                                <TableCell align='right'>Price</TableCell>
                                                 <TableCell align='right'>Invested</TableCell>
-                                                <TableCell align='right'>Fee</TableCell>
+                                                <TableCell align='right'>Withdraw</TableCell>
+                                                <TableCell align='right'>Volume</TableCell>
                                                 <TableCell align='right'>Value</TableCell>
-                                                <TableCell colSpan={2} align='center'>Profit</TableCell>
-                                                <TableCell colSpan={2} align='center'>Dividends</TableCell>
+                                                <TableCell colSpan={3} align='center'>Profit</TableCell>
+                                                <TableCell align='center'>Dividends</TableCell>
+                                                <TableCell align='right'>Fees</TableCell>
                                             </TableRow>
                                         </TableHead>
                                         <TableBody>
                                             {this.state.overview.filter(item => item.type === type).map((item, i) =>
                                                 <TableRow key={i} sx={{backgroundColor: item.total_profit < 0 ? 'rgba(255,0,0,0.25)' : 'rgba(0,255,0,0.25)'}}>
                                                     <TableCell>{item.ticker}</TableCell>
-                                                    <TableCell align='right'>{this.formatCurrency(item.last_price, item.currency)}</TableCell>
-                                                    <TableCell align='right'>{this.formatCurrency(item.average_price, item.currency)}</TableCell>
-                                                    <TableCell align='center'>{item.volume ? item.volume : null}</TableCell>
+                                                    <TableCell align='right' style={{fontSize: "0.6em"}}>
+                                                        {item.last_price ? "last:" : null} {this.formatCurrency(item.last_price, {currency: item.currency})}
+                                                        <br/>
+                                                        {item.average_price ? "avg:" : null} {this.formatCurrency(item.average_price, {currency: item.currency})}
+                                                    </TableCell>
                                                     <TableCell align='right'>{this.formatCurrency(item.investment)}</TableCell>
-                                                    <TableCell align='right'>{this.formatCurrency(item.fees)}</TableCell>
+                                                    <TableCell align='right'>{this.formatCurrency(item.withdraw)}</TableCell>
+                                                    <TableCell align='right'>{item.volume ? item.volume : null}</TableCell>
                                                     <TableCell align='right'>{this.formatCurrency(item.value)}</TableCell>
-                                                    <TableCell align='right'>{this.formatCurrency(item.total_profit)}</TableCell>
-                                                    <TableCell align='right'>{this.formatPercents(item.total_profit/item.investment)}</TableCell>
-                                                    <TableCell align='right'>{this.state.dividends[item.ticker] ? this.formatCurrency(this.state.dividends[item.ticker].dividends, this.state.dividends[item.ticker].currency) : null}</TableCell>
-                                                    <TableCell align='right'>{item.dividends ? this.formatCurrency(item.dividends, item.dividend_currency) : null}</TableCell>
+                                                    <TableCell align='right'>{this.formatCurrency(item.total_profit, {signed: true})}</TableCell>
+                                                    <TableCell align='left' style={{fontSize: "0.6em"}}>
+                                                        {item.value_profit ? "value" : null} {this.formatCurrency(item.value_profit, {signed: true})}
+                                                        <br/>
+                                                        {item.fx_profit ? "fx" : null} {this.formatCurrency(item.fx_profit, {signed: true})}
+                                                        <br/>
+                                                        {item.rewards ? "rewards" : null} {this.formatCurrency(item.rewards, {signed: true})}
+                                                    </TableCell>
+                                                    <TableCell align='center'>{this.formatPercents(item.total_profit/item.investment)}</TableCell>
+                                                    <TableCell align='right'>
+                                                        {item.dividends ? "payed:" : null} {item.dividends ? this.formatCurrency(item.dividends, {currency: item.dividend_currency}) : null}
+                                                        <br/>
+                                                        {this.state.dividends[item.ticker] ? "calc:" : null} {this.state.dividends[item.ticker] ? this.formatCurrency(this.state.dividends[item.ticker].dividends, {currency: this.state.dividends[item.ticker].currency}) : null}
+                                                    </TableCell>
+                                                    <TableCell align='right'>{this.formatCurrency(item.fees)}</TableCell>
                                                 </TableRow>
                                             )}
                                         </TableBody>
@@ -223,30 +241,44 @@ export class Overview extends AbstractSection<OverviewProps, OverviewState> {
                                     <TableHead>
                                         <TableRow>
                                             <TableCell>Ticker</TableCell>
-                                            <TableCell align='right'>Last price</TableCell>
-                                            <TableCell align='right'>Avg price</TableCell>
-                                            <TableCell align='center'>Volume</TableCell>
+                                            <TableCell align='right'>Price</TableCell>
                                             <TableCell align='right'>Invested</TableCell>
-                                            <TableCell align='right'>Fee</TableCell>
+                                            <TableCell align='right'>Withdraw</TableCell>
+                                            <TableCell align='right'>Volume</TableCell>
                                             <TableCell align='right'>Value</TableCell>
-                                            <TableCell colSpan={2} align='center'>Profit</TableCell>
-                                            <TableCell colSpan={2} align='center'>Dividends</TableCell>
+                                            <TableCell colSpan={3} align='center'>Profit</TableCell>
+                                            <TableCell align='center'>Dividends</TableCell>
+                                            <TableCell align='right'>Fees</TableCell>
                                         </TableRow>
                                     </TableHead>
                                     <TableBody>
                                         {this.state.overview.map((item, i) =>
                                             <TableRow key={i} sx={{backgroundColor: item.total_profit < 0 ? 'rgba(255,0,0,0.25)' : 'rgba(0,255,0,0.25)'}}>
                                                 <TableCell>{item.ticker}</TableCell>
-                                                <TableCell align='right'>{this.formatCurrency(item.last_price, item.currency)}</TableCell>
-                                                <TableCell align='right'>{this.formatCurrency(item.average_price, item.currency)}</TableCell>
-                                                <TableCell align='center'>{item.volume ? item.volume : null}</TableCell>
+                                                <TableCell align='right' style={{fontSize: "0.6em"}}>
+                                                    {item.last_price ? "last:" : null} {this.formatCurrency(item.last_price, {currency: item.currency})}
+                                                    <br/>
+                                                    {item.average_price ? "avg:" : null} {this.formatCurrency(item.average_price, {currency: item.currency})}
+                                                </TableCell>
                                                 <TableCell align='right'>{this.formatCurrency(item.investment)}</TableCell>
-                                                <TableCell align='right'>{this.formatCurrency(item.fees)}</TableCell>
+                                                <TableCell align='right'>{this.formatCurrency(item.withdraw)}</TableCell>
+                                                <TableCell align='right'>{item.volume ? item.volume : null}</TableCell>
                                                 <TableCell align='right'>{this.formatCurrency(item.value)}</TableCell>
-                                                <TableCell align='right'>{this.formatCurrency(item.total_profit)}</TableCell>
-                                                <TableCell align='right'>{this.formatPercents(item.total_profit/item.investment)}</TableCell>
-                                                <TableCell align='right'>{this.state.dividends[item.ticker] ? this.formatCurrency(this.state.dividends[item.ticker].dividends, this.state.dividends[item.ticker].currency) : null}</TableCell>
-                                                <TableCell align='right'>{item.dividends ? this.formatCurrency(item.dividends, item.dividend_currency) : null}</TableCell>
+                                                <TableCell align='right'>{this.formatCurrency(item.total_profit, {signed: true})}</TableCell>
+                                                <TableCell align='left' style={{fontSize: "0.6em"}}>
+                                                    {item.value_profit ? "value" : null} {this.formatCurrency(item.value_profit, {signed: true})}
+                                                    <br/>
+                                                    {item.fx_profit ? "fx" : null} {this.formatCurrency(item.fx_profit, {signed: true})}
+                                                    <br/>
+                                                    {item.rewards ? "rewards" : null} {this.formatCurrency(item.rewards, {signed: true})}
+                                                </TableCell>
+                                                <TableCell align='center'>{this.formatPercents(item.total_profit/item.investment)}</TableCell>
+                                                <TableCell align='right'>
+                                                    {item.dividends ? "payed:" : null} {item.dividends ? this.formatCurrency(item.dividends, {currency: item.dividend_currency}) : null}
+                                                    <br/>
+                                                    {this.state.dividends[item.ticker] ? "calc:" : null} {this.state.dividends[item.ticker] ? this.formatCurrency(this.state.dividends[item.ticker].dividends, {currency: this.state.dividends[item.ticker].currency}) : null}
+                                                </TableCell>
+                                                <TableCell align='right'>{this.formatCurrency(item.fees)}</TableCell>
                                             </TableRow>
                                         )}
                                     </TableBody>

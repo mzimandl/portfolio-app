@@ -21,13 +21,14 @@ export abstract class AbstractSection<P = {}, S = {}, SS = {}> extends React.Com
         this.props.setHeading(this.sectionName());
     }
 
-    formatCurrency(value: number, currency?: string): string|null {
-        if (value && (this.props.config.base_currency || currency))
+    formatCurrency(value: number, options?: {currency?: string, signed?: boolean}): string|null {
+        if (value && (this.props.config.base_currency || options?.currency))
             return value.toLocaleString(
                 this.props.config.language_locale,
                 {
                     style: 'currency',
-                    currency: currency ? currency : this.props.config.base_currency,
+                    currency: options?.currency ? options?.currency : this.props.config.base_currency,
+                    signDisplay: options?.signed ? "exceptZero" : "auto",
                 }
             );
         return null;
