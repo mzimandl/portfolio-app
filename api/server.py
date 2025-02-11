@@ -74,23 +74,6 @@ fx_df = pl.read_database(
 ).sort("date")
 
 
-@app.get("/test2")
-async def test2(request:sanic.Request):
-    last_val_df = values_df.sort("date").group_by("ticker").agg(
-        pl.col("date").last(),
-        pl.col("value").last(),
-    )
-
-    results = deposits_df.sort("date").join(last_val_df, "ticker", "left").group_by("ticker").agg(
-        pl.col("date").last(),
-        pl.col("amount").filter(pl.col("amount") > 0).sum().alias("deposit"),
-        -pl.col("amount").filter(pl.col("amount") < 0).sum().alias("withdraw"),
-        (pl.col("value").last() + pl.col("amount").filter(pl.col("date") >= pl.col("date_right")).sum()).alias("value"),
-        pl.col("fee").sum().alias("fees"),
-    ).sort("ticker")
-    return sanic.response.json(results.to_dicts())
-
-
 @app.get("/config/get")
 async def config_get(request:sanic.Request):
     return sanic.response.json(asdict(config))
@@ -200,7 +183,30 @@ async def fx_update(request:sanic.Request):
 
 
 @app.get("/overview/get")
-async def overview(request:sanic.Request):
+async def overview(request:sanic.Request):  
+    # valuables
+    last_val_df = values_df.sort("date").group_by("ticker").agg(
+        pl.col("date").last(),
+        pl.col("value").last(),
+    )
+
+    valuables = (
+        deposits_df.sort("date").join(last_val_df, "ticker", "left")
+        .group_by("ticker").agg(
+            pl.col("date").last(),
+            pl.col("amount").filter(pl.col("amount") > 0).sum().alias("investment"),
+            -pl.col("amount").filter(pl.col("amount") < 0).sum().alias("withdraw"),
+            (pl.col("value").last() + pl.col("amount").filter(pl.col("date") >= pl.col("date_right")).sum()).alias("value"),
+            pl.col("fee").sum().alias("fees"),
+        )
+        .join(instruments_df, "ticker", "left")
+        .select(
+            "ticker", "type", "currency", "investment", "withdraw", "fees", "value",
+            (pl.col("withdraw") + pl.col("value") - pl.col("investment")).alias("total_profit")
+        )
+    )
+
+    # tradables
     last_price = historical_df\
         .sort("date")\
         .group_by("ticker")\
@@ -218,11 +224,10 @@ async def overview(request:sanic.Request):
     total_staking_df = staking_df\
         .group_by("ticker")\
         .agg(pl.col("volume").sum().alias("staking_volume"))
-
-    overview = (
+    
+    tradables = (
         trades_df
-        .group_by("ticker")
-        .agg(
+        .group_by("ticker").agg(
             pl.col("volume").sum().alias("trade_volume"),
             (pl.col("volume") * pl.col("price")).filter(pl.col("volume") > 0).sum().alias("fx_investment"),
             (pl.col("volume") * pl.col("price") / pl.col("rate")).filter(pl.col("volume") > 0).sum().alias("investment"),
@@ -246,8 +251,9 @@ async def overview(request:sanic.Request):
         .with_columns((pl.col("value") + pl.col("withdraw") - pl.col("investment")).alias("total_profit"))
         .with_columns((pl.col("total_profit") - pl.col("rewards") - pl.col("fx_profit")).alias("value_profit"))
         .join(total_dividends_df, on="ticker", how="left")
-        .sort("ticker")
     )
+
+    overview = pl.concat([tradables, valuables], how="diagonal").sort("ticker")
     return sanic.response.json(overview.to_dicts())
 
 
