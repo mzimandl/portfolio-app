@@ -608,6 +608,71 @@ async def values_new(request:sanic.Request):
     db.commit()
     return sanic.response.json({'success': True})
 
+@app.get("/deposits/list")
+async def deposits_list(request:sanic.Request):
+    where = []
+    ticker = request.args.get('ticker', None)
+    if ticker is not None:
+        where.append(('ticker', ticker))
+    if where:
+        sql_where = ' AND '.join(f'{k} = ?' for k, _ in where)
+    cursor = db.cursor()
+    cursor.execute(f'''
+        SELECT date, mvt.ticker, amount, fee, it.currency
+        FROM "deposits" AS mvt
+        JOIN instruments AS it ON it.ticker = mvt.ticker
+        {f'WHERE {sql_where}' if where else ''}
+        ORDER BY date DESC''',
+        [v for _, v in where]
+    )
+    return sanic.response.json([dict(d) for d in cursor])
+
+
+@app.post("/deposits/new")
+async def deposits_new(request:sanic.Request):
+    data = request.json
+    cursor = db.cursor()
+    cursor.execute('''
+        INSERT INTO "deposits"(date, ticker, amount, fee) VALUES (?, ?, ?, ?)
+        ''',
+        [data['date'], data['ticker'], data['amount'], data['fee']]
+    )
+    db.commit()
+    return sanic.response.json({'success': True})
+
+
+@app.get("/staking/list")
+async def staking_list(request:sanic.Request):
+    where = []
+    ticker = request.args.get('ticker', None)
+    if ticker is not None:
+        where.append(('ticker', ticker))
+    if where:
+        sql_where = ' AND '.join(f'{k} = ?' for k, _ in where)
+    cursor = db.cursor()
+    cursor.execute(f'''
+        SELECT date, mvt.ticker, volume, it.currency
+        FROM "staking" AS mvt
+        JOIN instruments AS it ON it.ticker = mvt.ticker
+        {f'WHERE {sql_where}' if where else ''}
+        ORDER BY date DESC''',
+        [v for _, v in where]
+    )
+    return sanic.response.json([dict(d) for d in cursor])
+
+
+@app.post("/staking/new")
+async def staking_new(request:sanic.Request):
+    data = request.json
+    cursor = db.cursor()
+    cursor.execute('''
+        INSERT INTO "staking"(date, ticker, volume) VALUES (?, ?, ?)
+        ''',
+        [data['date'], data['ticker'], data['volume']]
+    )
+    db.commit()
+    return sanic.response.json({'success': True})
+
 
 @app.route("/")
 async def homepage(request):

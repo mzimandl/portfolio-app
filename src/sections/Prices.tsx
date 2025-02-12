@@ -108,8 +108,8 @@ export class Prices extends AbstractSection<PricesProps, PricesState> {
                         <Scatter name="Dividends" dataKey={obj => obj['dividends'] > 0 ? obj['dividends'] : null} shape="diamond" fill="#8884d8" />
                         <Scatter name="Splits" dataKey={obj => obj['splits'] > 0 ? obj['splits'] : null} shape="wye" fill="#8884d8" />
                         <XAxis dataKey="date" angle={30} dy={30} dx={6} height={80}/>
-                        <YAxis tickFormatter={(v, i) => this.formatCurrency(v, this.state.currency)||''} width={100}/>
-                        <Tooltip formatter={(value: number) => this.formatCurrency(value, this.state.currency)} />
+                        <YAxis tickFormatter={(v, i) => this.formatCurrency(v, {currency: this.state.currency})||''} width={100}/>
+                        <Tooltip formatter={(value: number) => this.formatCurrency(value, {currency: this.state.currency})} />
                     </ComposedChart>
                 </ResponsiveContainer> :
                 null

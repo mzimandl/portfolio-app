@@ -1,9 +1,9 @@
 import React from 'react';
-import { AbstractSection, SectionProps } from '../common';
+import { AbstractSection, SectionProps } from '../../common';
 import { Table, TableBody, TableHead, TableContainer, TableRow, TableCell, Box, IconButton, FormControl, Select, InputLabel, MenuItem } from '@mui/material';
 import TextField from '@mui/material/TextField';
 import { AddBox } from '@mui/icons-material';
-import { InstrumentDataRow } from './Settings';
+import { InstrumentDataRow } from '../Settings';
 
 
 interface DataRow {
@@ -137,7 +137,7 @@ export class Values extends AbstractSection<ValuesProps, ValuesState> {
                             (item, i) => <TableRow key={i}>
                                 <TableCell>{item.date}</TableCell>
                                 <TableCell>{item.ticker}</TableCell>
-                                <TableCell colSpan={2}>{this.formatCurrency(item.value, item.currency)}</TableCell>
+                                <TableCell colSpan={2}>{this.formatCurrency(item.value, {currency: item.currency})}</TableCell>
                             </TableRow>
                         )}
                     </TableBody>

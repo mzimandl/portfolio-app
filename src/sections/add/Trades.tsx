@@ -1,9 +1,9 @@
 import React from "react";
-import { AbstractSection, SectionProps } from '../common';
+import { AbstractSection, SectionProps } from '../../common';
 import { Table, TableBody, TableHead, TableContainer, TableRow, TableCell, Box, IconButton, FormControl, Select, InputLabel, MenuItem } from '@mui/material';
 import TextField from '@mui/material/TextField';
 import { AddBox } from '@mui/icons-material';
-import { InstrumentDataRow, InstrumentsResponse } from './Settings';
+import { InstrumentDataRow, InstrumentsResponse } from '../Settings';
 
 
 interface DataRow {
@@ -67,7 +67,10 @@ class NewTradeTableRow extends React.Component<NewTradeTableRowProps, NewDataRow
                         label="Ticker"
                         onChange={(e) => this.setState({ticker: e.target.value})}
                     >
-                        {this.props.instruments.map(v => <MenuItem key={v.ticker} value={v.ticker}>{v.ticker}</MenuItem>)}
+                        {this.props.instruments
+                            .filter(v => v.evaluation !== 'manual')
+                            .map(v => <MenuItem key={v.ticker} value={v.ticker}>{v.ticker}</MenuItem>)
+                        }
                     </Select>
                 </FormControl>
             </TableCell>
@@ -156,8 +159,8 @@ export class Trades extends AbstractSection<TradesProps, TradesState> {
                                 <TableCell>{item.date}</TableCell>
                                 <TableCell>{item.ticker}</TableCell>
                                 <TableCell>{item.volume}</TableCell>
-                                <TableCell>{this.formatCurrency(item.price, item.currency)}</TableCell>
-                                <TableCell>{this.formatCurrency(item.rate, item.currency)}</TableCell>
+                                <TableCell>{this.formatCurrency(item.price, {currency: item.currency})}</TableCell>
+                                <TableCell>{this.formatCurrency(item.rate, {currency: item.currency})}</TableCell>
                                 <TableCell colSpan={2}>{this.formatCurrency(item.fee)}</TableCell>
                             </TableRow>
                         )}

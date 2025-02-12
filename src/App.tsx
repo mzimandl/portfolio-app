@@ -21,21 +21,17 @@ import CurrencyExchangeIcon from '@mui/icons-material/CurrencyExchange';
 import AnalyticsOutlinedIcon from '@mui/icons-material/AnalyticsOutlined';
 import TimelineIcon from '@mui/icons-material/Timeline';
 import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined';
-import AccountBalanceOutlinedIcon from '@mui/icons-material/AccountBalanceOutlined';
 import SearchIcon from '@mui/icons-material/Search';
-import NotificationsNoneIcon from '@mui/icons-material/NotificationsNone';
 import { Refresh, Speed } from '@mui/icons-material';
 import { CircularProgress, Icon, LinearProgress } from '@mui/material';
 
 import { Config } from './common';
-import { Trades } from './sections/Trades';
 import { Overview } from './sections/Overview';
 import { Performance } from './sections/Performance';
 import { Charts } from './sections/Charts';
 import { Settings } from './sections/Settings';
-import { Values } from './sections/Values';
 import { Prices } from './sections/Prices';
-import { Dividends } from './sections/Dividends';
+import { Add } from './sections/Add';
 
 const drawerWidth = 240;
 
@@ -246,22 +242,10 @@ export default class App extends React.Component<{}, AppState> {
                 <ListItemText primary="Charts" />
               </ListItemButton>
             </Link>
-            <Link to="trades" style={{color: 'inherit', textDecoration: 'none'}}>
-              <ListItemButton key="trades">
+            <Link to="add" style={{color: 'inherit', textDecoration: 'none'}}>
+              <ListItemButton key="add">
                 <ListItemIcon><CurrencyExchangeIcon /></ListItemIcon>
-                <ListItemText primary="Trades" />
-              </ListItemButton>
-            </Link>
-            <Link to="dividends" style={{color: 'inherit', textDecoration: 'none'}}>
-              <ListItemButton key="dividends">
-                <ListItemIcon><NotificationsNoneIcon /></ListItemIcon>
-                <ListItemText primary="Dividends" />
-              </ListItemButton>
-            </Link>
-            <Link to="values" style={{color: 'inherit', textDecoration: 'none'}}>
-              <ListItemButton key="values">
-                <ListItemIcon><AccountBalanceOutlinedIcon /></ListItemIcon>
-                <ListItemText primary="Values" />
+                <ListItemText primary="Add" />
               </ListItemButton>
             </Link>
             <Link to="prices" style={{color: 'inherit', textDecoration: 'none'}}>
@@ -287,20 +271,14 @@ export default class App extends React.Component<{}, AppState> {
             <Route path="performance" element={
               <Performance config={this.state.config} setHeading={this.setHeading} displayProgressBar={this.displayProgressBar} />
             }/>
-            <Route path="trades" element={
-              <Trades config={this.state.config} setHeading={this.setHeading} displayProgressBar={this.displayProgressBar} />
-            }/>
-            <Route path="dividends" element={
-              <Dividends config={this.state.config} setHeading={this.setHeading} displayProgressBar={this.displayProgressBar} />
+            <Route path="add" element={
+              <Add config={this.state.config} setHeading={this.setHeading} displayProgressBar={this.displayProgressBar} />
             }/>
             <Route path="charts" element={
               <Charts config={this.state.config} setHeading={this.setHeading} displayProgressBar={this.displayProgressBar} />
             }/>
             <Route path="settings" element={
               <Settings config={this.state.config} setHeading={this.setHeading} displayProgressBar={this.displayProgressBar} />
-            }/>
-            <Route path="values" element={
-              <Values config={this.state.config} setHeading={this.setHeading} displayProgressBar={this.displayProgressBar} />
             }/>
             <Route path="prices" element={
               <Prices config={this.state.config} setHeading={this.setHeading} displayProgressBar={this.displayProgressBar} />

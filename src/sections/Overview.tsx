@@ -182,7 +182,7 @@ export class Overview extends AbstractSection<OverviewProps, OverviewState> {
                     this.state.types.map(type =>
                         <Card elevation={3} sx={{marginBottom: '1em'}}>
                             <CardHeader title={type} />
-                            <CardContent>
+                            <Box>
                                 <TableContainer>
                                     <Table size="small">
                                         <TableHead>
@@ -231,11 +231,11 @@ export class Overview extends AbstractSection<OverviewProps, OverviewState> {
                                         </TableBody>
                                     </Table>
                                 </TableContainer>
-                            </CardContent>
+                            </Box>
                         </Card>
                     ) :
                     <Card elevation={3}>
-                        <CardContent>
+                        <Box>
                             <TableContainer>
                                 <Table size="small">
                                     <TableHead>
@@ -284,7 +284,7 @@ export class Overview extends AbstractSection<OverviewProps, OverviewState> {
                                     </TableBody>
                                 </Table>
                             </TableContainer>
-                        </CardContent>
+                        </Box>
                     </Card>
                 }
             </Box>
