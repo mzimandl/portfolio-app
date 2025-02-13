@@ -84,15 +84,11 @@ async def config_get(request:sanic.Request):
 
 @app.get("/data/last")
 async def last(request:sanic.Request):
-    last_data = {}
-    cursor = db.cursor()
-    cursor.execute('SELECT max(date) as last_historical FROM historical')
-    last_data['historical'] = cursor.fetchone()['last_historical']
-    cursor.execute('SELECT max(date) as fx_historical FROM fx')
-    last_data['fx'] = cursor.fetchone()['fx_historical']
-    cursor.execute('SELECT max(date) as last_value FROM "values"')
-    last_data['manual_value'] = cursor.fetchone()['last_value']
-    return sanic.response.json(last_data)
+    return sanic.response.json({
+        'historical': dfs.historical.df.select(pl.col('date').max()).to_dicts()[0]['date'],
+        'fx': dfs.fx.df.select(pl.col('date').max()).to_dicts()[0]['date'],
+        'manual_value': dfs.values.df.select(pl.col('date').max()).to_dicts()[0]['date'],
+    })
 
 
 @app.get("/historical/update")
@@ -374,13 +370,7 @@ async def dividends_calc(request:sanic.Request):
 
 @app.get("/dividends/list")
 async def dividends_list(request:sanic.Request):
-    cursor = db.cursor()
-    cursor.execute('''
-        SELECT date, ticker, dividend
-        FROM dividends
-        ORDER BY date DESC
-    ''')
-    return sanic.response.json([dict(d) for d in cursor])
+    return sanic.response.json(dfs.dividends.df.sort('date', descending=True).to_dicts())
 
 
 @app.post("/dividends/new")
@@ -395,21 +385,6 @@ async def dividends_new(request:sanic.Request):
     db.commit()
     dfs.dividends.reload()
     return sanic.response.json({'success': True})
-
-
-@app.get("/dividends/sum")
-async def dividends_sum(request:sanic.Request):
-    cursor = db.cursor()
-    cursor.execute('''
-        SELECT
-            dt.ticker,
-            sum(dt.dividend) as dividends,
-            it.dividend_currency as currency
-        FROM dividends as dt
-        JOIN instruments AS it ON it.ticker = dt.ticker
-        GROUP BY dt.ticker
-    ''')
-    return sanic.response.json({d['ticker']: dict(d) for d in cursor})
 
 
 @app.get("/charts/get")
@@ -481,16 +456,12 @@ async def charts(request:sanic.Request):
 @app.get("/prices/get")
 async def prices(request:sanic.Request):
     filter = request.args.get('filter')
-    cursor = db.cursor()
-    cursor.execute('select * from historical where ticker = ?', [filter])
-    return sanic.response.json([dict(row) for row in cursor])
+    return sanic.response.json(dfs.historical.df.filter(pl.col('ticker').eq(filter)).sort('date').to_dicts())
 
 
 @app.get("/instruments/list")
 async def instruments_list(request:sanic.Request):
-    cursor = db.cursor()
-    cursor.execute('SELECT * FROM instruments ORDER BY ticker')
-    return sanic.response.json([dict(d) for d in cursor])
+    return sanic.response.json(dfs.instruments.df.sort('ticker').to_dicts())
 
 
 @app.post("/instruments/new")
@@ -550,24 +521,8 @@ async def types_new(request:sanic.Request):
 
 @app.get("/trades/list")
 async def trades_list(request:sanic.Request):
-    where = []
-    ticker = request.args.get('ticker', None)
-    if ticker is not None:
-        where.append(('ticker', ticker))
-    if where:
-        sql_where = ' AND '.join(f'{k} = ?' for k, _ in where)
-
-    cursor = db.cursor()
-    cursor.execute(f'''
-        SELECT id, date, tt.ticker, volume, price, fee, rate, it.currency
-        FROM trades AS tt
-        JOIN instruments AS it ON it.ticker = tt.ticker
-        {f'WHERE {sql_where}' if where else ''}
-        ORDER BY date DESC''',
-        [v for _, v in where]
-    )
-
-    return sanic.response.json([dict(d) for d in cursor])
+    resp = dfs.trades.df.join(dfs.instruments.df, on='ticker').select('id', 'date', 'ticker', 'volume', 'price', 'fee', 'rate', 'currency')
+    return sanic.response.json(resp.sort('date', descending=True).to_dicts())
 
 
 @app.post("/trades/new")
@@ -586,22 +541,8 @@ async def trades_new(request:sanic.Request):
 
 @app.get("/values/list")
 async def values_list(request:sanic.Request):
-    where = []
-    ticker = request.args.get('ticker', None)
-    if ticker is not None:
-        where.append(('ticker', ticker))
-    if where:
-        sql_where = ' AND '.join(f'{k} = ?' for k, _ in where)
-    cursor = db.cursor()
-    cursor.execute(f'''
-        SELECT date, mvt.ticker, value, it.currency
-        FROM "values" AS mvt
-        JOIN instruments AS it ON it.ticker = mvt.ticker
-        {f'WHERE {sql_where}' if where else ''}
-        ORDER BY date DESC''',
-        [v for _, v in where]
-    )
-    return sanic.response.json([dict(d) for d in cursor])
+    resp = dfs.values.df.join(dfs.instruments.df, on='ticker').select('date', 'ticker', 'value', 'currency')
+    return sanic.response.json(resp.sort('date', descending=True).to_dicts())
 
 
 @app.post("/values/new")
@@ -618,24 +559,11 @@ async def values_new(request:sanic.Request):
     dfs.values.reload()
     return sanic.response.json({'success': True})
 
+
 @app.get("/deposits/list")
 async def deposits_list(request:sanic.Request):
-    where = []
-    ticker = request.args.get('ticker', None)
-    if ticker is not None:
-        where.append(('ticker', ticker))
-    if where:
-        sql_where = ' AND '.join(f'{k} = ?' for k, _ in where)
-    cursor = db.cursor()
-    cursor.execute(f'''
-        SELECT date, mvt.ticker, amount, fee, it.currency
-        FROM "deposits" AS mvt
-        JOIN instruments AS it ON it.ticker = mvt.ticker
-        {f'WHERE {sql_where}' if where else ''}
-        ORDER BY date DESC''',
-        [v for _, v in where]
-    )
-    return sanic.response.json([dict(d) for d in cursor])
+    resp = dfs.deposits.df.join(dfs.instruments.df, on='ticker').select('date', 'ticker', 'amount', 'fee', 'currency')
+    return sanic.response.json(resp.sort('date', descending=True).to_dicts())
 
 
 @app.post("/deposits/new")
@@ -653,22 +581,7 @@ async def deposits_new(request:sanic.Request):
 
 @app.get("/staking/list")
 async def staking_list(request:sanic.Request):
-    where = []
-    ticker = request.args.get('ticker', None)
-    if ticker is not None:
-        where.append(('ticker', ticker))
-    if where:
-        sql_where = ' AND '.join(f'{k} = ?' for k, _ in where)
-    cursor = db.cursor()
-    cursor.execute(f'''
-        SELECT date, mvt.ticker, volume, it.currency
-        FROM "staking" AS mvt
-        JOIN instruments AS it ON it.ticker = mvt.ticker
-        {f'WHERE {sql_where}' if where else ''}
-        ORDER BY date DESC''',
-        [v for _, v in where]
-    )
-    return sanic.response.json([dict(d) for d in cursor])
+    return sanic.response.json(dfs.staking.df.sort('date', descending=True).to_dicts())
 
 
 @app.post("/staking/new")
