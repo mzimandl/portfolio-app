@@ -1,4 +1,4 @@
-import { Box, FormControl, InputLabel, Select, MenuItem, Slider } from '@mui/material';
+import { Box, FormControl, InputLabel, Select, MenuItem, Slider, FormControlLabel, Switch, Grid2 as Grid } from '@mui/material';
 import { CartesianGrid, XAxis, YAxis, Tooltip, Area, ResponsiveContainer, ComposedChart, Bar, Cell, Line, Scatter } from 'recharts';
 import { AbstractSection, SectionProps } from '../common';
 import { InstrumentDataRow } from './Settings';
@@ -22,6 +22,7 @@ interface PricesState {
     filter: string|null;
     currency?: string;
     dateRange: number[];
+    detail: boolean;
 }
 
 interface PricesProps {}
@@ -38,6 +39,7 @@ export class Prices extends AbstractSection<PricesProps, PricesState> {
             filter: null,
             currency: undefined,
             dateRange: [0, 0],
+            detail: false,
         };
     }
 
@@ -67,20 +69,25 @@ export class Prices extends AbstractSection<PricesProps, PricesState> {
     }
 
     render() {
-        const onlyClose = this.state.chartData.every(item => !item.open && !item.high && !item.low);
-
         return <Box>
-            <FormControl fullWidth size='small'>
-                <InputLabel id="filter-select-label">Filter</InputLabel>
-                <Select
-                    labelId='filter-select-label'
-                    value={this.state.filter}
-                    label="Filter"
-                    onChange={(e) => this.handleFilterChange(e.target.value)}
-                >
-                    {this.state.instruments.map(v => <MenuItem value={v.ticker}>{v.ticker}</MenuItem>)}
-                </Select>
-            </FormControl>
+            <Grid container spacing={2}>
+                <Grid size='grow'>
+                    <FormControl fullWidth size='small'>
+                        <InputLabel id="filter-select-label">Filter</InputLabel>
+                        <Select
+                            labelId='filter-select-label'
+                            value={this.state.filter}
+                            label="Filter"
+                            onChange={(e) => this.handleFilterChange(e.target.value)}
+                        >
+                            {this.state.instruments.map(v => <MenuItem value={v.ticker}>{v.ticker}</MenuItem>)}
+                        </Select>
+                    </FormControl>
+                </Grid>
+                <Grid>
+                    <FormControlLabel control={<Switch checked={this.state.detail} onChange={(e, value) => this.setState({detail: value})}/>} label="Show detailed chart" />
+                </Grid>
+            </Grid>
 
             <Slider
                 getAriaLabel={() => 'Date range'}
@@ -94,8 +101,7 @@ export class Prices extends AbstractSection<PricesProps, PricesState> {
                 <ResponsiveContainer width="100%" height={600}>
                     <ComposedChart data={this.state.chartData.slice(this.state.dateRange[0], this.state.dateRange[1])} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
                         <CartesianGrid strokeDasharray="3 3" />
-                        {onlyClose ?
-                            <Line dataKey="close" stroke="#8884d8" dot={false} /> :
+                        {this.state.detail ?
                             [
                                 <Area dataKey={obj => [obj['low'], obj['high']]} stroke="#8884d8" opacity={0.4} name="Low/high"/>,
                                 <Bar dataKey={obj => [obj['open'], obj['close']]} name="Open/close" >
@@ -103,7 +109,8 @@ export class Prices extends AbstractSection<PricesProps, PricesState> {
                                         <Cell key={`cell-${index}`} fill={item['close'] >= item['open'] ? '#56DD00' : '#FF3737'} />
                                     )}
                                 </Bar>,
-                            ]
+                            ] :
+                            <Line dataKey="close" stroke="#8884d8" dot={false} />
                         }
                         <Scatter name="Dividends" dataKey={obj => obj['dividends'] > 0 ? obj['dividends'] : null} shape="diamond" fill="#8884d8" />
                         <Scatter name="Splits" dataKey={obj => obj['splits'] > 0 ? obj['splits'] : null} shape="wye" fill="#8884d8" />

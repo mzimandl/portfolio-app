@@ -76,6 +76,8 @@ dfs = Dfs(
     fx=PDataFrame("SELECT date, from_curr, to_curr, open, high, low, close FROM fx"),
 )
 
+# a = dfs.trades.df.with_columns(pl.col('date').str.split(by='-').list.first().alias('year'))
+
 
 @app.get("/config/get")
 async def config_get(request:sanic.Request):

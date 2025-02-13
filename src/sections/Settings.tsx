@@ -1,6 +1,6 @@
 import React from 'react';
 import { AbstractSection, SectionProps } from '../common';
-import { Table, TableBody, TableHead, TableContainer, TableRow, TableCell, Box, IconButton, FormControl, Grid, InputLabel, Select, MenuItem, Autocomplete, CardContent, Card } from '@mui/material';
+import { Table, TableBody, TableHead, TableContainer, TableRow, TableCell, Box, IconButton, FormControl, Grid2 as Grid, InputLabel, Select, MenuItem, Autocomplete, CardContent, Card } from '@mui/material';
 import TextField from '@mui/material/TextField';
 import { AddBox } from '@mui/icons-material';
 
@@ -220,7 +220,7 @@ export class Settings extends AbstractSection<SettingsProps, SettingsState> {
     render() {
         return <Box>
             <Grid container spacing={2}>
-                <Grid item xs={2}>
+                <Grid size={2}>
                     <Card elevation={3}>
                         <CardContent>
                             <TableContainer>
@@ -240,7 +240,7 @@ export class Settings extends AbstractSection<SettingsProps, SettingsState> {
                         </CardContent>
                     </Card>
                 </Grid>
-                <Grid item xs={2}>
+                <Grid size={2}>
                     <Card elevation={3}>
                         <CardContent>
                             <TableContainer>
@@ -260,7 +260,7 @@ export class Settings extends AbstractSection<SettingsProps, SettingsState> {
                         </CardContent>
                     </Card>
                 </Grid>
-                <Grid item xs={8}>
+                <Grid size={8}>
                     <Card elevation={3}>
                         <CardContent>
                             <TableContainer>
