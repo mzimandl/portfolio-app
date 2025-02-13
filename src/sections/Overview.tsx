@@ -188,8 +188,9 @@ export class Overview extends AbstractSection<OverviewProps, OverviewState> {
                                         <TableHead>
                                             <TableRow>
                                                 <TableCell>Ticker</TableCell>
-                                                <TableCell align='right'>Price</TableCell>
-                                                <TableCell align='right'>Volume</TableCell>
+                                                <TableCell align='right'>Last price</TableCell>
+                                                <TableCell align='left'>Avg price</TableCell>
+                                                <TableCell align='center'>Volume</TableCell>
                                                 <TableCell align='right'>Investment</TableCell>
                                                 <TableCell align='right'>Return</TableCell>
                                                 <TableCell align='right'>Value</TableCell>
@@ -202,12 +203,9 @@ export class Overview extends AbstractSection<OverviewProps, OverviewState> {
                                             {this.state.overview.filter(item => item.type === type).map((item, i) =>
                                                 <TableRow key={i} sx={{backgroundColor: item.total_profit < 0 ? 'rgba(255,0,0,0.25)' : 'rgba(0,255,0,0.25)'}}>
                                                     <TableCell>{item.ticker}</TableCell>
-                                                    <TableCell align='right' style={{fontSize: "0.6em"}}>
-                                                        {item.last_price ? "last:" : null} {this.formatCurrency(item.last_price, {currency: item.currency})}
-                                                        <br/>
-                                                        {item.average_price ? "avg:" : null} {this.formatCurrency(item.average_price, {currency: item.currency})}
-                                                    </TableCell>
-                                                    <TableCell align='right'>{item.volume ? item.volume : null}</TableCell>
+                                                    <TableCell align='right'>{this.formatCurrency(item.last_price, {currency: item.currency})}</TableCell>
+                                                    <TableCell align='left'>{this.formatCurrency(item.average_price, {currency: item.currency})}</TableCell>
+                                                    <TableCell align='center'>{item.volume ? item.volume : null}</TableCell>
                                                     <TableCell align='right'>{this.formatCurrency(item.investment)}</TableCell>
                                                     <TableCell align='right'>{this.formatCurrency(item.withdraw)}</TableCell>
                                                     <TableCell align='right'>{this.formatCurrency(item.value)}</TableCell>
@@ -220,7 +218,7 @@ export class Overview extends AbstractSection<OverviewProps, OverviewState> {
                                                         {item.rewards ? "rewards" : null} {this.formatCurrency(item.rewards, {signed: true})}
                                                     </TableCell>
                                                     <TableCell align='center'>{this.formatPercents(item.total_profit/item.investment)}</TableCell>
-                                                    <TableCell align='right'>
+                                                    <TableCell align='right' style={{fontSize: "0.6em"}}>
                                                         {item.dividends ? "payed:" : null} {item.dividends ? this.formatCurrency(item.dividends, {currency: item.dividend_currency}) : null}
                                                         <br/>
                                                         {this.state.dividends[item.ticker] ? "calc:" : null} {this.state.dividends[item.ticker] ? this.formatCurrency(this.state.dividends[item.ticker].dividends, {currency: this.state.dividends[item.ticker].currency}) : null}
@@ -241,8 +239,9 @@ export class Overview extends AbstractSection<OverviewProps, OverviewState> {
                                     <TableHead>
                                         <TableRow>
                                             <TableCell>Ticker</TableCell>
-                                            <TableCell align='right'>Price</TableCell>
-                                            <TableCell align='right'>Volume</TableCell>
+                                            <TableCell align='right'>Last price</TableCell>
+                                            <TableCell align='left'>Avg price</TableCell>
+                                            <TableCell align='center'>Volume</TableCell>
                                             <TableCell align='right'>Investment</TableCell>
                                             <TableCell align='right'>Return</TableCell>
                                             <TableCell align='right'>Value</TableCell>
@@ -255,12 +254,9 @@ export class Overview extends AbstractSection<OverviewProps, OverviewState> {
                                         {this.state.overview.map((item, i) =>
                                             <TableRow key={i} sx={{backgroundColor: item.total_profit < 0 ? 'rgba(255,0,0,0.25)' : 'rgba(0,255,0,0.25)'}}>
                                                 <TableCell>{item.ticker}</TableCell>
-                                                <TableCell align='right' style={{fontSize: "0.6em"}}>
-                                                    {item.last_price ? "last:" : null} {this.formatCurrency(item.last_price, {currency: item.currency})}
-                                                    <br/>
-                                                    {item.average_price ? "avg:" : null} {this.formatCurrency(item.average_price, {currency: item.currency})}
-                                                </TableCell>
-                                                <TableCell align='right'>{item.volume ? item.volume : null}</TableCell>
+                                                <TableCell align='right'>{this.formatCurrency(item.last_price, {currency: item.currency})}</TableCell>
+                                                <TableCell align='left'>{this.formatCurrency(item.average_price, {currency: item.currency})}</TableCell>
+                                                <TableCell align='center'>{item.volume ? item.volume : null}</TableCell>
                                                 <TableCell align='right'>{this.formatCurrency(item.investment)}</TableCell>
                                                 <TableCell align='right'>{this.formatCurrency(item.withdraw)}</TableCell>
                                                 <TableCell align='right'>{this.formatCurrency(item.value)}</TableCell>
@@ -273,7 +269,7 @@ export class Overview extends AbstractSection<OverviewProps, OverviewState> {
                                                     {item.rewards ? "rewards" : null} {this.formatCurrency(item.rewards, {signed: true})}
                                                 </TableCell>
                                                 <TableCell align='center'>{this.formatPercents(item.total_profit/item.investment)}</TableCell>
-                                                <TableCell align='right'>
+                                                <TableCell align='right' style={{fontSize: "0.6em"}}>
                                                     {item.dividends ? "payed:" : null} {item.dividends ? this.formatCurrency(item.dividends, {currency: item.dividend_currency}) : null}
                                                     <br/>
                                                     {this.state.dividends[item.ticker] ? "calc:" : null} {this.state.dividends[item.ticker] ? this.formatCurrency(this.state.dividends[item.ticker].dividends, {currency: this.state.dividends[item.ticker].currency}) : null}
