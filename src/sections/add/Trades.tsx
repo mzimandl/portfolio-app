@@ -1,5 +1,5 @@
 import React from "react";
-import { AbstractSection, SectionProps } from '../../common';
+import { AbstractSection, numberIsValid, SectionProps } from '../../common';
 import { Table, TableBody, TableHead, TableContainer, TableRow, TableCell, Box, IconButton, FormControl, Select, InputLabel, MenuItem } from '@mui/material';
 import TextField from '@mui/material/TextField';
 import { AddBox } from '@mui/icons-material';
@@ -45,10 +45,10 @@ class NewTradeTableRow extends React.Component<NewTradeTableRowProps, NewDataRow
         this.state = {
             date: '',
             ticker: '',
-            volume: '',
-            price: '',
-            fee: '',
-            rate: '',
+            volume: '0',
+            price: '0',
+            fee: '0',
+            rate: '1',
         }
     }
 
@@ -75,20 +75,20 @@ class NewTradeTableRow extends React.Component<NewTradeTableRowProps, NewDataRow
                 </FormControl>
             </TableCell>
             <TableCell>
-                <TextField label="Volume" variant="outlined" size='small' margin='none' fullWidth
-                onChange={(e) => this.setState({volume: e.target.value})} />
+                <TextField value={this.state.volume} label="Volume" variant="outlined" size='small' margin='none' fullWidth
+                onChange={(e) => numberIsValid(e.target.value) ? this.setState({volume: e.target.value}) : null} />
             </TableCell>
             <TableCell>
-                <TextField label="Price" variant="outlined" size='small' margin='none' fullWidth
-                onChange={(e) => this.setState({price: e.target.value})} />
+                <TextField value={this.state.price} label="Price" variant="outlined" size='small' margin='none' fullWidth
+                onChange={(e) => numberIsValid(e.target.value) ? this.setState({price: e.target.value}) : null} />
             </TableCell>
             <TableCell>
-                <TextField label="Exchange rate" variant="outlined" size='small' margin='none' fullWidth
-                onChange={(e) => this.setState({rate: e.target.value})} />
+                <TextField value={this.state.rate} label="Exchange rate" variant="outlined" size='small' margin='none' fullWidth
+                onChange={(e) => numberIsValid(e.target.value) ? this.setState({rate: e.target.value}) : null} />
             </TableCell>
             <TableCell>
-                <TextField label="Fee" variant="outlined" size='small' margin='none' fullWidth
-                onChange={(e) => this.setState({fee: e.target.value})} />
+                <TextField value={this.state.fee} label="Fee" variant="outlined" size='small' margin='none' fullWidth
+                onChange={(e) => numberIsValid(e.target.value) ? this.setState({fee: e.target.value}) : null} />
             </TableCell>
             <TableCell><IconButton onClick={e => this.props.addTrade(this.state)}><AddBox/></IconButton></TableCell>
         </TableRow>

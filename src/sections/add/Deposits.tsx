@@ -1,5 +1,5 @@
 import React from 'react';
-import { AbstractSection, SectionProps } from '../../common';
+import { AbstractSection, numberIsValid, SectionProps } from '../../common';
 import { Table, TableBody, TableHead, TableContainer, TableRow, TableCell, Box, IconButton, FormControl, Select, InputLabel, MenuItem } from '@mui/material';
 import TextField from '@mui/material/TextField';
 import { AddBox } from '@mui/icons-material';
@@ -41,8 +41,8 @@ class NewDepositTableRow extends React.Component<NewDepositProps, NewDataRow> {
         this.state = {
             date: '',
             ticker: '',
-            amount: '',
-            fee: '',
+            amount: '0',
+            fee: '0',
         };
     }
 
@@ -69,12 +69,12 @@ class NewDepositTableRow extends React.Component<NewDepositProps, NewDataRow> {
                 </FormControl>
             </TableCell>
             <TableCell>
-                <TextField label="Amount" variant="outlined" size='small' margin='none' fullWidth
-                onChange={(e) => this.setState({amount: e.target.value})} />
+                <TextField label="Amount" value={this.state.amount} variant="outlined" size='small' margin='none' fullWidth
+                onChange={(e) => numberIsValid(e.target.value) ? this.setState({amount: e.target.value}) : null} />
             </TableCell>
             <TableCell>
-                <TextField label="Fee" variant="outlined" size='small' margin='none' fullWidth
-                onChange={(e) => this.setState({fee: e.target.value})} />
+                <TextField label="Fee" value={this.state.fee} variant="outlined" size='small' margin='none' fullWidth
+                onChange={(e) => numberIsValid(e.target.value) ? this.setState({fee: e.target.value}) : null} />
             </TableCell>
             <TableCell><IconButton onClick={e => this.props.addDeposit(this.state)}><AddBox/></IconButton></TableCell>
         </TableRow>

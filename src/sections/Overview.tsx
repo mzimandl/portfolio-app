@@ -189,9 +189,9 @@ export class Overview extends AbstractSection<OverviewProps, OverviewState> {
                                             <TableRow>
                                                 <TableCell>Ticker</TableCell>
                                                 <TableCell align='right'>Price</TableCell>
-                                                <TableCell align='right'>Invested</TableCell>
-                                                <TableCell align='right'>Withdraw</TableCell>
                                                 <TableCell align='right'>Volume</TableCell>
+                                                <TableCell align='right'>Investment</TableCell>
+                                                <TableCell align='right'>Return</TableCell>
                                                 <TableCell align='right'>Value</TableCell>
                                                 <TableCell colSpan={3} align='center'>Profit</TableCell>
                                                 <TableCell align='center'>Dividends</TableCell>
@@ -207,9 +207,9 @@ export class Overview extends AbstractSection<OverviewProps, OverviewState> {
                                                         <br/>
                                                         {item.average_price ? "avg:" : null} {this.formatCurrency(item.average_price, {currency: item.currency})}
                                                     </TableCell>
+                                                    <TableCell align='right'>{item.volume ? item.volume : null}</TableCell>
                                                     <TableCell align='right'>{this.formatCurrency(item.investment)}</TableCell>
                                                     <TableCell align='right'>{this.formatCurrency(item.withdraw)}</TableCell>
-                                                    <TableCell align='right'>{item.volume ? item.volume : null}</TableCell>
                                                     <TableCell align='right'>{this.formatCurrency(item.value)}</TableCell>
                                                     <TableCell align='right'>{this.formatCurrency(item.total_profit, {signed: true})}</TableCell>
                                                     <TableCell align='left' style={{fontSize: "0.6em"}}>
@@ -242,9 +242,9 @@ export class Overview extends AbstractSection<OverviewProps, OverviewState> {
                                         <TableRow>
                                             <TableCell>Ticker</TableCell>
                                             <TableCell align='right'>Price</TableCell>
-                                            <TableCell align='right'>Invested</TableCell>
-                                            <TableCell align='right'>Withdraw</TableCell>
                                             <TableCell align='right'>Volume</TableCell>
+                                            <TableCell align='right'>Investment</TableCell>
+                                            <TableCell align='right'>Return</TableCell>
                                             <TableCell align='right'>Value</TableCell>
                                             <TableCell colSpan={3} align='center'>Profit</TableCell>
                                             <TableCell align='center'>Dividends</TableCell>
@@ -260,9 +260,9 @@ export class Overview extends AbstractSection<OverviewProps, OverviewState> {
                                                     <br/>
                                                     {item.average_price ? "avg:" : null} {this.formatCurrency(item.average_price, {currency: item.currency})}
                                                 </TableCell>
+                                                <TableCell align='right'>{item.volume ? item.volume : null}</TableCell>
                                                 <TableCell align='right'>{this.formatCurrency(item.investment)}</TableCell>
                                                 <TableCell align='right'>{this.formatCurrency(item.withdraw)}</TableCell>
-                                                <TableCell align='right'>{item.volume ? item.volume : null}</TableCell>
                                                 <TableCell align='right'>{this.formatCurrency(item.value)}</TableCell>
                                                 <TableCell align='right'>{this.formatCurrency(item.total_profit, {signed: true})}</TableCell>
                                                 <TableCell align='left' style={{fontSize: "0.6em"}}>

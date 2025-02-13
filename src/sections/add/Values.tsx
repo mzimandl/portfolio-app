@@ -1,5 +1,5 @@
 import React from 'react';
-import { AbstractSection, SectionProps } from '../../common';
+import { AbstractSection, numberIsValid, SectionProps } from '../../common';
 import { Table, TableBody, TableHead, TableContainer, TableRow, TableCell, Box, IconButton, FormControl, Select, InputLabel, MenuItem } from '@mui/material';
 import TextField from '@mui/material/TextField';
 import { AddBox } from '@mui/icons-material';
@@ -39,7 +39,7 @@ class NewValueTableRow extends React.Component<NewValueProps, NewDataRow> {
         this.state = {
             date: '',
             ticker: '',
-            value: '',
+            value: '0',
         };
     }
 
@@ -66,8 +66,8 @@ class NewValueTableRow extends React.Component<NewValueProps, NewDataRow> {
                 </FormControl>
             </TableCell>
             <TableCell>
-                <TextField label="Value" variant="outlined" size='small' margin='none' fullWidth
-                onChange={(e) => this.setState({value: e.target.value})} />
+                <TextField value={this.state.value} label="Value" variant="outlined" size='small' margin='none' fullWidth
+                onChange={(e) => numberIsValid(e.target.value) ? this.setState({value: e.target.value}) : null} />
             </TableCell>
             <TableCell><IconButton onClick={e => this.props.addValue(this.state)}><AddBox/></IconButton></TableCell>
         </TableRow>

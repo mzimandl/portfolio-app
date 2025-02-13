@@ -1,5 +1,5 @@
 import React from "react";
-import { AbstractSection, SectionProps } from '../../common';
+import { AbstractSection, numberIsValid, SectionProps } from '../../common';
 import { Table, TableBody, TableHead, TableContainer, TableRow, TableCell, Box, IconButton, FormControl, Select, InputLabel, MenuItem } from '@mui/material';
 import TextField from '@mui/material/TextField';
 import { AddBox } from '@mui/icons-material';
@@ -38,7 +38,7 @@ class NewDividendTableRow extends React.Component<NewDividendTableRowProps, NewD
         this.state = {
             date: '',
             ticker: '',
-            dividend: '',
+            dividend: '0',
         }
     }
 
@@ -62,8 +62,8 @@ class NewDividendTableRow extends React.Component<NewDividendTableRowProps, NewD
                 </FormControl>
             </TableCell>
             <TableCell>
-                <TextField label="Dividend" variant="outlined" size='small' margin='none' fullWidth
-                onChange={(e) => this.setState({dividend: e.target.value})} />
+                <TextField value={this.state.dividend} label="Dividend" variant="outlined" size='small' margin='none' fullWidth
+                onChange={(e) => numberIsValid(e.target.value) ? this.setState({dividend: e.target.value}) : null} />
             </TableCell>
             <TableCell><IconButton onClick={e => this.props.addDividend(this.state)}><AddBox/></IconButton></TableCell>
         </TableRow>

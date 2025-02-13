@@ -5,6 +5,10 @@ export interface Config {
     language_locale: string;
 }
 
+export function numberIsValid(value: string): boolean {
+    return !isNaN(Number(value));
+}
+
 export interface SectionProps {
     config: Config;
     setHeading: (name:string) => void;
