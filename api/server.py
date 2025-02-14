@@ -76,8 +76,6 @@ dfs = Dfs(
     fx=PDataFrame("SELECT date, from_curr, to_curr, open, high, low, close FROM fx"),
 )
 
-# a = dfs.trades.df.with_columns(pl.col('date').str.split(by='-').list.first().alias('year'))
-
 
 @app.get("/config/get")
 async def config_get(request:sanic.Request):
@@ -218,7 +216,8 @@ async def overview(request:sanic.Request):
     last_fx = dfs.fx.df\
         .sort("date")\
         .group_by(["from_curr", "to_curr"])\
-        .agg(pl.col("close").last().alias("fx_rate"))
+        .agg(pl.col("close").last().alias("fx_rate"))\
+        .filter(pl.col("to_curr") == config.base_currency)
     
     total_dividends_df = dfs.dividends.df\
         .group_by("ticker")\
@@ -240,7 +239,7 @@ async def overview(request:sanic.Request):
         )
         .join(last_price, "ticker", "left")
         .join(dfs.instruments.df, "ticker", "left")
-        .join(last_fx.filter(pl.col("to_curr") == config.base_currency), left_on="currency", right_on="from_curr", how="left").with_columns(pl.col("fx_rate").fill_null(1))
+        .join(last_fx, None, "left", left_on="currency", right_on="from_curr").with_columns(pl.col("fx_rate").fill_null(1))
         .join(total_staking_df, "ticker", "left").with_columns(pl.col("staking_volume").fill_null(0))
         .with_columns((pl.col("trade_volume") + pl.col("staking_volume")).alias("volume"))
         .select(
@@ -259,6 +258,64 @@ async def overview(request:sanic.Request):
 
     overview = pl.concat([tradeables, valuables], how="diagonal").sort("ticker")
     return sanic.response.json(overview.to_dicts())
+
+
+@app.get("/test")
+async def test(request:sanic.Request):
+    last_price = (
+        dfs.historical.df
+        .sort('date')
+        .with_columns(pl.col('date').str.split(by='-').list.first().alias('year'))
+        .group_by('ticker', 'year')
+        .agg(pl.col('close').last())
+    )
+
+    last_fx = (
+        dfs.fx.df
+        .filter(pl.col("to_curr") == config.base_currency)
+        .sort('date')
+        .with_columns(pl.col('date').str.split(by='-').list.first().alias('year'))
+        .group_by(pl.col('from_curr').alias('currency'), 'year')
+        .agg(pl.col('close').last().alias('fx_close'))
+    )
+
+    performance = (
+        last_price
+        .join(
+            dfs.trades.df
+            .with_columns(pl.col('date').str.split(by='-').list.first().alias('year'))
+            .group_by('ticker', 'year')
+            .agg(
+                pl.col("volume").sum().alias("volume_change"),
+                (pl.col("volume") * pl.col("price") / pl.col("rate")).filter(pl.col("volume") > 0).sum().alias("investment_change"),
+            ),
+            ['ticker', 'year'],
+            'left',
+        )
+        .with_columns(
+            pl.col('volume_change').fill_null(0),
+            pl.col('investment_change').fill_null(0),
+        )
+        .sort('ticker', 'year')
+        .with_columns(
+            pl.col('volume_change').cum_sum().over('ticker').alias('volume'),
+            pl.col('investment_change').cum_sum().over('ticker').alias('investment'),
+        )
+        .join(dfs.instruments.df, 'ticker', 'left')
+        .join(last_fx, ['currency', 'year'], 'left')
+        .with_columns(pl.col('fx_close').fill_null(1))
+        .with_columns((pl.col('volume') * pl.col('close') * pl.col('fx_close')).alias('value'))
+        .select(
+            'ticker', 'year',
+            'volume', 'volume_change',
+            'investment', 'investment_change',
+            'value', pl.col('value').diff().alias('value_change'),
+            (pl.col('value') - pl.col('investment')).alias('profit'),
+        ).with_columns(
+            (100 * (pl.col('value_change') - pl.col('investment_change')) / (pl.col('value') - pl.col('value_change'))).alias('perc')
+        )
+    )
+    print(performance)
 
 
 @app.get("/performance/get")
