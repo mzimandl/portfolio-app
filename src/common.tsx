@@ -38,12 +38,13 @@ export abstract class AbstractSection<P = {}, S = {}, SS = {}> extends React.Com
         return null;
     }
 
-    formatPercents(value: number): string|null {
+    formatPercents(value: number, options?: {signed?: boolean}): string|null {
         if (value)
             return value.toLocaleString(
                 this.props.config.language_locale,
                 {
-                    style: 'percent', minimumFractionDigits: 1
+                    style: 'percent', minimumFractionDigits: 1,
+                    signDisplay: options?.signed ? "exceptZero" : "auto",
                 }
             );
         return null;

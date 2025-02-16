@@ -14,7 +14,7 @@ interface OverviewDataRow {
     fees: number;
     value_profit: number;
     fx_profit: number;
-    withdraw: number;
+    return: number;
     total_profit: number;
     rewards: number;
     dividends: number;
@@ -207,7 +207,7 @@ export class Overview extends AbstractSection<OverviewProps, OverviewState> {
                                                     <TableCell align='left'>{this.formatCurrency(item.average_price, {currency: item.currency})}</TableCell>
                                                     <TableCell align='center'>{item.volume ? item.volume : null}</TableCell>
                                                     <TableCell align='right'>{this.formatCurrency(item.investment)}</TableCell>
-                                                    <TableCell align='right'>{this.formatCurrency(item.withdraw)}</TableCell>
+                                                    <TableCell align='right'>{this.formatCurrency(item.return)}</TableCell>
                                                     <TableCell align='right'>{this.formatCurrency(item.value)}</TableCell>
                                                     <TableCell align='right'>{this.formatCurrency(item.total_profit, {signed: true})}</TableCell>
                                                     <TableCell align='left' style={{fontSize: "0.6em"}}>
@@ -258,7 +258,7 @@ export class Overview extends AbstractSection<OverviewProps, OverviewState> {
                                                 <TableCell align='left'>{this.formatCurrency(item.average_price, {currency: item.currency})}</TableCell>
                                                 <TableCell align='center'>{item.volume ? item.volume : null}</TableCell>
                                                 <TableCell align='right'>{this.formatCurrency(item.investment)}</TableCell>
-                                                <TableCell align='right'>{this.formatCurrency(item.withdraw)}</TableCell>
+                                                <TableCell align='right'>{this.formatCurrency(item.return)}</TableCell>
                                                 <TableCell align='right'>{this.formatCurrency(item.value)}</TableCell>
                                                 <TableCell align='right'>{this.formatCurrency(item.total_profit, {signed: true})}</TableCell>
                                                 <TableCell align='left' style={{fontSize: "0.6em"}}>

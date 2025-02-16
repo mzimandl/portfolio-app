@@ -13,8 +13,12 @@
     -->
     <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
     <title>Portfolio App</title>
-  <script type="module" src="src/index"></script></head>
+    <script type="module" src="src/index"></script>
+  </head>
   <body>
+    <div id="config" style="display: none;">
+      {"language_locale": "{{language_locale}}", "base_currency": "{{base_currency}}"}
+    </div>
     <noscript>You need to enable JavaScript to run this app.</noscript>
     <div id="root"></div>
   </body>

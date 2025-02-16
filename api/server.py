@@ -11,6 +11,7 @@ import webbrowser
 
 import requests
 import sanic
+from sanic_ext import Config
 import sanic.response
 import yfinance
 import polars as pl
@@ -27,16 +28,17 @@ def get_yfinance_fx_ticker(from_curr: str, to_curr: str):
         return f'{from_curr}{to_curr}=X'
 
 @dataclass
-class Config:
+class PortfolioConfig:
     db: str
     base_currency: str
     language_locale: str
 
 with open(os.path.join(FILE_PATH, '../config.json')) as f:
-    config = Config(**json.load(f))
+    config = PortfolioConfig(**json.load(f))
 
 app = sanic.Sanic("PortfolioApp")
 app.static('/assets', os.path.join(FILE_PATH, '../build/assets'))
+app.extend(config=Config(templating_path_to_templates=os.path.join(FILE_PATH, "../build")))
 db = sqlite3.connect(os.path.join(FILE_PATH, config.db))
 db.row_factory = sqlite3.Row
 
@@ -75,11 +77,6 @@ dfs = Dfs(
     historical=PDataFrame("SELECT date, ticker, open, high, low, close, dividends, splits FROM historical"),
     fx=PDataFrame("SELECT date, from_curr, to_curr, open, high, low, close FROM fx"),
 )
-
-
-@app.get("/config/get")
-async def config_get(request:sanic.Request):
-    return sanic.response.json(asdict(config))
 
 
 @app.get("/data/last")
@@ -196,14 +193,14 @@ async def overview(request:sanic.Request):
         .group_by("ticker").agg(
             pl.col("date").last(),
             pl.col("amount").filter(pl.col("amount") > 0).sum().alias("investment"),
-            -pl.col("amount").filter(pl.col("amount") < 0).sum().alias("withdraw"),
+            -pl.col("amount").filter(pl.col("amount") < 0).sum().alias("return"),
             (pl.col("value").last() + pl.col("amount").filter(pl.col("date") >= pl.col("date_right")).sum()).alias("value"),
             pl.col("fee").sum().alias("fees"),
         )
         .join(dfs.instruments.df, "ticker", "left")
         .select(
-            "ticker", "type", "currency", "investment", "withdraw", "fees", "value",
-            (pl.col("withdraw") + pl.col("value") - pl.col("investment")).alias("total_profit")
+            "ticker", "type", "currency", "investment", "return", "fees", "value",
+            (pl.col("return") + pl.col("value") - pl.col("investment")).alias("total_profit")
         )
     )
 
@@ -234,7 +231,7 @@ async def overview(request:sanic.Request):
             pl.col("volume").filter(pl.col("volume") > 0).sum().alias("buy_volume"),
             (pl.col("volume") * pl.col("price")).filter(pl.col("volume") > 0).sum().alias("fx_investment"),
             (pl.col("volume") * pl.col("price") / pl.col("rate")).filter(pl.col("volume") > 0).sum().alias("investment"),
-            -(pl.col("volume") * pl.col("price") / pl.col("rate")).filter(pl.col("volume") < 0).sum().alias("withdraw"),
+            -(pl.col("volume") * pl.col("price") / pl.col("rate")).filter(pl.col("volume") < 0).sum().alias("return"),
             pl.col("fee").sum().alias("fees"),
         )
         .join(last_price, "ticker", "left")
@@ -244,14 +241,14 @@ async def overview(request:sanic.Request):
         .with_columns((pl.col("trade_volume") + pl.col("staking_volume")).alias("volume"))
         .select(
             "ticker", "type", "currency", "dividend_currency", "last_price",
-            "investment", "withdraw", "fees", "volume",
+            "investment", "return", "fees", "volume",
             pl.when(pl.col("buy_volume").gt(0)).then(pl.col("fx_investment") / pl.col("buy_volume")).otherwise(None).alias("average_price"),
             (pl.col("volume") * pl.col("last_price") * pl.col("fx_rate")).alias("value"),
             (pl.col("trade_volume") * pl.col("last_price") * pl.col("fx_rate")).alias("trade_value"),
             (pl.col("fx_investment") * pl.col("fx_rate") - pl.col("investment")).alias("fx_profit"),
             (pl.col("staking_volume") * pl.col("last_price") * pl.col("fx_rate")).alias("rewards"),
         )
-        .with_columns((pl.col("value") + pl.col("withdraw") - pl.col("investment")).alias("total_profit"))
+        .with_columns((pl.col("value") + pl.col("return") - pl.col("investment")).alias("total_profit"))
         .with_columns((pl.col("total_profit") - pl.col("rewards") - pl.col("fx_profit")).alias("value_profit"))
         .join(total_dividends_df, on="ticker", how="left")
     )
@@ -260,149 +257,94 @@ async def overview(request:sanic.Request):
     return sanic.response.json(overview.to_dicts())
 
 
-@app.get("/test")
-async def test(request:sanic.Request):
+@app.get("/performance/get")
+async def performance(request:sanic.Request):
     last_price = (
         dfs.historical.df
+        .with_columns(year=pl.col('date').str.to_date().dt.year().alias('year'))
         .sort('date')
-        .with_columns(pl.col('date').str.split(by='-').list.first().alias('year'))
         .group_by('ticker', 'year')
         .agg(pl.col('close').last())
+        .sort('year', 'ticker')
     )
 
     last_fx = (
         dfs.fx.df
         .filter(pl.col("to_curr") == config.base_currency)
+        .with_columns(pl.col('date').str.to_date().dt.year().alias('year'))
         .sort('date')
-        .with_columns(pl.col('date').str.split(by='-').list.first().alias('year'))
         .group_by(pl.col('from_curr').alias('currency'), 'year')
         .agg(pl.col('close').last().alias('fx_close'))
+        .sort('year', 'currency')
     )
 
-    performance = (
+    year_trades = (
         last_price
         .join(
             dfs.trades.df
-            .with_columns(pl.col('date').str.split(by='-').list.first().alias('year'))
+            .with_columns(pl.col('date').str.to_date().dt.year().alias('year'))
             .group_by('ticker', 'year')
             .agg(
-                pl.col("volume").sum().alias("volume_change"),
-                (pl.col("volume") * pl.col("price") / pl.col("rate")).filter(pl.col("volume") > 0).sum().alias("investment_change"),
+                pl.col("volume").sum(),
+                (pl.col("volume") * pl.col("price") / pl.col("rate")).filter(pl.col("volume") > 0).sum().alias("investment"),
+                -(pl.col("volume") * pl.col("price") / pl.col("rate")).filter(pl.col("volume") < 0).sum().alias("return"),
+                pl.col("fee").sum(),
             ),
             ['ticker', 'year'],
             'left',
         )
         .with_columns(
-            pl.col('volume_change').fill_null(0),
-            pl.col('investment_change').fill_null(0),
-        )
-        .sort('ticker', 'year')
+            pl.col('volume').fill_null(0),
+            pl.col('investment').fill_null(0),
+            pl.col('return').fill_null(0),
+            pl.col('fee').fill_null(0),
+        ).rename({
+            'volume': 'volume_change',
+            'investment': 'investment_change',
+            'return': 'return_change',
+            'fee': 'fee_change'
+        })
         .with_columns(
-            pl.col('volume_change').cum_sum().over('ticker').alias('volume'),
-            pl.col('investment_change').cum_sum().over('ticker').alias('investment'),
+            pl.col('volume_change').cum_sum().over('ticker', order_by='year').alias('volume_total'),
+            pl.col('investment_change').cum_sum().over('ticker', order_by='year').alias('investment_total'),
+            pl.col('return_change').cum_sum().over('ticker', order_by='year').alias('return_total'),
+            pl.col('fee_change').cum_sum().over('ticker', order_by='year').alias('fee_total'),
         )
+        .filter(pl.col("volume_total").ne(0) | pl.col("investment_total").ne(0) | pl.col("return_total").ne(0) | pl.col("fee_total").ne(0))
+        .sort('ticker', 'year')
+    )
+
+    performance = (
+        year_trades
         .join(dfs.instruments.df, 'ticker', 'left')
         .join(last_fx, ['currency', 'year'], 'left')
-        .with_columns(pl.col('fx_close').fill_null(1))
-        .with_columns((pl.col('volume') * pl.col('close') * pl.col('fx_close')).alias('value'))
+        .with_columns(
+            pl.col('fx_close').fill_null(pl.when(pl.col('currency').eq(config.base_currency)).then(1).otherwise(None))
+        )
+        .with_columns(
+            (pl.col('volume_total') * pl.col('close') * pl.col('fx_close')).alias('value_total'),
+        )
         .select(
             'ticker', 'year',
-            'volume', 'volume_change',
-            'investment', 'investment_change',
-            'value', pl.col('value').diff().alias('value_change'),
-            (pl.col('value') - pl.col('investment')).alias('profit'),
-        ).with_columns(
-            (100 * (pl.col('value_change') - pl.col('investment_change')) / (pl.col('value') - pl.col('value_change'))).alias('perc')
+            'volume_change', 'investment_change', 'return_change', 'fee_change', pl.col('value_total').diff().over('ticker', order_by='year').fill_null(pl.col('value_total')).alias('value_change'),
+            'volume_total', 'investment_total', 'return_total', 'fee_total', 'value_total',
+        )
+        .with_columns(
+            (pl.col('value_total') + pl.col('return_total') - pl.col('investment_total')).alias('profit_total'),
+            #(100 * (pl.col('value') - pl.col('investment')) / (pl.col('total_value') - pl.col('value'))).alias('perc')
+        )
+        .with_columns(
+            pl.col('profit_total').diff().over('ticker', order_by='year').fill_null(pl.col('profit_total')).alias('profit_change'),
+            #pl.col('perc').fill_null(0),
         )
     )
-    print(performance)
 
-
-@app.get("/performance/get")
-async def performance(request:sanic.Request):
-    cursor = db.cursor()
-    cursor.execute('''
-        select
-            substr(date, 1, 4) as year,
-            max(date) as date,
-            ticker,
-            fee,
-            investment,
-            (case when evaluation='manual'
-                THEN fx_price*(manual_value+(case when value_correction then value_correction else 0 end))
-                ELSE fx_price*last_price*volume
-            END) as value,
-            (case when evaluation='manual'
-                THEN fx_price*(manual_value+(case when value_correction then value_correction else 0 end))
-                ELSE fx_price*last_price*volume
-            END)-investment-fee as profit
-        from (
-            select
-                dt.date,
-                it.ticker,
-                it.evaluation,
-                sum(
-                    (case when tt.volume then tt.volume else 1 end)*tt.price/
-                    (case when tt.rate then tt.rate else 1 end)
-                ) over (PARTITION BY it.ticker ORDER BY dt.date RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) as investment,
-                sum(tt.volume) over (PARTITION BY it.ticker ORDER BY dt.date RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) as volume,
-                (select close from historical where date <= dt.date and ticker = it.ticker order by date desc) as last_price,
-                (case when it.currency = ? then 1 else
-                    (select close from fx where from_curr = it.currency and to_curr = ? order by date desc)
-                end) as fx_price,
-                sum(tt.fee) over (PARTITION BY it.ticker ORDER BY dt.date RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) as fee,
-                (case when it.evaluation='manual' then
-                    (select value from "values" where date <= dt.date and ticker = it.ticker order by date desc)
-                else null end) as manual_value,
-                (case when it.evaluation='manual' then
-                    (select
-                        sum(
-                            (case when volume then volume else 1 end)*price/
-                            (case when rate then rate else 1 end)
-                        ) from trades
-                        where date <= dt.date and ticker = it.ticker and date >
-                            (select date from "values" where date <= dt.date and ticker = it.ticker order by date desc)
-                    )
-                else null end) as value_correction
-            from (
-                select distinct date from fx UNION
-                select distinct date from trades UNION
-                select distinct date from historical UNION
-                select distinct date from "values"
-            ) as dt
-            left join instruments as it
-            left join fx as ft on ft.from_curr = it.currency and ft.date = dt.date
-            left join trades as tt on tt.ticker = it.ticker and tt.date = dt.date
-            left join historical as ht on ht.ticker = it.ticker and ht.date = dt.date
-        )
-        group by year, ticker
-        having investment
-        order by year, ticker
-        ''', [config.base_currency, config.base_currency]
-    )
     data = defaultdict(dict)
-    for d in cursor:
-        year = int(d['year'])
-        ticker = d['ticker']
-
-        prev_value = 0
-        prev_fee = 0
-        prev_investment = 0
-        prev_profit = 0
-
-        if year-1 in data and ticker in data[year-1]:
-            prev_value = data[year-1][ticker]['value']
-            prev_fee = data[year-1][ticker]['fee']
-            prev_investment = data[year-1][ticker]['investment']
-            prev_profit = data[year-1][ticker]['profit']
-
-        data[year][ticker] = {
-            'fee': d['fee'] - prev_fee,
-            'investment': prev_value + d['investment'] - prev_investment,
-            'value': d['value'],
-            'profit': d['profit'] - prev_profit,
-        }
-    return sanic.response.json(dict(data))
+    for d in performance.to_dicts():
+        data[d['year']][d['ticker']] = d
+        del d['year']
+        del d['ticker']
+    return sanic.response.json(data)
 
 
 @app.get("/dividends/calc")
@@ -657,8 +599,9 @@ async def staking_new(request:sanic.Request):
 
 
 @app.route("/")
+@app.ext.template("index.html")
 async def homepage(request):
-    return await sanic.response.file(os.path.join(FILE_PATH, "../build/index.html"))
+    return asdict(config)
 
 
 def open_web_browser():

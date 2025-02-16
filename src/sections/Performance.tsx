@@ -3,10 +3,16 @@ import { AbstractSection, SectionProps } from '../common';
 
 
 interface PerformanceRow {
-    fee:number;
-    investment:number;
-    value:number;
-    profit:number;
+    investment_change:number;
+    value_change:number;
+    profit_change:number;
+    fee_change:number;
+    return_change:number;
+    investment_total:number;
+    value_total:number;
+    profit_total:number;
+    fee_total:number;
+    return_total:number;
 }
 
 interface PerformanceData {
@@ -84,6 +90,7 @@ export class Performance extends AbstractSection<PerformanceProps, PerformanceSt
                                             <TableCell>Ticker</TableCell>
                                             <TableCell align='right'>Investment</TableCell>
                                             <TableCell align='right'>Value</TableCell>
+                                            <TableCell align='right'>Return</TableCell>
                                             <TableCell align='right'>Fee</TableCell>
                                             <TableCell colSpan={2} align='center'>Profit</TableCell>
                                         </TableRow>
@@ -92,11 +99,12 @@ export class Performance extends AbstractSection<PerformanceProps, PerformanceSt
                                         {Object.entries<PerformanceRow>(data).map(([ticker, d], i) =>
                                             <TableRow key={i}>
                                                 <TableCell>{ticker}</TableCell>
-                                                <TableCell align='right'>{this.formatCurrency(d.investment)}</TableCell>
-                                                <TableCell align='right'>{this.formatCurrency(d.value)}</TableCell>
-                                                <TableCell align='right'>{this.formatCurrency(d.fee)}</TableCell>
-                                                <TableCell align='right'>{this.formatCurrency(d.profit)}</TableCell>
-                                                <TableCell align='left'>{this.formatPercents(d.profit/d.investment)}</TableCell>
+                                                <TableCell align='right'>{this.formatCurrency(d.investment_change)}</TableCell>
+                                                <TableCell align='right'>{this.formatCurrency(d.value_change, {signed: true})}</TableCell>
+                                                <TableCell align='right'>{this.formatCurrency(d.return_change)}</TableCell>
+                                                <TableCell align='right'>{this.formatCurrency(d.fee_change)}</TableCell>
+                                                <TableCell align='right'>{this.formatCurrency(d.profit_change, {signed: true})}</TableCell>
+                                                <TableCell align='left'>{this.formatPercents((d.profit_change)/(d.investment_change+d.value_total-d.value_change), {signed: true})}</TableCell>
                                             </TableRow>
                                         )}
                                     </TableBody>
@@ -119,11 +127,12 @@ export class Performance extends AbstractSection<PerformanceProps, PerformanceSt
                             {this.state.tickers.map(ticker =>
                                 <TableRow key={ticker}>
                                     <TableCell>{ticker}</TableCell>
-                                    {this.state.years.map(year =>
-                                        <TableCell key={year} align='center'>
-                                            {this.state.data[year][ticker] ? this.formatPercents(this.state.data[year][ticker].profit/this.state.data[year][ticker].investment) : null}
+                                    {this.state.years.map(year => {
+                                        const d = this.state.data[year][ticker];
+                                        return <TableCell key={year} align='center'>
+                                            {d ? this.formatPercents((d.profit_change)/(d.investment_change+d.value_total-d.value_change), {signed: true}) : null}
                                         </TableCell>
-                                    )}
+                                    })}
                                 </TableRow>
                             )}
                         </TableBody>

@@ -110,6 +110,10 @@ interface LastData {
   manual_value: string;
 }
 
+interface AppProps {
+  config: Config;
+}
+
 interface AppState {
   refreshing: boolean;
   isBusy: boolean;
@@ -119,15 +123,12 @@ interface AppState {
   config: Config;
 }
 
-export default class App extends React.Component<{}, AppState> {
+export default class App extends React.Component<AppProps, AppState> {
 
-  constructor(props:{}) {
+  constructor(props:AppProps) {
     super(props);
     this.state = {
-      config: {
-        base_currency: '',
-        language_locale: '',
-      },
+      config: props.config,
       refreshing: false,
       isBusy: false,
       menuOpen: false,
@@ -144,14 +145,7 @@ export default class App extends React.Component<{}, AppState> {
   }
 
   componentDidMount() {
-    this.loadConfig();
     this.loadLastDataDates();
-  }
-
-  loadConfig = () => {
-    return fetch('/config/get')
-      .then<Config>(res => res.json())
-      .then(config => this.setState({config}));
   }
 
   loadLastDataDates = () => {
