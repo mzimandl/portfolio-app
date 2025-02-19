@@ -17,6 +17,7 @@ interface NewDataRow {
     date: string;
     ticker: string;
     value: string;
+    valueValid: boolean;
 }
 
 type ValuesResponse = Array<DataRow>;
@@ -40,14 +41,20 @@ class NewValueTableRow extends React.Component<NewValueProps, NewDataRow> {
             date: '',
             ticker: '',
             value: '0',
+            valueValid: true,
         };
+    }
+
+    validate() {
+        return !!this.state.ticker && !!this.state.date && this.state.valueValid;
     }
 
     render() {
         return <TableRow>
             <TableCell>
                 <TextField label="Date" variant="outlined" size='small' margin='none' fullWidth
-                onChange={(e) => this.setState({date: e.target.value})} />
+                onChange={(e) => this.setState({date: e.target.value})}
+                error={!this.state.date} />
             </TableCell>
             <TableCell>
                 <FormControl fullWidth size='small'>
@@ -57,6 +64,7 @@ class NewValueTableRow extends React.Component<NewValueProps, NewDataRow> {
                         value={this.state.ticker}
                         label="Ticker"
                         onChange={(e) => this.setState({ticker: e.target.value})}
+                        error={!this.state.ticker}
                     >
                         {this.props.instruments
                             .filter(v => v.evaluation === 'manual')
@@ -67,9 +75,10 @@ class NewValueTableRow extends React.Component<NewValueProps, NewDataRow> {
             </TableCell>
             <TableCell>
                 <TextField value={this.state.value} label="Value" variant="outlined" size='small' margin='none' fullWidth
-                onChange={(e) => numberIsValid(e.target.value) ? this.setState({value: e.target.value}) : null} />
+                onChange={(e) => this.setState({value: e.target.value, valueValid: numberIsValid(e.target.value)})}
+                error={!this.state.valueValid} />
             </TableCell>
-            <TableCell><IconButton onClick={e => this.props.addValue(this.state)}><AddBox/></IconButton></TableCell>
+            <TableCell><IconButton disabled={!this.validate()} onClick={e => this.props.addValue(this.state)}><AddBox/></IconButton></TableCell>
         </TableRow>
     }
 }
@@ -113,15 +122,13 @@ export class Values extends AbstractSection<ValuesProps, ValuesState> {
     }
 
     addValue = (newValue: NewDataRow) => {
-        if (newValue.ticker && newValue.date && newValue.value) {
-            this.props.displayProgressBar(true);
-            fetch('/values/new', {method: 'POST', body: JSON.stringify(newValue)})
-                .then(res => {
-                    this.loadValues().then(() => {
-                        this.props.displayProgressBar(false);
-                    });
+        this.props.displayProgressBar(true);
+        fetch('/values/new', {method: 'POST', body: JSON.stringify(newValue)})
+            .then(res => {
+                this.loadValues().then(() => {
+                    this.props.displayProgressBar(false);
                 });
-        }
+            });
     }
 
     render() {

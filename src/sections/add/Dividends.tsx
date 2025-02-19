@@ -16,6 +16,7 @@ interface NewDataRow {
     date: string;
     ticker: string;
     dividend: string;
+    dividendValid: boolean;
 }
 
 type DividendsResponse = Array<DataRow>;
@@ -39,14 +40,20 @@ class NewDividendTableRow extends React.Component<NewDividendTableRowProps, NewD
             date: '',
             ticker: '',
             dividend: '0',
+            dividendValid: true,
         }
+    }
+
+    validate() {
+        return !!this.state.date && !!this.state.ticker && this.state.dividendValid;
     }
 
     render() {
         return <TableRow>
             <TableCell>
                 <TextField label="Date" variant="outlined" size='small' margin='none' fullWidth
-                onChange={(e) => this.setState({date: e.target.value})} />
+                onChange={(e) => this.setState({date: e.target.value})}
+                error={!this.state.date} />
             </TableCell>
             <TableCell>
                 <FormControl fullWidth size='small'>
@@ -56,6 +63,7 @@ class NewDividendTableRow extends React.Component<NewDividendTableRowProps, NewD
                         value={this.state.ticker}
                         label="Ticker"
                         onChange={(e) => this.setState({ticker: e.target.value})}
+                        error={!this.state.ticker}
                     >
                         {this.props.instruments.map(v => <MenuItem key={v.ticker} value={v.ticker}>{v.ticker}</MenuItem>)}
                     </Select>
@@ -63,9 +71,10 @@ class NewDividendTableRow extends React.Component<NewDividendTableRowProps, NewD
             </TableCell>
             <TableCell>
                 <TextField value={this.state.dividend} label="Dividend" variant="outlined" size='small' margin='none' fullWidth
-                onChange={(e) => numberIsValid(e.target.value) ? this.setState({dividend: e.target.value}) : null} />
+                onChange={(e) => this.setState({dividend: e.target.value, dividendValid: numberIsValid(e.target.value)})} 
+                error={!this.state.dividendValid} />
             </TableCell>
-            <TableCell><IconButton onClick={e => this.props.addDividend(this.state)}><AddBox/></IconButton></TableCell>
+            <TableCell><IconButton disabled={!this.validate()} onClick={e => this.props.addDividend(this.state)}><AddBox/></IconButton></TableCell>
         </TableRow>
     }
 }
@@ -111,15 +120,13 @@ export class Dividends extends AbstractSection<DividendsProps, DividendsState> {
     }
 
     addDividend = (newDividend:NewDataRow) => {
-        if (newDividend.ticker && newDividend.date) {
-            this.props.displayProgressBar(true);
-            fetch('/dividends/new', {method: 'POST', body: JSON.stringify(newDividend)})
-                .then(res => {
-                    this.loadDividends().then(() => {
-                        this.props.displayProgressBar(false);
-                    });
+        this.props.displayProgressBar(true);
+        fetch('/dividends/new', {method: 'POST', body: JSON.stringify(newDividend)})
+            .then(res => {
+                this.loadDividends().then(() => {
+                    this.props.displayProgressBar(false);
                 });
-        }
+            });
     }
 
     render() {

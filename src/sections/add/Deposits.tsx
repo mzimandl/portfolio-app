@@ -18,7 +18,9 @@ interface NewDataRow {
     date: string;
     ticker: string;
     amount: string;
+    amountValid: boolean;
     fee: string;
+    feeValid: boolean;
 }
 
 type DepositsResponse = Array<DataRow>;
@@ -42,15 +44,22 @@ class NewDepositTableRow extends React.Component<NewDepositProps, NewDataRow> {
             date: '',
             ticker: '',
             amount: '0',
+            amountValid: true,
             fee: '0',
+            feeValid: true,
         };
+    }
+
+    validate() {
+        return !!this.state.date && !!this.state.ticker &&  this.state.amountValid && this.state.feeValid;
     }
 
     render() {
         return <TableRow>
             <TableCell>
                 <TextField label="Date" variant="outlined" size='small' margin='none' fullWidth
-                onChange={(e) => this.setState({date: e.target.value})} />
+                onChange={(e) => this.setState({date: e.target.value})}
+                error={!this.state.date} />
             </TableCell>
             <TableCell>
                 <FormControl fullWidth size='small'>
@@ -60,6 +69,7 @@ class NewDepositTableRow extends React.Component<NewDepositProps, NewDataRow> {
                         value={this.state.ticker}
                         label="Ticker"
                         onChange={(e) => this.setState({ticker: e.target.value})}
+                        error={!this.state.ticker}
                     >
                         {this.props.deposits
                             .filter(v => v.evaluation === 'manual')
@@ -70,13 +80,15 @@ class NewDepositTableRow extends React.Component<NewDepositProps, NewDataRow> {
             </TableCell>
             <TableCell>
                 <TextField label="Amount" value={this.state.amount} variant="outlined" size='small' margin='none' fullWidth
-                onChange={(e) => numberIsValid(e.target.value) ? this.setState({amount: e.target.value}) : null} />
+                onChange={(e) => this.setState({amount: e.target.value, amountValid: numberIsValid(e.target.value)})} 
+                error={!this.state.amountValid} />
             </TableCell>
             <TableCell>
                 <TextField label="Fee" value={this.state.fee} variant="outlined" size='small' margin='none' fullWidth
-                onChange={(e) => numberIsValid(e.target.value) ? this.setState({fee: e.target.value}) : null} />
+                onChange={(e) => this.setState({fee: e.target.value, feeValid: numberIsValid(e.target.value)})}
+                error={!this.state.feeValid} />
             </TableCell>
-            <TableCell><IconButton onClick={e => this.props.addDeposit(this.state)}><AddBox/></IconButton></TableCell>
+            <TableCell><IconButton disabled={!this.validate()} onClick={e => this.props.addDeposit(this.state)}><AddBox/></IconButton></TableCell>
         </TableRow>
     }
 }
@@ -120,15 +132,13 @@ export class Deposits extends AbstractSection<DepositsProps, DepositsState> {
     }
 
     addDeposit = (newDeposit: NewDataRow) => {
-        if (newDeposit.ticker && newDeposit.date && (newDeposit.amount || newDeposit.fee)) {
-            this.props.displayProgressBar(true);
-            fetch('/deposits/new', {method: 'POST', body: JSON.stringify(newDeposit)})
-                .then(res => {
-                    this.loadValues().then(() => {
-                        this.props.displayProgressBar(false);
-                    });
+        this.props.displayProgressBar(true);
+        fetch('/deposits/new', {method: 'POST', body: JSON.stringify(newDeposit)})
+            .then(res => {
+                this.loadValues().then(() => {
+                    this.props.displayProgressBar(false);
                 });
-        }
+            });
     }
 
     render() {

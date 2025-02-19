@@ -20,9 +20,13 @@ interface NewDataRow {
     date: string;
     ticker: string;
     volume: string;
+    volumeValid: boolean;
     price: string;
+    priceValid: boolean;
     fee: string;
+    feeValid: boolean;
     rate: string;
+    rateValid: boolean;
 }
 
 type TradesResponse = Array<DataRow>;
@@ -46,17 +50,26 @@ class NewTradeTableRow extends React.Component<NewTradeTableRowProps, NewDataRow
             date: '',
             ticker: '',
             volume: '0',
+            volumeValid: true,
             price: '0',
+            priceValid: true,
             fee: '0',
+            feeValid: true,
             rate: '1',
+            rateValid: true,
         }
+    }
+
+    validate() {
+        return !!this.state.date && !!this.state.ticker && this.state.volumeValid && this.state.priceValid && this.state.feeValid && this.state.rateValid;
     }
 
     render() {
         return <TableRow>
             <TableCell>
                 <TextField label="Date" variant="outlined" size='small' margin='none' fullWidth
-                onChange={(e) => this.setState({date: e.target.value})} />
+                onChange={(e) => this.setState({date: e.target.value})}
+                error={!this.state.date} />
             </TableCell>
             <TableCell>
                 <FormControl fullWidth size='small'>
@@ -66,6 +79,7 @@ class NewTradeTableRow extends React.Component<NewTradeTableRowProps, NewDataRow
                         value={this.state.ticker}
                         label="Ticker"
                         onChange={(e) => this.setState({ticker: e.target.value})}
+                        error={!this.state.ticker}
                     >
                         {this.props.instruments
                             .filter(v => v.evaluation !== 'manual')
@@ -76,21 +90,25 @@ class NewTradeTableRow extends React.Component<NewTradeTableRowProps, NewDataRow
             </TableCell>
             <TableCell>
                 <TextField value={this.state.volume} label="Volume" variant="outlined" size='small' margin='none' fullWidth
-                onChange={(e) => numberIsValid(e.target.value) ? this.setState({volume: e.target.value}) : null} />
+                onChange={(e) => this.setState({volume: e.target.value, volumeValid: numberIsValid(e.target.value)})}
+                error={!this.state.volumeValid} />
             </TableCell>
             <TableCell>
                 <TextField value={this.state.price} label="Price" variant="outlined" size='small' margin='none' fullWidth
-                onChange={(e) => numberIsValid(e.target.value) ? this.setState({price: e.target.value}) : null} />
+                onChange={(e) => this.setState({price: e.target.value, priceValid: numberIsValid(e.target.value)})}
+                error={!this.state.priceValid} />
             </TableCell>
             <TableCell>
                 <TextField value={this.state.rate} label="Exchange rate" variant="outlined" size='small' margin='none' fullWidth
-                onChange={(e) => numberIsValid(e.target.value) ? this.setState({rate: e.target.value}) : null} />
+                onChange={(e) => this.setState({rate: e.target.value, rateValid: numberIsValid(e.target.value)})}
+                error={!this.state.rateValid} />
             </TableCell>
             <TableCell>
                 <TextField value={this.state.fee} label="Fee" variant="outlined" size='small' margin='none' fullWidth
-                onChange={(e) => numberIsValid(e.target.value) ? this.setState({fee: e.target.value}) : null} />
+                onChange={(e) => this.setState({fee: e.target.value, feeValid: numberIsValid(e.target.value)})}
+                error={!this.state.feeValid} />
             </TableCell>
-            <TableCell><IconButton onClick={e => this.props.addTrade(this.state)}><AddBox/></IconButton></TableCell>
+            <TableCell><IconButton disabled={!this.validate()} onClick={e => this.props.addTrade(this.state)}><AddBox/></IconButton></TableCell>
         </TableRow>
     }
 }
@@ -134,15 +152,13 @@ export class Trades extends AbstractSection<TradesProps, TradesState> {
     }
 
     addTrade = (newTrade:NewDataRow) => {
-        if (newTrade.ticker && newTrade.date) {
-            this.props.displayProgressBar(true);
-            fetch('/trades/new', {method: 'POST', body: JSON.stringify(newTrade)})
-                .then(res => {
-                    this.loadTrades().then(() => {
-                        this.props.displayProgressBar(false);
-                    });
+        this.props.displayProgressBar(true);
+        fetch('/trades/new', {method: 'POST', body: JSON.stringify(newTrade)})
+            .then(res => {
+                this.loadTrades().then(() => {
+                    this.props.displayProgressBar(false);
                 });
-        }
+            });
     }
 
     render() {

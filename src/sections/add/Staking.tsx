@@ -17,6 +17,7 @@ interface NewDataRow {
     date: string;
     ticker: string;
     volume: string;
+    volumeValid: boolean;
 }
 
 type StakingResponse = Array<DataRow>;
@@ -40,14 +41,20 @@ class NewStakingTableRow extends React.Component<NewStakingProps, NewDataRow> {
             date: '',
             ticker: '',
             volume: '0',
+            volumeValid: true,
         };
+    }
+
+    validate() {
+        return !!this.state.date && !!this.state.ticker && this.state.volumeValid;
     }
 
     render() {
         return <TableRow>
             <TableCell>
                 <TextField label="Date" variant="outlined" size='small' margin='none' fullWidth
-                onChange={(e) => this.setState({date: e.target.value})} />
+                onChange={(e) => this.setState({date: e.target.value})}
+                error={!this.state.date} />
             </TableCell>
             <TableCell>
                 <FormControl fullWidth size='small'>
@@ -57,6 +64,7 @@ class NewStakingTableRow extends React.Component<NewStakingProps, NewDataRow> {
                         value={this.state.ticker}
                         label="Ticker"
                         onChange={(e) => this.setState({ticker: e.target.value})}
+                        error={!this.state.ticker}
                     >
                         {this.props.instruments
                             .filter(v => v.type === 'crypto')
@@ -67,9 +75,10 @@ class NewStakingTableRow extends React.Component<NewStakingProps, NewDataRow> {
             </TableCell>
             <TableCell>
                 <TextField value={this.state.volume} label="Volume" variant="outlined" size='small' margin='none' fullWidth
-                onChange={(e) => numberIsValid(e.target.value) ? this.setState({volume: e.target.value}) : null} />
+                onChange={(e) => this.setState({volume: e.target.value, volumeValid: numberIsValid(e.target.value)})}
+                error={!this.state.volumeValid} />
             </TableCell>
-            <TableCell><IconButton onClick={e => this.props.addStaking(this.state)}><AddBox/></IconButton></TableCell>
+            <TableCell><IconButton disabled={!this.validate()} onClick={e => this.props.addStaking(this.state)}><AddBox/></IconButton></TableCell>
         </TableRow>
     }
 }
@@ -113,15 +122,13 @@ export class Staking extends AbstractSection<StakingProps, StakingState> {
     }
 
     addValue = (newValue: NewDataRow) => {
-        if (newValue.ticker && newValue.date && newValue.volume) {
-            this.props.displayProgressBar(true);
-            fetch('/staking/new', {method: 'POST', body: JSON.stringify(newValue)})
-                .then(res => {
-                    this.loadValues().then(() => {
-                        this.props.displayProgressBar(false);
-                    });
+        this.props.displayProgressBar(true);
+        fetch('/staking/new', {method: 'POST', body: JSON.stringify(newValue)})
+            .then(res => {
+                this.loadValues().then(() => {
+                    this.props.displayProgressBar(false);
                 });
-        }
+            });
     }
 
     render() {

@@ -222,7 +222,7 @@ export class Settings extends AbstractSection<SettingsProps, SettingsState> {
             <Grid container spacing={2}>
                 <Grid size={2}>
                     <Card elevation={3}>
-                        <CardContent>
+                        <Box>
                             <TableContainer>
                                 <Table size="small">
                                     <TableHead>
@@ -237,12 +237,12 @@ export class Settings extends AbstractSection<SettingsProps, SettingsState> {
                                     </TableBody>
                                 </Table>
                             </TableContainer>
-                        </CardContent>
+                        </Box>
                     </Card>
                 </Grid>
                 <Grid size={2}>
                     <Card elevation={3}>
-                        <CardContent>
+                        <Box>
                             <TableContainer>
                                 <Table size="small">
                                     <TableHead>
@@ -257,12 +257,12 @@ export class Settings extends AbstractSection<SettingsProps, SettingsState> {
                                     </TableBody>
                                 </Table>
                             </TableContainer>
-                        </CardContent>
+                        </Box>
                     </Card>
                 </Grid>
                 <Grid size={8}>
                     <Card elevation={3}>
-                        <CardContent>
+                        <Box>
                             <TableContainer>
                                 <Table size="small">
                                     <TableHead>
@@ -282,7 +282,7 @@ export class Settings extends AbstractSection<SettingsProps, SettingsState> {
                                     </TableBody>
                                 </Table>
                             </TableContainer>
-                        </CardContent>
+                        </Box>
                     </Card>
                 </Grid>
             </Grid>
