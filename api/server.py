@@ -92,17 +92,28 @@ async def last(request:sanic.Request):
 async def historical_update(request:sanic.Request):
     cursor = db.cursor()
     cursor.execute('''
-        SELECT tt.ticker, min(date) as first_date, it.evaluation, it.eval_param
+        SELECT tt.ticker, min(date) as first_date, sum(volume) as volume, it.evaluation, it.eval_param
         FROM trades AS tt
         JOIN instruments AS it ON it.ticker = tt.ticker
+        WHERE it.evaluation = 'yfinance' OR it.evaluation = 'http'
         GROUP BY tt.ticker
+        HAVING volume > 0
     ''')
     first_trades = {
         d['ticker']: {
-            'first_date': datetime.datetime(*tuple(int(t) for t in d['first_date'].split('-'))),
+            'first_date': datetime.datetime(*tuple(int(t) for t in d['first_date'].split('-'))) - datetime.timedelta(days=7),
             'evaluation': d['evaluation'],
             'eval_param': json.loads(d['eval_param']) if d['evaluation'] == 'http' else d['eval_param'],
-        } for d in cursor}
+        } for d in cursor
+    }
+
+    cursor.execute('''
+        SELECT tt.ticker, max(date) as last_date
+        FROM historical AS tt
+    ''')
+    for d in cursor:
+        if d['ticker'] in first_trades:
+            first_trades[d['ticker']]['last_date'] = datetime.datetime(*tuple(int(t) for t in d['last_date'].split('-')))
 
     sql = '''
         INSERT OR IGNORE INTO historical(date, ticker, open, high, low, close, dividends, splits) values (?, ?, ?, ?, ?, ?, ?, ?)
@@ -113,7 +124,7 @@ async def historical_update(request:sanic.Request):
         try:
             if ticker_info['evaluation'] == 'yfinance':
                 yticker = yfinance.Ticker(ticker_info['eval_param'] if ticker_info['eval_param'] else ticker)
-                df = yticker.history(start=ticker_info['first_date'])
+                df = yticker.history(start=ticker_info['first_date'] if 'last_date' not in ticker_info else ticker_info['last_date'])
                 cursor.executemany(sql, [
                     (date.strftime('%Y-%m-%d'), ticker, row['Open'], row['High'], row['Low'], row['Close'], row['Dividends'], row['Stock Splits'])
                     for date, row in df.iterrows()
@@ -145,6 +156,8 @@ async def historical_update(request:sanic.Request):
             db.commit()
         except Exception as e:
             print("Failed to download data", ticker, ticker_info, e)
+        else:
+            print("Downloaded data", ticker)
 
     dfs.historical.reload()
     return sanic.response.json({'success': True})
@@ -154,11 +167,16 @@ async def historical_update(request:sanic.Request):
 async def fx_update(request:sanic.Request):
     cursor = db.cursor()
     cursor.execute('SELECT min(date) as first_trade FROM trades')
-    first_trade = tuple(int(t) for t in (cursor.fetchone())['first_trade'].split('-'))
+    first_trade = datetime.datetime(*tuple(int(t) for t in (cursor.fetchone())['first_trade'].split('-')))
 
-    cursor = db.cursor()
     cursor.execute('SELECT DISTINCT currency FROM instruments')
     currencies = [d['currency'] for d in cursor]
+
+    cursor.execute('SELECT from_curr, to_curr, max(date) as last_date FROM fx GROUP BY from_curr, to_curr')
+    last_fx = {
+        get_yfinance_fx_ticker(d['from_curr'], d['to_curr']): datetime.datetime(*tuple(int(t) for t in d['last_date'].split('-')))
+        for d in cursor
+    }
 
     sql = '''
         INSERT OR IGNORE INTO fx(date, from_curr, to_curr, open, high, low, close) VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -167,14 +185,19 @@ async def fx_update(request:sanic.Request):
     '''
     for currency in currencies:
         if currency != config.base_currency:
-            ticker = get_yfinance_fx_ticker(currency, config.base_currency)
-            yticker = yfinance.Ticker(ticker)
-            df = yticker.history(start=datetime.datetime(*first_trade))
-            cursor.executemany(sql, [
-                (date.strftime('%Y-%m-%d'), currency, config.base_currency, row['Open'], row['High'], row['Low'], row['Close'])
-                for date, row in df.iterrows()
-            ])
-            db.commit()
+            try:
+                ticker = get_yfinance_fx_ticker(currency, config.base_currency)
+                yticker = yfinance.Ticker(ticker)
+                df = yticker.history(start=first_trade if ticker not in last_fx else last_fx[ticker])
+                cursor.executemany(sql, [
+                    (date.strftime('%Y-%m-%d'), currency, config.base_currency, row['Open'], row['High'], row['Low'], row['Close'])
+                    for date, row in df.iterrows()
+                ])
+                db.commit()
+            except Exception as e:
+                print("Failed to download data", currency, e)
+            else:
+                print("Downloaded data", ticker)
 
     dfs.fx.reload()
     return sanic.response.json({'success': True})
