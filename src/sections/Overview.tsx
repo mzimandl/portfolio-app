@@ -35,9 +35,10 @@ interface OverviewState {
     groupByType: boolean;
     // aggregates
     investment: number;
-    fees: number;
+    return: number;
     value: number;
     profit: number;
+    fees: number;
     savingsDeposit: number;
     savingsValue: number;
     // overview lines
@@ -56,9 +57,10 @@ export class Overview extends AbstractSection<OverviewProps, OverviewState> {
         super(props);
         this.state = {
             investment: 0,
-            fees: 0,
+            return: 0,
             value: 0,
             profit: 0,
+            fees: 0,
             savingsDeposit: 0,
             savingsValue: 0,
             overview: [],
@@ -91,9 +93,10 @@ export class Overview extends AbstractSection<OverviewProps, OverviewState> {
                     overview,
                     types,
                     investment: overview.reduce((prev, cur, i) => cur.type === 'savings' ? prev : prev + cur.investment, 0),
-                    fees: overview.reduce((prev, cur, i) => cur.type === 'savings' ? prev : prev + cur.fees, 0),
+                    return: overview.reduce((prev, cur, i) => cur.type === 'savings' ? prev : prev + cur.return, 0),
                     value: overview.reduce((prev, cur, i) => cur.type === 'savings' ? prev : prev + cur.value, 0),
                     profit: overview.reduce((prev, cur, i) => cur.type === 'savings' ? prev : prev + cur.total_profit, 0),
+                    fees: overview.reduce((prev, cur, i) => cur.type === 'savings' ? prev : prev + cur.fees, 0),
                     savingsDeposit: overview.reduce((prev, cur, i) => cur.type === 'savings' ? prev + cur.investment : prev, 0),
                     savingsValue: overview.reduce((prev, cur, i) => cur.type === 'savings' ? prev + cur.value : prev, 0),
                 });
@@ -111,7 +114,7 @@ export class Overview extends AbstractSection<OverviewProps, OverviewState> {
     render() {
         return (
             <Box>
-                <Grid container spacing={2}>
+                <Grid container spacing={2} columns={10}>
                     <Grid size={2}>
                         <Card elevation={3}>
                             <CardHeader title={'Investment'} />
@@ -124,10 +127,10 @@ export class Overview extends AbstractSection<OverviewProps, OverviewState> {
                     </Grid>
                     <Grid size={2}>
                         <Card elevation={3}>
-                            <CardHeader title={'Fees'} />
+                            <CardHeader title={'Return'} />
                             <CardContent>
                                 <Typography sx={{ mb: 1.5 }} color="text.secondary">
-                                    {this.formatCurrency(this.state.fees)}
+                                    {this.formatCurrency(this.state.return)}
                                 </Typography>
                             </CardContent>
                         </Card>
@@ -154,6 +157,16 @@ export class Overview extends AbstractSection<OverviewProps, OverviewState> {
                     </Grid>
                     <Grid size={2}>
                         <Card elevation={3}>
+                            <CardHeader title={'Fees'} />
+                            <CardContent>
+                                <Typography sx={{ mb: 1.5 }} color="text.secondary">
+                                    {this.formatCurrency(this.state.fees)}
+                                </Typography>
+                            </CardContent>
+                        </Card>
+                    </Grid>
+                    <Grid size={5}>
+                        <Card elevation={3}>
                             <CardHeader title={'Savings Deposit'} />
                             <CardContent>
                                 <Typography sx={{ mb: 1.5 }} color="text.secondary">
@@ -162,7 +175,7 @@ export class Overview extends AbstractSection<OverviewProps, OverviewState> {
                             </CardContent>
                         </Card>
                     </Grid>
-                    <Grid size={2}>
+                    <Grid size={5}>
                         <Card elevation={3}>
                             <CardHeader title={'Savings Value'} />
                             <CardContent>
