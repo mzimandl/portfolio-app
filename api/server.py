@@ -280,6 +280,122 @@ async def overview(request:sanic.Request):
     return sanic.response.json(overview.to_dicts())
 
 
+@app.get("/test2")
+async def test2(request:sanic.Request):
+    d = (    
+        dfs.trades.df
+        .with_columns(
+            pl.col('date').str.to_date(),
+            pl.col('date').str.to_date().dt.year().alias('year'),
+            pl.col('volume').cum_sum().over('ticker', order_by='date').alias('cum_volume'),
+            (pl.col('volume').cum_sum().over('ticker', order_by='date')*pl.col('price')/pl.col('rate')).alias('value'),
+            (1 - (pl.col('date').str.to_date().dt.ordinal_day() - 1)/365).alias('weight'),
+        )
+        .sort('date')
+        .group_by('ticker', 'year')
+        .agg(
+            (pl.col('cum_volume').last() - pl.col("volume").sum()).alias('start_volume'),
+            (pl.col('cum_volume').last()).alias('end_volume'),
+            (pl.col('value')*pl.col('weight')).sum().alias('value_weighted'),
+            -(pl.col("volume") * pl.col("price") / pl.col("rate")).filter(pl.col("volume") < 0).sum().alias("return_year"),
+        )
+        .sort('ticker', 'year')
+    )
+    return sanic.response.json(d.to_dicts())
+
+
+@app.get("/test")
+async def test(request:sanic.Request):
+    last_price = (
+        dfs.historical.df
+        .with_columns(year=pl.col('date').str.to_date().dt.year())
+        .sort('date')
+        .group_by('ticker', 'year')
+        .agg(
+            pl.col('close').first().alias('start_price'),
+            pl.col('close').last().alias('end_price'),
+        )
+        .sort('year', 'ticker')
+        .select('ticker', 'year', 'start_price', 'end_price')
+    )
+
+    last_fx = (
+        dfs.fx.df
+        .filter(pl.col("to_curr") == config.base_currency)
+        .with_columns(year=pl.col('date').str.to_date().dt.year())
+        .sort('date')
+        .group_by(pl.col('from_curr').alias('currency'), 'year')
+        .agg(
+            pl.col('close').first().alias('start_fx'),
+            pl.col('close').last().alias('end_fx'),
+        )
+        .sort('year', 'currency')
+        .select('currency', 'year', 'start_fx', 'end_fx')
+    )
+
+    d = (
+        last_price
+        .join(dfs.instruments.df.select('ticker', 'currency'), 'ticker', 'left')
+        .join(last_fx, ['currency', 'year'], 'left')
+        .join(
+            dfs.trades.df
+            .with_columns(
+                pl.col('date').str.to_date(),
+                pl.col('date').str.to_date().dt.year().alias('year'),
+                pl.col('volume').cum_sum().over('ticker', order_by='date').alias('cum_volume'),
+                (pl.col('volume').cum_sum().over('ticker', order_by='date')*pl.col('price')/pl.col('rate')).alias('value'),
+                (1 - (pl.col('date').str.to_date().dt.ordinal_day() - 1)/365).alias('weight'),
+            )
+            .sort('date')
+            .group_by('ticker', 'year')
+            .agg(
+                (pl.col('cum_volume').last() - pl.col("volume").sum()).alias('start_volume'),
+                (pl.col('cum_volume').last()).alias('end_volume'),
+                (pl.col('value')*pl.col('weight')).sum().alias('value_weighted'),
+                (pl.col("volume") * pl.col("price") / pl.col("rate")).filter(pl.col("volume") > 0).sum().alias("investment_year"),
+                -(pl.col("volume") * pl.col("price") / pl.col("rate")).filter(pl.col("volume") < 0).sum().alias("return_year"),
+            ),
+            ['ticker', 'year'],
+            'left',
+        )
+        .with_columns(
+            pl.col('end_volume').fill_null(strategy='forward').over('ticker', order_by='year'),
+            pl.col('value_weighted').fill_null(strategy='zero'),
+            pl.col('investment_year').fill_null(strategy='zero'),
+            pl.col('return_year').fill_null(strategy='zero'),
+            pl.col('start_fx').fill_null(pl.when(pl.col('currency').eq(config.base_currency)).then(1).otherwise(None)),
+            pl.col('end_fx').fill_null(pl.when(pl.col('currency').eq(config.base_currency)).then(1).otherwise(None)),
+        )
+        .with_columns(
+            pl.col('start_volume').fill_null(pl.col('end_volume')),
+        )
+        .with_columns(
+            pl.col('start_volume').fill_null(strategy='zero'),
+            pl.col('end_volume').fill_null(strategy='zero'),
+        )
+        .filter(pl.col("start_volume").ne(0) | pl.col("end_volume").ne(0))
+        .with_columns(
+            (
+                pl.col('start_volume')*pl.col('start_price')*pl.col('start_fx')
+                +pl.col('value_weighted')
+            ).alias('effective_start_value'),
+            (
+                pl.col('end_volume')*pl.col('end_price')*pl.col('end_fx')
+                -pl.col('start_volume')*pl.col('start_price')*pl.col('start_fx')
+                -pl.col('investment_year')
+            ).alias('profit_year'),
+        )
+        .with_columns(
+            pl.when(pl.col('effective_start_value').eq(0)).then(0).otherwise(100*pl.col('profit_year')/pl.col('effective_start_value')).alias('perc_year')
+        )
+        .sort('ticker', 'year')
+    )
+    return sanic.response.json(
+
+        d.to_dicts()
+    )
+
+
 @app.get("/performance/get")
 async def performance(request:sanic.Request):
     last_price = (
