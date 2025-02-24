@@ -8,6 +8,7 @@ create table types(
 
 create table instruments(
 	ticker TEXT NOT NULL UNIQUE,
+	name TEXT,
 	currency TEXT NOT NULL,
 	type TEXT NOT NULL,
 	evaluation TEXT CHECK (evaluation IN ('yfinance', 'manual', 'http')) NOT NULL,

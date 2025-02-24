@@ -68,7 +68,7 @@ class Dfs:
 
 
 dfs = Dfs(
-    instruments=PDataFrame("SELECT ticker, currency, type, dividend_currency FROM instruments"),
+    instruments=PDataFrame("SELECT ticker, name, currency, type, dividend_currency FROM instruments"),
     trades=PDataFrame("SELECT id, date, ticker, volume, price, fee, rate FROM trades"),
     deposits=PDataFrame("SELECT id, date, ticker, amount, fee FROM deposits"),
     values=PDataFrame("SELECT date, ticker, value FROM \"values\""),
@@ -263,7 +263,7 @@ async def overview(request:sanic.Request):
         .join(total_staking_df, "ticker", "left").with_columns(pl.col("staking_volume").fill_null(0))
         .with_columns((pl.col("trade_volume") + pl.col("staking_volume")).alias("volume"))
         .select(
-            "ticker", "type", "currency", "dividend_currency", "last_price",
+            "ticker", "name", "type", "currency", "dividend_currency", "last_price",
             "investment", "return", "fees", "volume",
             pl.when(pl.col("buy_volume").gt(0)).then(pl.col("fx_investment") / pl.col("buy_volume")).otherwise(None).alias("average_price"),
             (pl.col("volume") * pl.col("last_price") * pl.col("fx_rate")).alias("value"),
@@ -609,12 +609,12 @@ async def instruments_new(request:sanic.Request):
     data = request.json
     cursor = db.cursor()
     cursor.execute('''
-        INSERT INTO instruments(ticker, currency, dividend_currency, type, evaluation, eval_param)
-        VALUES (?, ?, ?, ?, ?, ?)
+        INSERT INTO instruments(ticker, name, currency, dividend_currency, type, evaluation, eval_param)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT (ticker)
-        DO UPDATE SET currency = excluded.currency, dividend_currency = excluded.dividend_currency, type = excluded.type, evaluation = excluded.evaluation, eval_param = excluded.eval_param
+        DO UPDATE SET name = excluded.name, currency = excluded.currency, dividend_currency = excluded.dividend_currency, type = excluded.type, evaluation = excluded.evaluation, eval_param = excluded.eval_param
         ''',
-        [data['ticker'], data['currency'], data['dividend_currency'], data['type'], data['evaluation'], data['eval_param']]
+        [data['ticker'], data['name'], data['currency'], data['dividend_currency'], data['type'], data['evaluation'], data['eval_param']]
     )
     db.commit()
     dfs.instruments.reload()

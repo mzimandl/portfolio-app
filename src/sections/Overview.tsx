@@ -4,6 +4,7 @@ import { AbstractSection, SectionProps } from '../common';
 
 interface OverviewDataRow {
     ticker: string;
+    name: string;
     type: string;
     currency: string;
     last_price: number;
@@ -215,7 +216,10 @@ export class Overview extends AbstractSection<OverviewProps, OverviewState> {
                                         <TableBody>
                                             {this.state.overview.filter(item => item.type === type).map((item, i) =>
                                                 <TableRow key={i} sx={{backgroundColor: item.total_profit < 0 ? 'rgba(255,0,0,0.25)' : 'rgba(0,255,0,0.25)'}}>
-                                                    <TableCell>{item.ticker}</TableCell>
+                                                    <TableCell>
+                                                        {item.ticker}
+                                                        {item.name ? <span style={{fontSize: "0.6em"}}><br/>{item.name}</span> : null}
+                                                    </TableCell>
                                                     <TableCell align='right'>{this.formatCurrency(item.last_price, {currency: item.currency})}</TableCell>
                                                     <TableCell align='left'>{this.formatCurrency(item.average_price, {currency: item.currency})}</TableCell>
                                                     <TableCell align='center'>{item.volume ? item.volume : null}</TableCell>
@@ -266,7 +270,10 @@ export class Overview extends AbstractSection<OverviewProps, OverviewState> {
                                     <TableBody>
                                         {this.state.overview.map((item, i) =>
                                             <TableRow key={i} sx={{backgroundColor: item.total_profit < 0 ? 'rgba(255,0,0,0.25)' : 'rgba(0,255,0,0.25)'}}>
-                                                <TableCell>{item.ticker}</TableCell>
+                                                <TableCell>
+                                                    {item.ticker}
+                                                    {item.name ? <span style={{fontSize: "0.6em"}}><br/>{item.name}</span> : null}
+                                                </TableCell>
                                                 <TableCell align='right'>{this.formatCurrency(item.last_price, {currency: item.currency})}</TableCell>
                                                 <TableCell align='left'>{this.formatCurrency(item.average_price, {currency: item.currency})}</TableCell>
                                                 <TableCell align='center'>{item.volume ? item.volume : null}</TableCell>

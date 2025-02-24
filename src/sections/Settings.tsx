@@ -9,6 +9,7 @@ type EvaluationType = 'yfinance'|'manual'|'http';
 
 export interface InstrumentDataRow {
     ticker: string;
+    name: string;
     currency: string;
     type: string;
     evaluation: EvaluationType;
@@ -18,6 +19,7 @@ export interface InstrumentDataRow {
 
 export interface NewInstrument {
     ticker: string|null;
+    name: string|null;
     currency: string|null;
     type: string|null;
     evaluation: EvaluationType;
@@ -72,6 +74,7 @@ class NewInstrumentTableRow extends React.Component<NewInstrumentProps, NewInstr
         super(props);
         this.state = {
             ticker: null,
+            name: null,
             currency: null,
             type: null,
             evaluation: 'yfinance',
@@ -85,6 +88,10 @@ class NewInstrumentTableRow extends React.Component<NewInstrumentProps, NewInstr
             <TableCell>
                 <TextField label="Ticker" variant="outlined" size='small' margin='none' fullWidth value={this.state.ticker}
                 onChange={(e) => this.setState({ticker: e.target.value})} />
+            </TableCell>
+            <TableCell>
+                <TextField label="Name" variant="outlined" size='small' margin='none' fullWidth value={this.state.name}
+                onChange={(e) => this.setState({name: e.target.value})} />
             </TableCell>
             <TableCell>
                 <Autocomplete
@@ -272,6 +279,7 @@ export class Settings extends AbstractSection<SettingsProps, SettingsState> {
                                         {this.state.instruments.map(
                                             (item, i) => <TableRow key={i}>
                                                 <TableCell>{item.ticker}</TableCell>
+                                                <TableCell>{item.name}</TableCell>
                                                 <TableCell>{item.currency}</TableCell>
                                                 <TableCell>{item.dividend_currency}</TableCell>
                                                 <TableCell>{item.type}</TableCell>
