@@ -1,8 +1,9 @@
 import React from "react";
 import { AbstractSection, numberIsValid, SectionProps } from '../../common';
-import { Table, TableBody, TableHead, TableContainer, TableRow, TableCell, Box, IconButton, FormControl, Select, InputLabel, MenuItem } from '@mui/material';
+import { Table, TableBody, TableHead, TableContainer, TableRow, TableCell, Box, IconButton, FormControl, Select, InputLabel, MenuItem, Checkbox } from '@mui/material';
 import TextField from '@mui/material/TextField';
-import { AddBox } from '@mui/icons-material';
+import RecyclingIcon from '@mui/icons-material/Recycling';
+import { AddBox, Check } from '@mui/icons-material';
 import { InstrumentDataRow, InstrumentsResponse } from '../Settings';
 
 
@@ -14,6 +15,7 @@ interface DataRow {
     fee: number;
     rate: number;
     currency: string;
+    reinvested: number;
 }
 
 interface NewDataRow {
@@ -27,6 +29,7 @@ interface NewDataRow {
     feeValid: boolean;
     rate: string;
     rateValid: boolean;
+    reinvested: number;
 }
 
 type TradesResponse = Array<DataRow>;
@@ -57,6 +60,7 @@ class NewTradeTableRow extends React.Component<NewTradeTableRowProps, NewDataRow
             feeValid: true,
             rate: '1',
             rateValid: true,
+            reinvested: 0,
         }
     }
 
@@ -107,6 +111,11 @@ class NewTradeTableRow extends React.Component<NewTradeTableRowProps, NewDataRow
                 <TextField value={this.state.fee} label="Fee" variant="outlined" size='small' margin='none' fullWidth
                 onChange={(e) => this.setState({fee: e.target.value, feeValid: numberIsValid(e.target.value)})}
                 error={!this.state.feeValid} />
+            </TableCell>
+            <TableCell>
+                <RecyclingIcon style={{verticalAlign: 'middle'}}/>
+                <Checkbox checked={this.state.reinvested === 1} size='small'
+                onChange={(e) => this.setState({reinvested: e.target.checked ? 1 : 0})} />
             </TableCell>
             <TableCell><IconButton disabled={!this.validate()} onClick={e => this.props.addTrade(this.state)}><AddBox/></IconButton></TableCell>
         </TableRow>
@@ -177,7 +186,8 @@ export class Trades extends AbstractSection<TradesProps, TradesState> {
                                 <TableCell>{item.volume}</TableCell>
                                 <TableCell>{this.formatCurrency(item.price, {currency: item.currency})}</TableCell>
                                 <TableCell>{this.formatCurrency(item.rate, {currency: item.currency})}</TableCell>
-                                <TableCell colSpan={2}>{this.formatCurrency(item.fee)}</TableCell>
+                                <TableCell>{this.formatCurrency(item.fee)}</TableCell>
+                                <TableCell colSpan={2}>{item.reinvested === 1 ? <Check/> : null}</TableCell>
                             </TableRow>
                         )}
                     </TableBody>

@@ -27,6 +27,7 @@ create table trades(
 	price REAL NOT NULL,
 	fee REAL DEFAULT 0,
 	rate REAL DEFAULT 1,
+	reinvested INTEGER DEFAULT 0,
 	FOREIGN KEY(ticker) REFERENCES instruments(ticker)
 );
 
@@ -44,6 +45,7 @@ create table deposits(
 	ticker TEXT NOT NULL,
 	amount REAL DEFAULT 0,
 	fee REAL DEFAULT 0,
+	reinvested INTEGER DEFAULT 0,
 	FOREIGN KEY(ticker) REFERENCES instruments(ticker)
 );
 

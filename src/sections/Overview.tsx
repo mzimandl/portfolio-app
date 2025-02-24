@@ -16,6 +16,7 @@ interface OverviewDataRow {
     value_profit: number;
     fx_profit: number;
     return: number;
+    reinvested: number;
     total_profit: number;
     rewards: number;
     dividends: number;
@@ -37,6 +38,7 @@ interface OverviewState {
     // aggregates
     investment: number;
     return: number;
+    reinvested: number;
     value: number;
     profit: number;
     fees: number;
@@ -59,6 +61,7 @@ export class Overview extends AbstractSection<OverviewProps, OverviewState> {
         this.state = {
             investment: 0,
             return: 0,
+            reinvested: 0,
             value: 0,
             profit: 0,
             fees: 0,
@@ -95,6 +98,7 @@ export class Overview extends AbstractSection<OverviewProps, OverviewState> {
                     types,
                     investment: overview.reduce((prev, cur, i) => cur.type === 'savings' ? prev : prev + cur.investment, 0),
                     return: overview.reduce((prev, cur, i) => cur.type === 'savings' ? prev : prev + cur.return, 0),
+                    reinvested: overview.reduce((prev, cur, i) => cur.type === 'savings' ? prev : prev + cur.reinvested, 0),
                     value: overview.reduce((prev, cur, i) => cur.type === 'savings' ? prev : prev + cur.value, 0),
                     profit: overview.reduce((prev, cur, i) => cur.type === 'savings' ? prev : prev + cur.total_profit, 0),
                     fees: overview.reduce((prev, cur, i) => cur.type === 'savings' ? prev : prev + cur.fees, 0),
@@ -121,7 +125,7 @@ export class Overview extends AbstractSection<OverviewProps, OverviewState> {
                             <CardHeader title={'Investment'} />
                             <CardContent>
                                 <Typography sx={{ mb: 1.5 }} color="text.secondary">
-                                    {this.formatCurrency(this.state.investment)}
+                                    {this.formatCurrency(this.state.investment - this.state.reinvested)}
                                 </Typography>
                             </CardContent>
                         </Card>
@@ -131,7 +135,7 @@ export class Overview extends AbstractSection<OverviewProps, OverviewState> {
                             <CardHeader title={'Return'} />
                             <CardContent>
                                 <Typography sx={{ mb: 1.5 }} color="text.secondary">
-                                    {this.formatCurrency(this.state.return)}
+                                    {this.formatCurrency(this.state.return - this.state.reinvested)}
                                 </Typography>
                             </CardContent>
                         </Card>

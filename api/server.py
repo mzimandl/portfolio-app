@@ -69,8 +69,8 @@ class Dfs:
 
 dfs = Dfs(
     instruments=PDataFrame("SELECT ticker, name, currency, type, dividend_currency FROM instruments"),
-    trades=PDataFrame("SELECT id, date, ticker, volume, price, fee, rate FROM trades"),
-    deposits=PDataFrame("SELECT id, date, ticker, amount, fee FROM deposits"),
+    trades=PDataFrame("SELECT id, date, ticker, volume, price, fee, rate, reinvested FROM trades"),
+    deposits=PDataFrame("SELECT id, date, ticker, amount, fee, reinvested FROM deposits"),
     values=PDataFrame("SELECT date, ticker, value FROM \"values\""),
     dividends=PDataFrame("SELECT id, date, ticker, dividend FROM dividends"),
     staking=PDataFrame("SELECT id, date, ticker, volume FROM staking"),
@@ -217,12 +217,13 @@ async def overview(request:sanic.Request):
             pl.col("date").last(),
             pl.col("amount").filter(pl.col("amount") > 0).sum().alias("investment"),
             -pl.col("amount").filter(pl.col("amount") < 0).sum().alias("return"),
+            -pl.col("amount").filter(pl.col("amount").lt(0) & pl.col("reinvested").eq(1)).sum().alias("reinvested"),
             (pl.col("value").last() + pl.col("amount").filter(pl.col("date") >= pl.col("date_right")).sum()).alias("value"),
             pl.col("fee").sum().alias("fees"),
         )
         .join(dfs.instruments.df, "ticker", "left")
         .select(
-            "ticker", "type", "currency", "investment", "return", "fees", "value",
+            "ticker", "type", "currency", "investment", "return", "reinvested", "fees", "value",
             (pl.col("return") + pl.col("value") - pl.col("investment")).alias("total_profit")
         )
     )
@@ -255,6 +256,7 @@ async def overview(request:sanic.Request):
             (pl.col("volume") * pl.col("price")).filter(pl.col("volume") > 0).sum().alias("fx_investment"),
             (pl.col("volume") * pl.col("price") / pl.col("rate")).filter(pl.col("volume") > 0).sum().alias("investment"),
             -(pl.col("volume") * pl.col("price") / pl.col("rate")).filter(pl.col("volume") < 0).sum().alias("return"),
+            -(pl.col("volume") * pl.col("price") / pl.col("rate")).filter(pl.col("volume").lt(0) & pl.col("reinvested").eq(1)).sum().alias("reinvested"),
             pl.col("fee").sum().alias("fees"),
         )
         .join(last_price, "ticker", "left")
@@ -264,7 +266,7 @@ async def overview(request:sanic.Request):
         .with_columns((pl.col("trade_volume") + pl.col("staking_volume")).alias("volume"))
         .select(
             "ticker", "name", "type", "currency", "dividend_currency", "last_price",
-            "investment", "return", "fees", "volume",
+            "investment", "return", "reinvested", "fees", "volume",
             pl.when(pl.col("buy_volume").gt(0)).then(pl.col("fx_investment") / pl.col("buy_volume")).otherwise(None).alias("average_price"),
             (pl.col("volume") * pl.col("last_price") * pl.col("fx_rate")).alias("value"),
             (pl.col("trade_volume") * pl.col("last_price") * pl.col("fx_rate")).alias("trade_value"),
@@ -661,7 +663,7 @@ async def types_new(request:sanic.Request):
 
 @app.get("/trades/list")
 async def trades_list(request:sanic.Request):
-    resp = dfs.trades.df.join(dfs.instruments.df, on='ticker').select('id', 'date', 'ticker', 'volume', 'price', 'fee', 'rate', 'currency')
+    resp = dfs.trades.df.join(dfs.instruments.df, on='ticker').select('id', 'date', 'ticker', 'volume', 'price', 'fee', 'rate', 'currency', 'reinvested')
     return sanic.response.json(resp.sort('date', descending=True).to_dicts())
 
 
@@ -670,9 +672,9 @@ async def trades_new(request:sanic.Request):
     data = request.json
     cursor = db.cursor()
     cursor.execute('''
-        INSERT INTO trades(date, ticker, volume, price, fee, rate)
-        VALUES (?, ?, ?, ?, ?, ?)''',
-        [data['date'], data['ticker'], data['volume'], data['price'], data['fee'], data['rate']]
+        INSERT INTO trades(date, ticker, volume, price, fee, rate, reinvested)
+        VALUES (?, ?, ?, ?, ?, ?, ?)''',
+        [data['date'], data['ticker'], data['volume'], data['price'], data['fee'], data['rate'], data['reinvested']]
     )
     db.commit()
     dfs.trades.reload()
@@ -702,7 +704,7 @@ async def values_new(request:sanic.Request):
 
 @app.get("/deposits/list")
 async def deposits_list(request:sanic.Request):
-    resp = dfs.deposits.df.join(dfs.instruments.df, on='ticker').select('date', 'ticker', 'amount', 'fee', 'currency')
+    resp = dfs.deposits.df.join(dfs.instruments.df, on='ticker').select('date', 'ticker', 'amount', 'fee', 'currency', 'reinvested')
     return sanic.response.json(resp.sort('date', descending=True).to_dicts())
 
 
@@ -711,7 +713,7 @@ async def deposits_new(request:sanic.Request):
     data = request.json
     cursor = db.cursor()
     cursor.execute(
-        'INSERT INTO "deposits"(date, ticker, amount, fee) VALUES (?, ?, ?, ?)',
+        'INSERT INTO "deposits"(date, ticker, amount, fee, reinvested) VALUES (?, ?, ?, ?, ?)',
         [data['date'], data['ticker'], data['amount'], data['fee']],
     )
     db.commit()

@@ -1,8 +1,9 @@
 import React from 'react';
 import { AbstractSection, numberIsValid, SectionProps } from '../../common';
-import { Table, TableBody, TableHead, TableContainer, TableRow, TableCell, Box, IconButton, FormControl, Select, InputLabel, MenuItem } from '@mui/material';
+import { Table, TableBody, TableHead, TableContainer, TableRow, TableCell, Box, IconButton, FormControl, Select, InputLabel, MenuItem, Checkbox } from '@mui/material';
 import TextField from '@mui/material/TextField';
-import { AddBox } from '@mui/icons-material';
+import RecyclingIcon from '@mui/icons-material/Recycling';
+import { AddBox, Check } from '@mui/icons-material';
 import { InstrumentDataRow } from '../Settings';
 
 
@@ -12,6 +13,7 @@ interface DataRow {
     amount: number;
     fee: number;
     currency: string;
+    reinvested: number;
 }
 
 interface NewDataRow {
@@ -21,6 +23,7 @@ interface NewDataRow {
     amountValid: boolean;
     fee: string;
     feeValid: boolean;
+    reinvested: number;
 }
 
 type DepositsResponse = Array<DataRow>;
@@ -47,6 +50,7 @@ class NewDepositTableRow extends React.Component<NewDepositProps, NewDataRow> {
             amountValid: true,
             fee: '0',
             feeValid: true,
+            reinvested: 0,
         };
     }
 
@@ -87,6 +91,11 @@ class NewDepositTableRow extends React.Component<NewDepositProps, NewDataRow> {
                 <TextField label="Fee" value={this.state.fee} variant="outlined" size='small' margin='none' fullWidth
                 onChange={(e) => this.setState({fee: e.target.value, feeValid: numberIsValid(e.target.value)})}
                 error={!this.state.feeValid} />
+            </TableCell>
+            <TableCell>
+                <RecyclingIcon style={{verticalAlign: 'middle'}}/>
+                <Checkbox checked={this.state.reinvested === 1} size='small'
+                onChange={(e) => this.setState({reinvested: e.target.checked ? 1 : 0})} />
             </TableCell>
             <TableCell><IconButton disabled={!this.validate()} onClick={e => this.props.addDeposit(this.state)}><AddBox/></IconButton></TableCell>
         </TableRow>
@@ -155,7 +164,8 @@ export class Deposits extends AbstractSection<DepositsProps, DepositsState> {
                                 <TableCell>{item.date}</TableCell>
                                 <TableCell>{item.ticker}</TableCell>
                                 <TableCell>{this.formatCurrency(item.amount, {currency: item.currency})}</TableCell>
-                                <TableCell colSpan={2}>{this.formatCurrency(item.fee, {currency: item.currency})}</TableCell>
+                                <TableCell>{this.formatCurrency(item.fee, {currency: item.currency})}</TableCell>
+                                <TableCell colSpan={2}>{item.reinvested === 1 ? <Check/> : null}</TableCell>
                             </TableRow>
                         )}
                     </TableBody>
