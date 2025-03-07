@@ -68,7 +68,7 @@ class Dfs:
 
 
 dfs = Dfs(
-    instruments=PDataFrame("SELECT ticker, name, currency, type, dividend_currency FROM instruments"),
+    instruments=PDataFrame("SELECT ticker, name, currency, type, dividend_currency, evaluation, eval_param FROM instruments"),
     trades=PDataFrame("SELECT id, date, ticker, volume, price, fee, rate, reinvested FROM trades"),
     deposits=PDataFrame("SELECT id, date, ticker, amount, fee, reinvested FROM deposits"),
     values=PDataFrame("SELECT date, ticker, value FROM \"values\""),
