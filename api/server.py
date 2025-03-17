@@ -714,7 +714,7 @@ async def deposits_new(request:sanic.Request):
     cursor = db.cursor()
     cursor.execute(
         'INSERT INTO "deposits"(date, ticker, amount, fee, reinvested) VALUES (?, ?, ?, ?, ?)',
-        [data['date'], data['ticker'], data['amount'], data['fee']],
+        [data['date'], data['ticker'], data['amount'], data['fee'], data['reinvested']],
     )
     db.commit()
     dfs.deposits.reload()
