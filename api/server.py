@@ -14,6 +14,7 @@ import sanic
 from sanic_ext import Config
 import sanic.response
 import yfinance
+import polygon
 import polars as pl
 
 FILE_PATH = os.path.dirname(__file__)
@@ -32,6 +33,7 @@ class PortfolioConfig:
     db: str
     base_currency: str
     language_locale: str
+    polygon_api_key: str
 
 with open(os.path.join(FILE_PATH, '../config.json')) as f:
     config = PortfolioConfig(**json.load(f))
@@ -95,7 +97,7 @@ async def historical_update(request:sanic.Request):
         SELECT tt.ticker, min(date) as first_date, sum(volume) as volume, it.evaluation, it.eval_param
         FROM trades AS tt
         JOIN instruments AS it ON it.ticker = tt.ticker
-        WHERE it.evaluation = 'yfinance' OR it.evaluation = 'http'
+        WHERE it.evaluation != 'manual'
         GROUP BY tt.ticker
         HAVING volume > 0
     ''')
@@ -128,6 +130,35 @@ async def historical_update(request:sanic.Request):
                 cursor.executemany(sql, [
                     (date.strftime('%Y-%m-%d'), ticker, row['Open'], row['High'], row['Low'], row['Close'], row['Dividends'], row['Stock Splits'])
                     for date, row in df.iterrows()
+                ])
+            
+            elif ticker_info['evaluation'] == 'polygon':
+                polygon_client = polygon.RESTClient(config.polygon_api_key)
+                aggs = []
+                for a in polygon_client.list_aggs(
+                    ticker_info['eval_param'] if ticker_info['eval_param'] else ticker,
+                    1,
+                    'day',
+                    ticker_info['first_date'],
+                    datetime.datetime.now().strftime('%Y-%m-%d'),
+                    limit=50000,
+                    adjusted=True,
+                    sort='asc',
+                ):
+                    aggs.append(a)
+                    
+                cursor.executemany(sql, [
+                    (
+                        datetime.datetime.fromtimestamp(d['t']/1000).strftime('%Y-%m-%d'),
+                        ticker,
+                        d['o'],
+                        d['h'],
+                        d['l'],
+                        d['c'],
+                        0,
+                        0,
+                    )
+                    for d in aggs
                 ])
 
             elif ticker_info['evaluation'] == 'http':
