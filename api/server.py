@@ -313,28 +313,55 @@ async def overview(request:sanic.Request):
     return sanic.response.json(overview.to_dicts())
 
 
-@app.get("/test2")
-async def test2(request:sanic.Request):
-    d = (    
+@app.get("/investments")
+async def investments(request:sanic.Request):
+    query_span = request.args.get('span', 'year')
+    if query_span not in ['year', 'month']:
+        return sanic.response.json({'error': 'Invalid span value. Use "year" or "month".'}, status=400)
+    t = (    
         dfs.trades.df
         .with_columns(
             pl.col('date').str.to_date(),
             pl.col('date').str.to_date().dt.year().alias('year'),
-            pl.col('volume').cum_sum().over('ticker', order_by='date').alias('cum_volume'),
-            (pl.col('volume').cum_sum().over('ticker', order_by='date')*pl.col('price')/pl.col('rate')).alias('value'),
-            (1 - (pl.col('date').str.to_date().dt.ordinal_day() - 1)/365).alias('weight'),
+            pl.col('date').str.to_date().dt.strftime('%Y-%m').alias('month'),
+            (pl.col('volume')*pl.col('price')/pl.col('rate')).alias('invested'),
         )
-        .sort('date')
-        .group_by('ticker', 'year')
+        .group_by(query_span)
         .agg(
-            (pl.col('cum_volume').last() - pl.col("volume").sum()).alias('start_volume'),
-            (pl.col('cum_volume').last()).alias('end_volume'),
-            (pl.col('value')*pl.col('weight')).sum().alias('value_weighted'),
-            -(pl.col("volume") * pl.col("price") / pl.col("rate")).filter(pl.col("volume") < 0).sum().alias("return_year"),
+            pl.col('invested').sum().alias('invested')
         )
-        .sort('ticker', 'year')
+        .select(query_span, 'invested')
+        .sort(query_span)
     )
-    return sanic.response.json(d.to_dicts())
+    d = (
+        dfs.deposits.df
+        .with_columns(
+            pl.col('date').str.to_date(),
+            pl.col('date').str.to_date().dt.year().alias('year'),
+            pl.col('date').str.to_date().dt.strftime('%Y-%m').alias('month'),
+        )
+        .group_by(query_span)
+        .agg(
+            pl.col('amount').sum().alias('deposited')
+        )
+        .select(query_span, 'deposited')
+        .sort(query_span)
+    )
+    result = (
+        t.join(d, on=query_span, how='outer')
+        .with_columns(
+            pl.when(pl.col(query_span).is_not_null()).then(pl.col(query_span)).otherwise(pl.col(f'{query_span}_right')).alias(query_span),
+            pl.col('invested').fill_null(0),
+            pl.col('deposited').fill_null(0),
+
+        )
+        .with_columns(
+            (pl.col('invested') + pl.col('deposited')).alias('total')
+        )
+        .sort(query_span)
+        .select(query_span, 'invested', 'deposited', 'total')
+    )
+    return sanic.response.json(result.to_dicts())
 
 
 @app.get("/test")
