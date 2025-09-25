@@ -722,7 +722,7 @@ async def types_new(request:sanic.Request):
 @app.get("/trades/list")
 async def trades_list(request:sanic.Request):
     resp = dfs.trades.df.join(dfs.instruments.df, on='ticker').select('id', 'date', 'ticker', 'volume', 'price', 'fee', 'rate', 'currency', 'reinvested')
-    return sanic.response.json(resp.sort('date', descending=True).to_dicts())
+    return sanic.response.json(resp.sort('date', 'id', descending=True).to_dicts())
 
 
 @app.post("/trades/new")
@@ -762,8 +762,8 @@ async def values_new(request:sanic.Request):
 
 @app.get("/deposits/list")
 async def deposits_list(request:sanic.Request):
-    resp = dfs.deposits.df.join(dfs.instruments.df, on='ticker').select('date', 'ticker', 'amount', 'fee', 'currency', 'reinvested')
-    return sanic.response.json(resp.sort('date', descending=True).to_dicts())
+    resp = dfs.deposits.df.join(dfs.instruments.df, on='ticker').select('id', 'date', 'ticker', 'amount', 'fee', 'currency', 'reinvested')
+    return sanic.response.json(resp.sort('date', 'id', descending=True).to_dicts())
 
 
 @app.post("/deposits/new")
@@ -781,7 +781,7 @@ async def deposits_new(request:sanic.Request):
 
 @app.get("/staking/list")
 async def staking_list(request:sanic.Request):
-    return sanic.response.json(dfs.staking.df.sort('date', descending=True).to_dicts())
+    return sanic.response.json(dfs.staking.df.sort('date', 'id', descending=True).to_dicts())
 
 
 @app.post("/staking/new")
