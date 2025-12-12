@@ -127,7 +127,7 @@ export class Deposits extends AbstractSection<DepositsProps, DepositsState> {
     }
 
     loadInstruments = () => {
-        return fetch('/instruments/list')
+        return fetch('/instruments/list?active=1')
             .then<Array<InstrumentDataRow>>(res => res.json())
             .then(instruments => this.setState({instruments}));
     }

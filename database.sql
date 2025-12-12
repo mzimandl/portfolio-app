@@ -14,6 +14,7 @@ create table instruments(
 	evaluation TEXT CHECK (evaluation IN ('yfinance', 'manual', 'http')) NOT NULL,
 	eval_param TEXT,
 	dividend_currency TEXT,
+	active INTEGER DEFAULT 1,
 	FOREIGN KEY(currency) REFERENCES currencies(name),
 	FOREIGN KEY(type) REFERENCES types(name),
 	FOREIGN KEY(dividend_currency) REFERENCES currencies(name)
@@ -26,9 +27,22 @@ create table trades(
 	volume REAL NOT NULL,
 	price REAL NOT NULL,
 	fee REAL DEFAULT 0,
-	rate REAL DEFAULT 1,
+	base_rate REAL DEFAULT 1,
 	reinvested INTEGER DEFAULT 0,
 	FOREIGN KEY(ticker) REFERENCES instruments(ticker)
+);
+
+create table crypto(
+	id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+	date TEXT NOT NULL,
+	ticker TEXT NOT NULL,
+	volume REAL NOT NULL,
+	price REAL NOT NULL,
+	currency TEXT NOT NULL,
+	base_rate REAL DEFAULT 1,
+	reinvested INTEGER DEFAULT 0,
+	FOREIGN KEY(ticker) REFERENCES instruments(ticker),
+	FOREIGN KEY(currency) REFERENCES currencies(name)
 );
 
 create table staking(

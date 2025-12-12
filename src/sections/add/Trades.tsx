@@ -13,7 +13,7 @@ interface DataRow {
     volume: number;
     price: number;
     fee: number;
-    rate: number;
+    baseRate: number;
     currency: string;
     reinvested: number;
 }
@@ -27,8 +27,8 @@ interface NewDataRow {
     priceValid: boolean;
     fee: string;
     feeValid: boolean;
-    rate: string;
-    rateValid: boolean;
+    baseRate: string;
+    baseRateValid: boolean;
     reinvested: number;
 }
 
@@ -58,14 +58,14 @@ class NewTradeTableRow extends React.Component<NewTradeTableRowProps, NewDataRow
             priceValid: true,
             fee: '0',
             feeValid: true,
-            rate: '1',
-            rateValid: true,
+            baseRate: '1',
+            baseRateValid: true,
             reinvested: 0,
         }
     }
 
     validate() {
-        return !!this.state.date && !!this.state.ticker && this.state.volumeValid && this.state.priceValid && this.state.feeValid && this.state.rateValid;
+        return !!this.state.date && !!this.state.ticker && this.state.volumeValid && this.state.priceValid && this.state.feeValid && this.state.baseRateValid;
     }
 
     render() {
@@ -103,9 +103,9 @@ class NewTradeTableRow extends React.Component<NewTradeTableRowProps, NewDataRow
                 error={!this.state.priceValid} />
             </TableCell>
             <TableCell>
-                <TextField value={this.state.rate} label="Exchange rate" variant="outlined" size='small' margin='none' fullWidth
-                onChange={(e) => this.setState({rate: e.target.value, rateValid: numberIsValid(e.target.value)})}
-                error={!this.state.rateValid} />
+                <TextField value={this.state.baseRate} label="Base rate" variant="outlined" size='small' margin='none' fullWidth
+                onChange={(e) => this.setState({baseRate: e.target.value, baseRateValid: numberIsValid(e.target.value)})}
+                error={!this.state.baseRateValid} />
             </TableCell>
             <TableCell>
                 <TextField value={this.state.fee} label="Fee" variant="outlined" size='small' margin='none' fullWidth
@@ -147,7 +147,7 @@ export class Trades extends AbstractSection<TradesProps, TradesState> {
     }
 
     loadInstruments = () => {
-        return fetch('/instruments/list')
+        return fetch('/instruments/list?active=1')
             .then<InstrumentsResponse>(res => res.json())
             .then(instruments => this.setState({instruments}));
     }
@@ -185,7 +185,7 @@ export class Trades extends AbstractSection<TradesProps, TradesState> {
                                 <TableCell>{item.ticker}</TableCell>
                                 <TableCell>{item.volume}</TableCell>
                                 <TableCell>{this.formatCurrency(item.price, {currency: item.currency})}</TableCell>
-                                <TableCell>{this.formatCurrency(item.rate, {currency: item.currency})}</TableCell>
+                                <TableCell>{this.formatCurrency(item.baseRate, {currency: item.currency})}</TableCell>
                                 <TableCell>{this.formatCurrency(item.fee)}</TableCell>
                                 <TableCell colSpan={2}>{item.reinvested === 1 ? <Check/> : null}</TableCell>
                             </TableRow>

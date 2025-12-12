@@ -26,8 +26,8 @@ export abstract class AbstractSection<P = {}, S = {}, SS = {}> extends React.Com
     }
 
     formatCurrency(value: number, options?: {currency?: string, signed?: boolean}): string|null {
-        if (value && (this.props.config.base_currency || options?.currency))
-            return value.toLocaleString(
+        if (this.props.config.base_currency || options?.currency)
+            return (value || 0).toLocaleString(
                 this.props.config.language_locale,
                 {
                     style: 'currency',
@@ -39,14 +39,12 @@ export abstract class AbstractSection<P = {}, S = {}, SS = {}> extends React.Com
     }
 
     formatPercents(value: number, options?: {signed?: boolean}): string|null {
-        if (value)
-            return value.toLocaleString(
-                this.props.config.language_locale,
-                {
-                    style: 'percent', minimumFractionDigits: 1,
-                    signDisplay: options?.signed ? "exceptZero" : "auto",
-                }
-            );
-        return null;
+        return (value || 0).toLocaleString(
+            this.props.config.language_locale,
+            {
+                style: 'percent', minimumFractionDigits: 1,
+                signDisplay: options?.signed ? "exceptZero" : "auto",
+            }
+        );
     }
 }

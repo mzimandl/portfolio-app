@@ -1,8 +1,8 @@
 import React from 'react';
 import { AbstractSection, SectionProps } from '../common';
-import { Table, TableBody, TableHead, TableContainer, TableRow, TableCell, Box, IconButton, FormControl, Grid2 as Grid, InputLabel, Select, MenuItem, Autocomplete, CardContent, Card } from '@mui/material';
+import { Table, TableBody, TableHead, TableContainer, TableRow, TableCell, Box, IconButton, FormControl, Grid2 as Grid, InputLabel, Select, MenuItem, Autocomplete, CardContent, Card, Checkbox } from '@mui/material';
 import TextField from '@mui/material/TextField';
-import { AddBox } from '@mui/icons-material';
+import { AddBox, Check } from '@mui/icons-material';
 
 
 type EvaluationType = 'yfinance'|'manual'|'http';
@@ -15,6 +15,7 @@ export interface InstrumentDataRow {
     evaluation: EvaluationType;
     eval_param: string;
     dividend_currency: string;
+    active: number;
 }
 
 export interface NewInstrument {
@@ -25,6 +26,7 @@ export interface NewInstrument {
     evaluation: EvaluationType;
     eval_param: string|null;
     dividend_currency: string|null;
+    active: number;
 }
 
 interface SettingsState {
@@ -80,6 +82,7 @@ class NewInstrumentTableRow extends React.Component<NewInstrumentProps, NewInstr
             evaluation: 'yfinance',
             eval_param: null,
             dividend_currency: null,
+            active: 1,
         };
     }
 
@@ -135,6 +138,10 @@ class NewInstrumentTableRow extends React.Component<NewInstrumentProps, NewInstr
             <TableCell>
                 <TextField label="EvalParam" variant="outlined" size='small' margin='none' fullWidth value={this.state.eval_param}
                 onChange={(e) => this.setState({eval_param: e.target.value})} />
+            </TableCell>
+            <TableCell>
+                <Checkbox checked={this.state.active === 1} size='small'
+                onChange={(e) => this.setState({active: e.target.checked ? 1 : 0})} />
             </TableCell>
             <TableCell><IconButton onClick={e => this.props.addInstrument(this.state)}><AddBox/></IconButton></TableCell>
         </TableRow>
@@ -284,7 +291,8 @@ export class Settings extends AbstractSection<SettingsProps, SettingsState> {
                                                 <TableCell>{item.dividend_currency}</TableCell>
                                                 <TableCell>{item.type}</TableCell>
                                                 <TableCell>{item.evaluation}</TableCell>
-                                                <TableCell colSpan={2}>{item.eval_param}</TableCell>
+                                                <TableCell>{item.eval_param}</TableCell>
+                                                <TableCell colSpan={2}>{item.active === 1 ? <Check/> : null}</TableCell>
                                             </TableRow>
                                         )}
                                     </TableBody>

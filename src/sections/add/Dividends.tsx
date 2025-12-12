@@ -104,7 +104,7 @@ export class Dividends extends AbstractSection<DividendsProps, DividendsState> {
     }
 
     loadInstruments = () => {
-        return fetch('/instruments/list')
+        return fetch('/instruments/list?active=1')
             .then<InstrumentsResponse>(res => res.json())
             .then(instruments => this.setState({
                 instruments: instruments.filter(item => !!item.dividend_currency)
