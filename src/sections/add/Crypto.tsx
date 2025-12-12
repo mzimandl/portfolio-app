@@ -91,7 +91,7 @@ class NewCryptoTableRow extends React.Component<NewCryptoTableRowProps, NewDataR
                         error={!this.state.ticker}
                     >
                         {this.props.instruments
-                            .filter(v => v.evaluation !== 'manual')
+                            .filter(v => v.type === 'crypto')
                             .map(v => <MenuItem key={v.ticker} value={v.ticker}>{v.ticker}</MenuItem>)
                         }
                     </Select>

@@ -86,7 +86,7 @@ class NewTradeTableRow extends React.Component<NewTradeTableRowProps, NewDataRow
                         error={!this.state.ticker}
                     >
                         {this.props.instruments
-                            .filter(v => v.evaluation !== 'manual')
+                            .filter(v => v.evaluation !== 'manual' && v.type !== 'crypto')
                             .map(v => <MenuItem key={v.ticker} value={v.ticker}>{v.ticker}</MenuItem>)
                         }
                     </Select>
