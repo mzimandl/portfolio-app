@@ -39,6 +39,7 @@ create table crypto(
 	volume REAL NOT NULL,
 	price REAL NOT NULL,
 	currency TEXT NOT NULL,
+	fee REAL DEFAULT 0,
 	base_rate REAL DEFAULT 1,
 	reinvested INTEGER DEFAULT 0,
 	FOREIGN KEY(ticker) REFERENCES instruments(ticker),

@@ -61,6 +61,7 @@ class PDataFrame:
 class Dfs:
     instruments: PDataFrame
     trades: PDataFrame
+    crypto: PDataFrame
     deposits: PDataFrame
     values: PDataFrame
     dividends: PDataFrame
@@ -72,6 +73,7 @@ class Dfs:
 dfs = Dfs(
     instruments=PDataFrame("SELECT ticker, name, currency, type, dividend_currency, evaluation, eval_param, active FROM instruments"),
     trades=PDataFrame("SELECT id, date, ticker, volume, price, fee, base_rate, reinvested FROM trades"),
+    crypto=PDataFrame("SELECT id, date, ticker, volume, price, currency, fee, base_rate, reinvested FROM crypto"),
     deposits=PDataFrame("SELECT id, date, ticker, amount, fee, reinvested FROM deposits"),
     values=PDataFrame("SELECT date, ticker, value FROM \"values\""),
     dividends=PDataFrame("SELECT id, date, ticker, dividend FROM dividends"),
@@ -94,8 +96,15 @@ async def last(request:sanic.Request):
 async def historical_update(request:sanic.Request):
     cursor = db.cursor()
     cursor.execute('''
-        SELECT tt.ticker, min(date) as first_date, sum(volume) as volume, it.evaluation, it.eval_param
-        FROM trades AS tt
+        SELECT tt.ticker, first_date, volume, it.evaluation, it.eval_param
+        FROM
+        (
+            SELECT ticker, min(date) as first_date, sum(volume) as volume
+            FROM trades
+            UNION
+            SELECT ticker, min(date) as first_date, sum(volume) as volume
+            FROM crypto
+        ) tt
         JOIN instruments AS it ON it.ticker = tt.ticker
         WHERE it.evaluation != 'manual' and it.active == 1
         GROUP BY tt.ticker
@@ -199,6 +208,8 @@ async def fx_update(request:sanic.Request):
     cursor = db.cursor()
     cursor.execute('SELECT min(date) as first_trade FROM trades')
     first_trade = datetime.datetime(*tuple(int(t) for t in (cursor.fetchone())['first_trade'].split('-')))
+    cursor.execute('SELECT min(date) as first_crypto FROM crypto')
+    first_crypto = datetime.datetime(*tuple(int(t) for t in (cursor.fetchone())['first_crypto'].split('-')))
 
     cursor.execute('SELECT DISTINCT currency FROM instruments WHERE active == 1')
     currencies = [d['currency'] for d in cursor]
@@ -219,7 +230,7 @@ async def fx_update(request:sanic.Request):
             try:
                 ticker = get_yfinance_fx_ticker(currency, config.base_currency)
                 yticker = yfinance.Ticker(ticker)
-                df = yticker.history(start=first_trade if ticker not in last_fx else last_fx[ticker])
+                df = yticker.history(start=min(first_trade, first_crypto) if ticker not in last_fx else last_fx[ticker])
                 cursor.executemany(sql, [
                     (date.strftime('%Y-%m-%d'), currency, config.base_currency, row['Open'], row['High'], row['Low'], row['Close'])
                     for date, row in df.iterrows()
@@ -317,7 +328,52 @@ async def overview(request:sanic.Request):
         .join(total_dividends_df, on="ticker", how="left")
     )
 
-    overview = pl.concat([tradeables, valuables], how="diagonal").sort("ticker")
+    cryptos = (
+        dfs.crypto.df
+        .group_by("ticker", pl.col("currency").alias("buy_currency")).agg(
+            pl.col("volume").sum().alias("trade_volume"),
+            pl.col("volume").filter(pl.col("volume") > 0).sum().alias("buy_volume"),
+            (pl.col("volume") * pl.col("price")).filter(pl.col("volume") > 0).sum().alias("fx_investment"),
+            (pl.col("volume") * pl.col("price") / pl.col("base_rate")).filter(pl.col("volume") > 0).sum().alias("investment"),
+            -(pl.col("volume") * pl.col("price") / pl.col("base_rate")).filter(pl.col("volume") < 0).sum().alias("return"),
+            -(pl.col("volume") * pl.col("price") / pl.col("base_rate")).filter(pl.col("volume").lt(0) & pl.col("reinvested").eq(1)).sum().alias("reinvested"),
+            pl.col("fee").sum().alias("fees"),
+        )
+        .join(last_price, "ticker", "left")
+        .join(dfs.instruments.df, "ticker", "left")
+        .filter(pl.col("active") == 1)
+        .join(last_fx, None, "left", left_on="buy_currency", right_on="from_curr").with_columns(pl.col("fx_rate").fill_null(1).alias("buy_fx_rate"))
+        .join(last_fx, None, "left", left_on="currency", right_on="from_curr").with_columns(pl.col("fx_rate").fill_null(1))
+        .join(total_staking_df, "ticker", "left").with_columns(pl.col("staking_volume").fill_null(0))
+        .with_columns((pl.col("trade_volume") + pl.col("staking_volume")).alias("volume"))
+        .select(
+            "ticker", "name", "type", "currency", "dividend_currency", "last_price",
+            "investment", "return", "reinvested", "fees", "volume", "fx_rate", "buy_volume",
+            pl.when(pl.col("buy_volume").gt(0)).then(pl.col("fx_investment")*pl.col("buy_fx_rate")).otherwise(None).alias("base_fx_investment"),
+            (pl.col("volume") * pl.col("last_price") * pl.col("fx_rate")).alias("value"),
+            (pl.col("trade_volume") * pl.col("last_price") * pl.col("fx_rate")).alias("trade_value"),
+            (pl.col("fx_investment") * pl.col("buy_fx_rate") - pl.col("investment")).alias("fx_profit"),
+            (pl.col("staking_volume") * pl.col("last_price") * pl.col("fx_rate")).alias("rewards"),
+        )
+        .with_columns((pl.col("value") + pl.col("return") - pl.col("investment")).alias("total_profit"))
+        .with_columns((pl.col("total_profit") - pl.col("rewards") - pl.col("fx_profit")).alias("value_profit"))
+        .group_by("ticker", "name", "type", "currency", "dividend_currency", "last_price").agg(
+            (pl.col("base_fx_investment").sum() / (pl.col("fx_rate").first() * pl.col("buy_volume").sum())).alias("average_price"),
+            pl.col("investment").sum().alias("investment"),
+            pl.col("return").sum().alias("return"),
+            pl.col("reinvested").sum().alias("reinvested"),
+            pl.col("fees").sum().alias("fees"),
+            pl.col("volume").sum().alias("volume"),
+            pl.col("value").sum().alias("value"),
+            pl.col("trade_value").sum().alias("trade_value"),
+            pl.col("fx_profit").sum().alias("fx_profit"),
+            pl.col("rewards").sum().alias("rewards"),
+            pl.col("total_profit").sum().alias("total_profit"),
+            pl.col("value_profit").sum().alias("value_profit"),
+        )
+    )
+
+    overview = pl.concat([tradeables, cryptos, valuables], how="diagonal").sort("ticker")
     return sanic.response.json(overview.to_dicts())
 
 
@@ -328,6 +384,8 @@ async def investments(request:sanic.Request):
         return sanic.response.json({'error': 'Invalid span value. Use "year" or "month".'}, status=400)
     t = (    
         dfs.trades.df
+        .join(dfs.instruments.df.select('ticker', 'active'), 'ticker', 'left')
+        .filter(pl.col('active') == 1)
         .with_columns(
             pl.col('date').str.to_date(),
             pl.col('date').str.to_date().dt.year().alias('year'),
@@ -341,8 +399,27 @@ async def investments(request:sanic.Request):
         .select(query_span, 'invested')
         .sort(query_span)
     )
+    c = (    
+        dfs.crypto.df
+        .join(dfs.instruments.df.select('ticker', 'active'), 'ticker', 'left')
+        .filter(pl.col('active') == 1)
+        .with_columns(
+            pl.col('date').str.to_date(),
+            pl.col('date').str.to_date().dt.year().alias('year'),
+            pl.col('date').str.to_date().dt.strftime('%Y-%m').alias('month'),
+            (pl.col('volume')*pl.col('price')/pl.col('base_rate')).alias('crypto_invested'),
+        )
+        .group_by(query_span)
+        .agg(
+            pl.col('crypto_invested').sum().alias('crypto_invested')
+        )
+        .select(query_span, 'crypto_invested')
+        .sort(query_span)
+    )
     d = (
         dfs.deposits.df
+        .join(dfs.instruments.df.select('ticker', 'active'), 'ticker', 'left')
+        .filter(pl.col('active') == 1)
         .with_columns(
             pl.col('date').str.to_date(),
             pl.col('date').str.to_date().dt.year().alias('year'),
@@ -357,17 +434,22 @@ async def investments(request:sanic.Request):
     )
     result = (
         t.join(d, on=query_span, how='outer')
+        .select(
+            pl.when(pl.col(query_span).is_not_null()).then(pl.col(query_span)).otherwise(pl.col(f'{query_span}_right')).alias(query_span),
+            'invested', 'deposited',
+        )
+        .join(c, on=query_span, how='outer')
         .with_columns(
             pl.when(pl.col(query_span).is_not_null()).then(pl.col(query_span)).otherwise(pl.col(f'{query_span}_right')).alias(query_span),
             pl.col('invested').fill_null(0),
+            pl.col('crypto_invested').fill_null(0),
             pl.col('deposited').fill_null(0),
-
         )
         .with_columns(
-            (pl.col('invested') + pl.col('deposited')).alias('total')
+            (pl.col('invested') + pl.col('crypto_invested') + pl.col('deposited')).alias('total')
         )
         .sort(query_span)
-        .select(query_span, 'invested', 'deposited', 'total')
+        .select(query_span, 'invested', 'crypto_invested', 'deposited', 'total')
     )
     return sanic.response.json(result.to_dicts())
 
@@ -671,7 +753,7 @@ async def prices(request:sanic.Request):
 
 @app.get("/instruments/list")
 async def instruments_list(request:sanic.Request):
-    active = int(request.args.get('active'))
+    active = int(request.args.get('active')) if request.args.get('active') else None
     if active:
         sanic.response.json(dfs.instruments.df.sort('ticker').filter(pl.col("active") == active).to_dicts())
     return sanic.response.json(dfs.instruments.df.sort('ticker').to_dicts())
@@ -749,6 +831,26 @@ async def trades_new(request:sanic.Request):
     )
     db.commit()
     dfs.trades.reload()
+    return sanic.response.json({'success': True})
+
+
+@app.get("/crypto/list")
+async def crypto_list(request:sanic.Request):
+    resp = dfs.crypto.df.join(dfs.instruments.df.select('ticker', 'active'), on='ticker').filter(pl.col("active") == 1).select('id', 'date', 'ticker', 'volume', 'price', 'fee', pl.col('base_rate').alias('baseRate'), 'currency', 'reinvested')
+    return sanic.response.json(resp.sort('date', 'id', descending=True).to_dicts())
+
+
+@app.post("/crypto/new")
+async def crypto_new(request:sanic.Request):
+    data = request.json
+    cursor = db.cursor()
+    cursor.execute('''
+        INSERT INTO crypto(date, ticker, volume, price, currency, fee, base_rate, reinvested)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)''',
+        [data['date'], data['ticker'], data['volume'], data['price'], data['currency'], data['fee'], data['baseRate'], data['reinvested']]
+    )
+    db.commit()
+    dfs.crypto.reload()
     return sanic.response.json({'success': True})
 
 
