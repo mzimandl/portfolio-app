@@ -1,5 +1,6 @@
 {
     "db": "../portfolio.db",
     "language_locale": "cs",
-    "base_currency": "CZK"
+    "base_currency": "CZK",
+    "polygon_api_key": "XXXXXXXXXXXXXXXXXXXXXXX"
 }
