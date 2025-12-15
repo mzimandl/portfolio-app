@@ -101,9 +101,11 @@ async def historical_update(request:sanic.Request):
         (
             SELECT ticker, min(date) as first_date, sum(volume) as volume
             FROM trades
+            GROUP BY ticker
             UNION
             SELECT ticker, min(date) as first_date, sum(volume) as volume
             FROM crypto
+            GROUP BY ticker
         ) tt
         JOIN instruments AS it ON it.ticker = tt.ticker
         WHERE it.evaluation != 'manual' and it.active == 1
