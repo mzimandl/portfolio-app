@@ -140,7 +140,7 @@ async def historical_update(request:sanic.Request):
                 df = yticker.history(start=ticker_info['first_date'] if 'last_date' not in ticker_info else ticker_info['last_date'])
                 cursor.executemany(sql, [
                     (date.strftime('%Y-%m-%d'), ticker, row['Open'], row['High'], row['Low'], row['Close'], row['Dividends'], row['Stock Splits'])
-                    for date, row in df.iterrows()
+                    for date, row in df.dropna().iterrows()
                 ])
             
             elif ticker_info['evaluation'] == 'polygon':
@@ -235,7 +235,7 @@ async def fx_update(request:sanic.Request):
                 df = yticker.history(start=min(first_trade, first_crypto) if ticker not in last_fx else last_fx[ticker])
                 cursor.executemany(sql, [
                     (date.strftime('%Y-%m-%d'), currency, config.base_currency, row['Open'], row['High'], row['Low'], row['Close'])
-                    for date, row in df.iterrows()
+                    for date, row in df.dropna().iterrows()
                 ])
                 db.commit()
             except Exception as e:
