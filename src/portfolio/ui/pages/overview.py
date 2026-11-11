@@ -4,7 +4,7 @@ from dataclasses import asdict
 
 import streamlit as st
 
-from portfolio.core.analytics.overview import overview, summarize
+from portfolio.core.analytics.overview import OverviewRow, overview, summarize
 from portfolio.ui import common
 
 _MONEY = st.column_config.NumberColumn(format="localized")
@@ -33,9 +33,47 @@ _ROUNDED = (
     "rewards", "dividends", "fees", "net_profit",
 )  # fmt: skip
 
+_SEPARATE_COLUMNS = ["ticker", "name", "type", "currency", "value", "invested", "returned",
+                     "reinvested", "total_profit", "fees", "net_profit"]  # fmt: skip
+
 
 def _rounded(row: dict) -> dict:
     return {k: round(v) if k in _ROUNDED and v is not None else v for k, v in row.items()}
+
+
+def _headline(rows: list[OverviewRow], *, with_dividends: bool) -> None:
+    total = summarize(rows)["total"]
+    still_in = total["invested"] - total["returned"]
+    put_in = total["invested"]
+    cells = [*st.columns(3), *st.columns(3)] if with_dividends else st.columns(3)
+    cells[0].metric("Value", common.number(total["value"]))
+    cells[1].metric("Still invested" if with_dividends else "Still deposited",
+                    common.number(still_in))  # fmt: skip
+    cells[2].metric(
+        "Profit",
+        common.number(total["total_profit"], signed=True),
+        delta=common.percent(total["total_profit"] / put_in) if put_in else None,
+        help="The percentage is the profit relative to everything ever put in.",
+    )
+    if with_dividends:
+        cells[3].metric("Dividends", common.number(total["dividends"]))
+        cells[4].metric("Fees", common.number(total["fees"]))
+        cells[5].metric("Net profit", common.number(total["net_profit"], signed=True))
+    if total["missing"]:
+        st.warning(
+            "No price or exchange rate for: " + ", ".join(total["missing"])
+            + ". They count as zero in the totals."
+        )  # fmt: skip
+
+
+def _table(rows: list[OverviewRow], columns: list[str]) -> None:
+    st.dataframe(
+        [_rounded(asdict(row)) for row in rows],
+        column_config=_COLUMNS,
+        column_order=columns,
+        hide_index=True,
+        height=min(38 * (len(rows) + 1) + 2, 900),
+    )
 
 
 def render() -> None:
@@ -47,39 +85,32 @@ def render() -> None:
     if not rows:
         st.info("No transactions yet. Add instruments in Settings, then transactions.")
         return
+    investments = [row for row in rows if not common.is_separate(row.type)]
+    separate = [row for row in rows if common.is_separate(row.type)]
 
-    total = summarize(rows)["total"]
-    cells = [*st.columns(3), *st.columns(3)]
-    cells[0].metric("Value", common.number(total["value"]))
-    cells[1].metric("Still invested", common.number(total["invested"] - total["returned"]))
-    cells[2].metric("Profit", common.number(total["total_profit"], signed=True))
-    cells[3].metric("Dividends", common.number(total["dividends"]))
-    cells[4].metric("Fees", common.number(total["fees"]))
-    cells[5].metric("Net profit", common.number(total["net_profit"], signed=True))
-    st.caption(
-        f"All amounts in {base}. Profit = value + sold − bought. "
-        "Net profit adds dividends and subtracts fees."
-    )
-    if total["missing"]:
-        st.warning(
-            "No price or exchange rate for: " + ", ".join(total["missing"])
-            + ". They count as zero in the totals."
-        )  # fmt: skip
+    if investments:
+        _headline(investments, with_dividends=True)
+        st.caption(
+            f"All amounts in {base}. Profit = value + sold − bought. "
+            "Net profit adds dividends and subtracts fees."
+            + (f" {common.separate_label()} is not included here." if separate else "")
+        )
 
-    st.subheader("By type")
-    by_type = [
-        _rounded({"type": name} | {k: v for k, v in sums.items() if k != "missing"})
-        for name, sums in sorted(summarize(rows, key=lambda row: row.type).items())
-    ]
-    type_columns = ["type", "value", "invested", "returned", "total_profit", "price_profit",
-                    "fx_profit", "rewards", "dividends", "fees", "net_profit"]  # fmt: skip
-    st.dataframe(by_type, column_config=_COLUMNS, column_order=type_columns, hide_index=True)
+        st.subheader("By type")
+        by_type = [
+            _rounded({"type": name} | {k: v for k, v in sums.items() if k != "missing"})
+            for name, sums in sorted(summarize(investments, key=lambda row: row.type).items())
+        ]
+        type_columns = ["type", "value", "invested", "returned", "total_profit", "price_profit",
+                        "fx_profit", "rewards", "dividends", "fees", "net_profit"]  # fmt: skip
+        st.dataframe(by_type, column_config=_COLUMNS, column_order=type_columns, hide_index=True)
 
-    st.subheader("Instruments")
-    st.dataframe(
-        [_rounded(asdict(row)) for row in rows],
-        column_config=_COLUMNS,
-        column_order=list(_COLUMNS),
-        hide_index=True,
-        height=min(38 * (len(rows) + 1) + 2, 900),
-    )
+        st.subheader("Instruments")
+        _table(investments, list(_COLUMNS))
+
+    if separate:
+        st.header(common.separate_label())
+        _headline(separate, with_dividends=False)
+        if not investments:
+            st.caption(f"All amounts in {base}.")
+        _table(separate, _SEPARATE_COLUMNS)

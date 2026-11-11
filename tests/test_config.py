@@ -67,3 +67,12 @@ def test_rejects_bad_currency(tmp_path, value):
 def test_sample_config_is_valid():
     sample = Path(__file__).parent.parent / "config.sample.toml"
     assert load_config(sample).base_currency == "CZK"
+
+
+def test_separate_types(tmp_path):
+    assert load_config(write(tmp_path, VALID)).separate_types == ()
+    config = load_config(write(tmp_path, VALID + 'separate_types = ["savings", " pension "]\n'))
+    assert config.separate_types == ("savings", "pension")
+    for bad in ('"savings"', "[1]", '[""]'):
+        with pytest.raises(ConfigError, match="separate_types"):
+            load_config(write(tmp_path, VALID + f"separate_types = {bad}\n"))

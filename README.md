@@ -33,6 +33,7 @@ environment variable.
 | `base_currency` | Currency everything is reported in, e.g. `CZK`. |
 | `locale` | Number formatting: `cs`, `sk`, `de` or `en`. |
 | `benchmark` | Optional Yahoo symbol to compare returns against, e.g. `VWCE.DE`. |
+| `separate_types` | Optional list of instrument types reported apart from the investments, e.g. `["savings"]`. They get their own totals on the Overview and are left out of the default view of returns and charts. |
 
 ## Using it
 

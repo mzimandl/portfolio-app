@@ -311,3 +311,47 @@ def test_csv_import_refuses_files_with_errors(database):
     assert "needs the columns" in at.error[0].value
     database.rollback()
     assert len(repo.list_transactions(database)) == 3
+
+
+@pytest.fixture
+def savings_apart(database, tmp_path):
+    """The same portfolio, with savings configured as a separately reported type."""
+    with (tmp_path / "config.toml").open("a") as f:
+        f.write('separate_types = ["savings"]\n')
+    st.cache_resource.clear()
+
+
+def test_overview_keeps_separate_types_out_of_the_headline(savings_apart):
+    at = clean(run_page("overview"))
+    values = [m.value for m in at.metric if m.label == "Value"]
+    assert values == ["6\u00a0900", "1\u00a0040"]  # investments, then savings
+    profits = [(m.value, m.delta) for m in at.metric if m.label == "Profit"]
+    # AAPL: 6900 - 4400 bought; savings: 1040 - 1000 deposited
+    assert profits == [("+2\u00a0500", "+56,8\u00a0%"), ("+40", "+4,0\u00a0%")]
+    assert [h.value for h in at.header] == ["Savings"]
+    by_type, instruments, savings = at.dataframe
+    assert list(by_type.value["type"]) == ["stock"]
+    assert list(instruments.value["ticker"]) == ["AAPL"]
+    assert list(savings.value["ticker"]) == ["SAVE"]
+    assert "Savings is not included" in at.caption[0].value
+
+
+def test_returns_and_charts_default_to_investments_only(savings_apart):
+    for page, key in (("performance", "performance_scope"), ("charts", "charts_scope")):
+        at = clean(run_page(page))
+        picker = at.selectbox(key=key)
+        assert picker.value == "Investments (without savings)"
+        assert picker.options[:3] == [
+            "Investments (without savings)",
+            "All active",
+            "Everything, including inactive",
+        ]
+    at = clean(run_page("performance"))
+    without = at.metric[2].value
+    at.selectbox(key="performance_scope").select("All active").run()
+    assert clean(at).metric[2].value != without
+
+
+def test_scope_has_no_investments_entry_without_separate_types(database):
+    at = clean(run_page("charts"))
+    assert at.selectbox(key="charts_scope").options[0] == "All active"

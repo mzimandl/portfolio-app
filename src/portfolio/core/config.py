@@ -22,6 +22,8 @@ class Config:
     base_currency: str
     locale: str
     benchmark: str | None = None
+    # Instrument types reported apart from the investments (e.g. savings accounts).
+    separate_types: tuple[str, ...] = ()
 
 
 def resolve_config_path(path: str | Path | None = None) -> Path:
@@ -63,9 +65,16 @@ def load_config(path: str | Path | None = None) -> Config:
     # A relative db path is relative to the config file, not the working directory.
     db_path = (config_path.parent / Path(text("db")).expanduser()).resolve()
 
+    separate_types = data.get("separate_types", [])
+    if not isinstance(separate_types, list) or not all(
+        isinstance(name, str) and name.strip() for name in separate_types
+    ):
+        raise ConfigError(f"'separate_types' in {config_path} must be a list of type names")
+
     return Config(
         db_path=db_path,
         base_currency=base_currency,
         locale=text("locale"),
         benchmark=text("benchmark", required=False),
+        separate_types=tuple(name.strip() for name in separate_types),
     )

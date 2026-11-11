@@ -9,5 +9,9 @@ base_currency = "CZK"
 # Locale used for number and currency formatting.
 locale = "cs"
 
+# Optional: instrument types shown apart from the investments, with their own totals.
+# They are left out of the headline numbers and of the default view of returns and charts.
+separate_types = ["savings"]
+
 # Optional: Yahoo symbol to compare portfolio performance against.
 # benchmark = "VWCE.DE"

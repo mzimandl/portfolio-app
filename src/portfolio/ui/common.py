@@ -93,16 +93,35 @@ def number(value: float | None, decimals: int = 0, **kw) -> str:
 
 # --- choosing which instruments a page shows -------------------------------------------------
 
+INVESTMENTS = "Investments"
 ALL_ACTIVE = "All active"
 EVERYTHING = "Everything, including inactive"
 
 
+def is_separate(type_name: str) -> bool:
+    """Whether this instrument type is reported apart from the investments."""
+    return type_name in config().separate_types
+
+
+def separate_label() -> str:
+    """Heading for the separately reported types, e.g. "Savings"."""
+    return " + ".join(config().separate_types).capitalize()
+
+
 def scope_picker(loaded: Loaded, key: str) -> tuple[str, list[int]]:
-    """Select box for the whole portfolio, one type or one instrument. Returns (label, ids)."""
+    """Select box for the whole portfolio, one type or one instrument. Returns (label, ids).
+
+    With separately reported types configured, the default choice leaves them out.
+    """
     data = loaded.data
     active = data.instrument_ids()
     everything = data.instrument_ids(include_inactive=True)
-    choices: dict[str, list[int]] = {ALL_ACTIVE: active, EVERYTHING: everything}
+    investments = [i for i in active if not is_separate(data.instruments[i].type)]
+    choices: dict[str, list[int]] = {}
+    if len(investments) != len(active):
+        choices[f"{INVESTMENTS} (without {separate_label().lower()})"] = investments
+    choices[ALL_ACTIVE] = active
+    choices[EVERYTHING] = everything
     for type_name in sorted({data.instruments[i].type for i in active}):
         choices[f"Type: {type_name}"] = [i for i in active if data.instruments[i].type == type_name]
     for instrument_id in everything:
