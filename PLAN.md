@@ -147,7 +147,9 @@ current Polars release.
    delete, plus manual valuations), Prices, Settings. The sidebar shows data freshness and the
    update button; reported splits appear on every page until added or dismissed. Each page is a
    `render()` function so it can be tested on its own.
-7. **CSV import/export** — full export of every table (backup); transaction import with preview.
+7. **CSV import/export** — every table as CSV (instruments named by ticker) and the database
+   file itself as downloads; transactions imported from CSV with a preview, errors per line and
+   detection of rows already in the database. Importing is all or nothing.
 8. **Docs** — README: install, run, backup, how to add a provider.
 
 Each phase ends with passing tests and a commit.

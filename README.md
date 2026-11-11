@@ -40,6 +40,16 @@ dismiss it, otherwise the value of that instrument is wrong.
 To use another source, write a class with the three methods described in
 `src/portfolio/core/providers/base.py`.
 
+## Backup and CSV
+
+The whole database is the one file named in `config.toml`; copying it is a complete backup.
+The Import / export page offers that file and a zip of every table as CSV, and imports
+transactions from a CSV file after showing what it read. From the command line:
+
+```bash
+uv run python scripts/export_csv.py FOLDER
+```
+
 ## Development
 
 ```bash

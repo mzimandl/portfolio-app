@@ -32,6 +32,11 @@ def _dec_to_db(value: Decimal | None) -> str | None:
     return text or "0"
 
 
+def decimal_text(value: Decimal | None) -> str | None:
+    """The exact text a decimal is stored and exported as."""
+    return _dec_to_db(value)
+
+
 def _dec_from_db(value: str | None) -> Decimal | None:
     return None if value is None else Decimal(value)
 

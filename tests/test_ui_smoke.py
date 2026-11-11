@@ -272,3 +272,42 @@ def test_settings_adds_a_currency_and_refuses_to_delete_one_in_use(database):
 
     at.button(key="currencies_delete_USD").click().run()
     assert "in use" in at.error[0].value
+
+
+def test_export_downloads_and_csv_import(database):
+    at = clean(run_page("data"))
+    assert [b.label for b in at.get("download_button")] == [
+        "Database file",
+        "All tables as CSV (zip)",
+    ]
+
+    csv_text = (
+        "date;ticker;kind;quantity;price;currency;fx_rate;fee\n"
+        "2024-07-01;AAPL;buy;0,5;170;USD;23,2;\n"
+        "2023-01-02;AAPL;buy;2;100;USD;22;10\n"  # already in the database
+    )
+    at.file_uploader[0].upload("new.csv", csv_text.encode(), "text/csv").run()
+    clean(at)
+    assert any("**2** usable" in m.value for m in at.markdown)
+    assert at.dataframe[0].value["already there"].tolist() == [False, True]
+    at.button(key="import_go").click().run()
+    clean(at)
+    assert "1 transactions imported" in at.success[0].value
+    database.rollback()
+    newest = repo.list_transactions(database, kinds=[K.BUY])[-1]
+    assert (newest.date, newest.quantity, newest.fx_rate) == (date(2024, 7, 1), D("0.5"), D("23.2"))
+
+
+def test_csv_import_refuses_files_with_errors(database):
+    at = run_page("data")
+    at.file_uploader[0].upload(
+        "bad.csv", b"date,ticker,kind,quantity\n2024-07-01,NOPE,staking_reward,1\n"
+    ).run()
+    assert not at.exception
+    assert "Line 2 (NOPE): unknown instrument" in at.error[0].value
+    assert not [b for b in at.button if b.key == "import_go"]
+
+    at.file_uploader[0].upload("worse.csv", b"when,what\n1,2\n").run()
+    assert "needs the columns" in at.error[0].value
+    database.rollback()
+    assert len(repo.list_transactions(database)) == 3

@@ -4,7 +4,15 @@ import streamlit as st
 
 from portfolio.core.config import ConfigError
 from portfolio.ui import common, shell
-from portfolio.ui.pages import charts, overview, performance, prices, settings, transactions
+from portfolio.ui.pages import (
+    charts,
+    data,
+    overview,
+    performance,
+    prices,
+    settings,
+    transactions,
+)
 
 st.set_page_config(page_title="Portfolio", layout="wide")
 
@@ -23,6 +31,7 @@ def main() -> None:
             st.Page(charts.render, title="Charts", url_path="charts"),
             st.Page(transactions.render, title="Transactions", url_path="transactions"),
             st.Page(prices.render, title="Prices", url_path="prices"),
+            st.Page(data.render, title="Import / export", url_path="data"),
             st.Page(settings.render, title="Settings", url_path="settings"),
         ]
     )
