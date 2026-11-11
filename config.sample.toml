@@ -1,0 +1,13 @@
+# Copy to config.toml and adjust.
+
+# Path to the SQLite database. A relative path is relative to this file.
+db = "portfolio.db"
+
+# Currency everything is reported in (ISO 4217 code).
+base_currency = "CZK"
+
+# Locale used for number and currency formatting.
+locale = "cs"
+
+# Optional: Yahoo symbol to compare portfolio performance against.
+# benchmark = "VWCE.DE"

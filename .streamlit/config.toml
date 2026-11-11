@@ -1,0 +1,6 @@
+[server]
+# Private financial data: listen on this machine only.
+address = "localhost"
+
+[browser]
+gatherUsageStats = false
