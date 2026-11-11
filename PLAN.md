@@ -48,10 +48,12 @@ portfolio-app-refactor/
         performance.py        # TWR, XIRR, per year, benchmark, new money per period
       csv_io.py               # import/export
     ui/
-      app.py                  # navigation, sidebar (data freshness + refresh button)
+      app.py                  # entry point: navigation between pages
+      shell.py                # sidebar (data freshness, update button), split notices
+      common.py               # config, database access, cached data, scope picker
       pages/overview.py, performance.py, charts.py,
             transactions.py, prices.py, settings.py
-      formatting.py           # currency / percent formatting by locale
+      formatting.py           # numbers to text and back, by locale (no Streamlit)
   scripts/import_legacy.py    # old portfolio.db -> new schema, with verification
   tests/
 ```
@@ -141,8 +143,10 @@ current Polars release.
    past values of dividend payers. A new split reloads that instrument's history and waits in
    `pending_splits` until the user adds a `split` transaction or dismisses it
    (`dismissed_splits`, migration 2).
-6. **UI** — Overview, Performance, Charts, Transactions (filterable editor with add/edit/delete),
-   Prices, Settings; sidebar shows data freshness and a refresh button.
+6. **UI** — Overview, Performance, Charts, Transactions (filterable ledger with add, edit and
+   delete, plus manual valuations), Prices, Settings. The sidebar shows data freshness and the
+   update button; reported splits appear on every page until added or dismissed. Each page is a
+   `render()` function so it can be tested on its own.
 7. **CSV import/export** — full export of every table (backup); transaction import with preview.
 8. **Docs** — README: install, run, backup, how to add a provider.
 

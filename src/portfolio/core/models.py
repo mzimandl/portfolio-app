@@ -58,6 +58,16 @@ _ALLOWED: dict[str, set[TransactionKind]] = {
 _STRICTLY_POSITIVE = {"quantity", "amount", "fx_rate", "split_ratio"}
 
 
+TRANSACTION_FIELDS = ("quantity", "price", "amount", "currency", "fx_rate", "tax", "split_ratio")
+
+
+def fields_for(kind: TransactionKind) -> tuple[list[str], list[str]]:
+    """Which of the optional transaction fields a kind requires, and which it merely allows."""
+    required = [f for f in TRANSACTION_FIELDS if kind in _REQUIRED.get(f, ())]
+    optional = [f for f in TRANSACTION_FIELDS if kind in _ALLOWED.get(f, ()) and f not in required]
+    return required, optional
+
+
 @dataclass(frozen=True)
 class Transaction:
     """One ledger row. Numbers are always positive; ``kind`` gives the direction.
@@ -83,7 +93,7 @@ class Transaction:
 
     def __post_init__(self) -> None:
         kind = self.kind
-        for field in ("quantity", "price", "amount", "currency", "fx_rate", "tax", "split_ratio"):
+        for field in TRANSACTION_FIELDS:
             value = getattr(self, field)
             required = kind in _REQUIRED.get(field, ())
             allowed = required or kind in _ALLOWED.get(field, ())

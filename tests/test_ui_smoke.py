@@ -1,33 +1,274 @@
-"""The Streamlit entry page renders without raising."""
+"""Every page renders on a small portfolio, and the main actions work."""
 
+from datetime import date
+from decimal import Decimal as D
 from pathlib import Path
 
 import pytest
 import streamlit as st
 from streamlit.testing.v1 import AppTest
 
+from portfolio.core import db, repo
 from portfolio.core.config import CONFIG_ENV_VAR
+from portfolio.core.models import FxRate, Instrument, Price, Transaction, Valuation
+from portfolio.core.models import TransactionKind as K
+from portfolio.core.models import ValuationMethod as V
+from portfolio.core.providers.base import Bar, ProviderError
+from portfolio.ui import common
 
 ROOT = Path(__file__).parent.parent
 APP = str(ROOT / "src" / "portfolio" / "ui" / "app.py")
+TIMEOUT = 20
 
 
-@pytest.fixture(autouse=True)
-def fresh_cache():
-    # The app caches its config for the whole process; tests need it reloaded.
+@pytest.fixture
+def database(tmp_path, monkeypatch):
+    """A config file and a database with one stock and one savings account."""
+    path = tmp_path / "p.db"
+    (tmp_path / "config.toml").write_text(
+        'db = "p.db"\nbase_currency = "CZK"\nlocale = "cs"\nbenchmark = "SPY"\n'
+    )
+    monkeypatch.setenv(CONFIG_ENV_VAR, str(tmp_path / "config.toml"))
+    st.cache_resource.clear()
+
+    conn = db.connect(path)
+    db.migrate(conn)
+    for code in ("CZK", "USD"):
+        repo.add_currency(conn, code)
+    for name in ("stock", "savings", "benchmark"):
+        repo.add_instrument_type(conn, name)
+
+    def add(ticker, type_, currency, valuation=V.YAHOO):
+        return repo.add_instrument(
+            conn, Instrument(ticker=ticker, type=type_, currency=currency, valuation=valuation)
+        ).id
+
+    aapl = add("AAPL", "stock", "USD")
+    save = add("SAVE", "savings", "CZK", V.MANUAL)
+    spy = add("SPY", "benchmark", "USD")
+    repo.add_transaction(
+        conn,
+        Transaction(
+            date(2023, 1, 2),
+            aapl,
+            K.BUY,
+            quantity=D(2),
+            price=D(100),
+            currency="USD",
+            fx_rate=D(22),
+            fee=D(10),
+        ),
+    )
+    repo.add_transaction(
+        conn,
+        Transaction(date(2024, 5, 1), aapl, K.DIVIDEND, amount=D(50), currency="CZK", fx_rate=D(1)),
+    )
+    repo.add_transaction(
+        conn,
+        Transaction(
+            date(2023, 6, 1), save, K.DEPOSIT, amount=D(1000), currency="CZK", fx_rate=D(1)
+        ),
+    )
+    repo.set_valuation(conn, Valuation(save, date(2024, 1, 1), D("1040")))
+    for instrument, closes in ((aapl, (100.0, 150.0)), (spy, (400.0, 480.0))):
+        repo.save_prices(
+            conn,
+            [
+                Price(instrument, date(2023, 1, 2), closes[0]),
+                Price(instrument, date(2024, 6, 3), closes[1]),
+            ],
+        )
+    repo.save_fx_rates(
+        conn,
+        [
+            FxRate(date(2023, 1, 2), "USD", "CZK", 22.0),
+            FxRate(date(2024, 6, 3), "USD", "CZK", 23.0),
+        ],
+    )
+    conn.commit()
+    yield conn
+    conn.close()
     st.cache_resource.clear()
 
 
-def test_app_renders(monkeypatch):
-    monkeypatch.setenv(CONFIG_ENV_VAR, str(ROOT / "config.sample.toml"))
-    at = AppTest.from_file(APP).run()
-    assert not at.exception
-    assert not at.error
-    assert at.title[0].value == "Portfolio"
+def run_page(name: str) -> AppTest:
+    def script(page_name):
+        import importlib
+
+        importlib.import_module(f"portfolio.ui.pages.{page_name}").render()
+
+    return AppTest.from_function(script, args=(name,), default_timeout=TIMEOUT).run()
+
+
+def run_shell() -> AppTest:
+    """Sidebar and split notices on their own; the test harness cannot follow a rerun
+    through the app's page navigation."""
+
+    def script():
+        from portfolio.ui import shell
+
+        shell.sidebar()
+        shell.pending_splits()
+
+    return AppTest.from_function(script, default_timeout=TIMEOUT).run()
+
+
+def clean(at: AppTest) -> AppTest:
+    assert not at.exception, [e.value for e in at.exception]
+    assert not at.error, [e.value for e in at.error]
+    return at
+
+
+# --- whole app --------------------------------------------------------------------------------
+
+
+def test_app_opens_on_the_overview(database):
+    at = clean(AppTest.from_file(APP, default_timeout=TIMEOUT).run())
+    assert at.title[0].value == "Overview"
+    assert "2024-06-03" in at.sidebar.caption[0].value
 
 
 def test_app_reports_missing_config(monkeypatch, tmp_path):
+    st.cache_resource.clear()
     monkeypatch.setenv(CONFIG_ENV_VAR, str(tmp_path / "missing.toml"))
-    at = AppTest.from_file(APP).run()
+    at = AppTest.from_file(APP, default_timeout=TIMEOUT).run()
     assert not at.exception
     assert "not found" in at.error[0].value
+
+
+def test_update_button_downloads_and_reports(database, monkeypatch):
+    class Provider:
+        def prices(self, symbol, start):
+            if symbol == "SPY":
+                raise ProviderError("SPY is unavailable")
+            return [Bar(date(2024, 6, 4), 155.0)]
+
+        def fx_rates(self, from_currency, to_currency, start):
+            return [Bar(date(2024, 6, 4), 23.5)]
+
+        def currency(self, symbol):
+            return "USD"
+
+    monkeypatch.setattr(common, "provider", Provider)
+    at = run_shell()
+    at.sidebar.button[0].click().run()
+
+    assert not at.exception
+    assert "2 series updated" in at.sidebar.success[0].value
+    assert "SPY is unavailable" in at.sidebar.error[0].value
+    assert "2024-06-04" in at.sidebar.caption[0].value
+    database.rollback()
+    assert repo.list_prices(database, 1)[-1].close == 155.0
+
+
+def test_pending_split_can_be_added_from_the_banner(database):
+    repo.save_prices(database, [Price(1, date(2024, 3, 1), 120.0, split=4.0)])
+    database.commit()
+    at = run_shell()
+    assert "AAPL" in at.warning[0].value and "4 for 1" in at.warning[0].value
+    at.button(key="split_add_1_2024-03-01").click().run()
+
+    assert not at.exception and not at.warning
+    database.rollback()
+    (split,) = repo.list_transactions(database, kinds=[K.SPLIT])
+    assert (split.date, split.split_ratio) == (date(2024, 3, 1), D(4))
+
+
+# --- pages ------------------------------------------------------------------------------------
+
+
+def test_overview_page(database):
+    at = clean(run_page("overview"))
+    labels = {m.label: m.value for m in at.metric}
+    # 2 shares x 150 USD x 23 = 6900, plus savings 1040
+    assert labels["Value"] == "7\u00a0940"
+    assert labels["Dividends"] == "50"
+    assert len(at.dataframe) == 2
+    assert list(at.dataframe[1].value["ticker"]) == ["AAPL", "SAVE"]
+
+
+def test_overview_page_with_empty_database(database):
+    database.execute("DELETE FROM transactions")
+    database.commit()
+    at = clean(run_page("overview"))
+    assert "No transactions yet" in at.info[0].value
+
+
+def test_performance_page(database):
+    at = clean(run_page("performance"))
+    labels = {m.label: m.value for m in at.metric}
+    assert labels["Return (time-weighted)"].startswith("+")
+    assert labels["Benchmark SPY"] == "+25,5 %"  # 480 x 23 / (400 x 22) - 1
+    years = at.dataframe[0].value
+    assert list(years["Year"])[:2] == ["2023", "2024"]
+    # One instrument only: the per-instrument table disappears.
+    at.selectbox(key="performance_scope").select("AAPL").run()
+    clean(at)
+    at.selectbox(key="performance_period").select("This year").run()
+    clean(at)
+
+
+def test_charts_page(database):
+    at = clean(run_page("charts"))
+    assert len(at.get("vega_lite_chart")) + len(at.get("arrow_vega_lite_chart")) >= 2
+    at.selectbox(key="charts_scope").select("Type: savings").run()
+    clean(at)
+
+
+def test_prices_and_settings_pages(database):
+    clean(run_page("prices"))
+    at = clean(run_page("settings"))
+    assert list(at.dataframe[0].value["Ticker"]) == ["AAPL", "SAVE", "SPY"]
+
+
+def test_transactions_page_adds_a_buy(database):
+    at = clean(run_page("transactions"))
+    assert "3 transactions" in at.caption[0].value
+    at.text_input(key="tx_form_new_buy_quantity").set_value("1,5")
+    at.text_input(key="tx_form_new_buy_price").set_value("160")
+    at.run()
+    at.text_input(key="tx_form_new_buy_USD_rate").set_value("23,4")
+    at.text_input(key="tx_form_new_fee").set_value("12")
+    at.button(key="tx_form_new_save").click().run()
+
+    clean(at)
+    assert "added" in at.success[0].value
+    database.rollback()
+    added = repo.list_transactions(database, kinds=[K.BUY])[-1]
+    assert (added.quantity, added.price, added.currency) == (D("1.5"), D("160"), "USD")
+    assert (added.fx_rate, added.fee, added.instrument_id) == (D("23.4"), D("12"), 1)
+
+
+def test_transactions_page_explains_bad_input(database):
+    at = run_page("transactions")
+    at.text_input(key="tx_form_new_buy_quantity").set_value("abc")
+    at.button(key="tx_form_new_save").click().run()
+    assert not at.exception
+    assert "not a valid Quantity" in at.error[0].value
+
+    at.text_input(key="tx_form_new_buy_quantity").set_value("2")
+    at.button(key="tx_form_new_save").click().run()
+    assert "needs 'price'" in at.error[0].value
+    database.rollback()
+    assert len(repo.list_transactions(database)) == 3
+
+
+def test_valuation_can_be_saved(database):
+    at = run_page("transactions")
+    at.text_input(key="val_value").set_value("1 100,50")
+    at.button(key="val_save").click().run()
+    clean(at)
+    database.rollback()
+    assert repo.list_valuations(database, 2)[-1].value == D("1100.50")
+
+
+def test_settings_adds_a_currency_and_refuses_to_delete_one_in_use(database):
+    at = run_page("settings")
+    next(t for t in at.text_input if t.placeholder == "Code, e.g. USD").set_value("eur")
+    next(b for b in at.button if b.label == "Add" and b.form_id == "currencies_form").click().run()
+    clean(at)
+    database.rollback()
+    assert repo.list_currencies(database) == ["CZK", "EUR", "USD"]
+
+    at.button(key="currencies_delete_USD").click().run()
+    assert "in use" in at.error[0].value
