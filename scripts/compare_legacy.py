@@ -27,7 +27,6 @@ OVERVIEW_FIELDS = {
     "average_price": "average_price",
     "investment": "invested",
     "return": "returned",
-    "reinvested": "reinvested",
     "fees": "fees",
     "dividends": "dividends",
     "value": "value",

@@ -27,7 +27,6 @@ class OverviewRow:
     average_price: float | None  # of the bought units still held, in the instrument's currency
     invested: float  # buys and deposits
     returned: float  # sells and withdrawals
-    reinvested: float
     fees: float
     dividends: float
     value: float | None
@@ -99,7 +98,6 @@ def _row(data: PortfolioData, instrument_id: int, as_of: date) -> OverviewRow:
         average_price=average_price,
         invested=position.invested,
         returned=position.returned,
-        reinvested=position.reinvested,
         fees=position.fees,
         dividends=position.dividends,
         value=value,
@@ -115,7 +113,7 @@ def _row(data: PortfolioData, instrument_id: int, as_of: date) -> OverviewRow:
 
 
 _SUMMED = (
-    "invested", "returned", "reinvested", "fees", "dividends", "value", "cost_basis",
+    "invested", "returned", "fees", "dividends", "value", "cost_basis",
     "unrealised_profit", "price_profit", "fx_profit", "rewards", "realised_profit",
     "total_profit", "net_profit",
 )  # fmt: skip

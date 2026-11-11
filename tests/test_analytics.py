@@ -35,7 +35,7 @@ class Book:
         ).id
 
     def tx(self, instrument_id, on, kind, **fields):
-        fields = {k: D(str(v)) if isinstance(v, int | float) and k != "reinvested" else v
+        fields = {k: D(str(v)) if isinstance(v, int | float) else v
                   for k, v in fields.items()}  # fmt: skip
         repo.add_transaction(self.conn, Transaction(on, instrument_id, kind, **fields))
 
@@ -87,7 +87,7 @@ def test_overview_of_a_foreign_stock(book):
     book.fx("USD", {day(1): 20, day(10): 22})
     book.prices(aapl, {day(2): 100, day(10): 110})
     book.buy(aapl, day(2), 2, 100, "USD", 20, fee=10)  # costs 4000
-    book.sell(aapl, day(5), 1, 105, "USD", 21, fee=5, reinvested=True)  # brings 2205
+    book.sell(aapl, day(5), 1, 105, "USD", 21, fee=5)  # brings 2205
     book.tx(aapl, day(8), K.DIVIDEND, amount=50, currency="CZK", fx_rate=1)
 
     row = only(overview(book.load(), day(10)), "AAPL")
@@ -97,7 +97,6 @@ def test_overview_of_a_foreign_stock(book):
     assert row.average_price == pytest.approx(100)
     assert row.invested == pytest.approx(4000)
     assert row.returned == pytest.approx(2205)
-    assert row.reinvested == pytest.approx(2205)
     assert (row.fees, row.dividends) == (15, 50)
     assert row.value == pytest.approx(1 * 110 * 22)  # 2420
     assert row.cost_basis == pytest.approx(2000)  # the one share still held
@@ -222,14 +221,14 @@ def test_overview_of_a_manually_valued_instrument(book):
     book.tx(save, day(1), K.DEPOSIT, amount=1000, currency="CZK", fx_rate=1)
     repo.set_valuation(book.conn, Valuation(save, day(5), D("1010")))
     book.tx(save, day(5), K.DEPOSIT, amount=500, currency="CZK", fx_rate=1)  # same day: on top
-    book.tx(save, day(7), K.WITHDRAWAL, amount=200, currency="CZK", fx_rate=1, reinvested=True)
+    book.tx(save, day(7), K.WITHDRAWAL, amount=200, currency="CZK", fx_rate=1)
     book.tx(save, day(8), K.FEE, fee=35)
     data = book.load()
 
     row = only(overview(data, day(10)), "SAVE")
     assert (row.quantity, row.last_price, row.average_price) == (None, None, None)
     assert row.value == pytest.approx(1010 + 500 - 200)
-    assert (row.invested, row.returned, row.reinvested, row.fees) == (1500, 200, 200, 35)
+    assert (row.invested, row.returned, row.fees) == (1500, 200, 35)
     assert row.total_profit == pytest.approx(10)
     assert row.price_profit == pytest.approx(10)
     assert row.net_profit == pytest.approx(-25)

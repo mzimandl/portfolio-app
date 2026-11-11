@@ -165,7 +165,7 @@ def delete_instrument(conn: sqlite3.Connection, instrument_id: int) -> None:
 
 _TRANSACTION_COLUMNS = (
     "date, instrument_id, kind, quantity, price, amount, currency, fx_rate, fee, tax, "
-    "split_ratio, reinvested, note"
+    "split_ratio, note"
 )
 
 
@@ -183,7 +183,6 @@ def _transaction_from_row(row: sqlite3.Row) -> Transaction:
         fee=_dec_from_db(row["fee"]),
         tax=_dec_from_db(row["tax"]),
         split_ratio=_dec_from_db(row["split_ratio"]),
-        reinvested=bool(row["reinvested"]),
         note=row["note"],
     )
 
@@ -201,7 +200,6 @@ def _transaction_params(t: Transaction) -> tuple:
         _dec_to_db(t.fee),
         _dec_to_db(t.tax),
         _dec_to_db(t.split_ratio),
-        int(t.reinvested),
         t.note,
     )
 
@@ -240,7 +238,7 @@ def get_transaction(conn: sqlite3.Connection, transaction_id: int) -> Transactio
 
 
 def add_transaction(conn: sqlite3.Connection, transaction: Transaction) -> Transaction:
-    placeholders = ", ".join("?" * 13)
+    placeholders = ", ".join("?" * 12)
     cursor = conn.execute(
         f"INSERT INTO transactions ({_TRANSACTION_COLUMNS}) VALUES ({placeholders})",
         _transaction_params(transaction),

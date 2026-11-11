@@ -45,7 +45,6 @@ class Event:
     rate: float  # base currency per 1 unit of `currency`
     fee: float
     split_ratio: float
-    reinvested: bool
 
 
 @dataclass
@@ -131,5 +130,4 @@ def _to_event(t: Transaction, data: PortfolioData) -> Event:
         rate=rate,
         fee=float(t.fee),
         split_ratio=float(t.split_ratio or 1),
-        reinvested=t.reinvested,
     )

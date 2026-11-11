@@ -25,7 +25,7 @@ def filled(conn, stock):
         Transaction(day, stock.id, K.BUY, quantity=D("0.00000001"), price=D("150.5"),
                     currency="USD", fx_rate=D("23.1"), fee=D("25"), note='first, "quoted"'),
         Transaction(day, stock.id, K.SELL, quantity=D(1), price=D(160), currency="USD",
-                    fx_rate=D("23.5"), reinvested=True),
+                    fx_rate=D("23.5")),
         Transaction(day, save.id, K.DEPOSIT, amount=D(1000), currency="CZK", fx_rate=D(1)),
         Transaction(day, save.id, K.WITHDRAWAL, amount=D(10), currency="CZK"),
         Transaction(day, stock.id, K.DIVIDEND, amount=D("8.5"), currency="USD", tax=D("1.5")),
@@ -73,8 +73,8 @@ def test_exported_transactions_are_exact_and_readable(filled):
     assert list(rows[0]) == list(csv_io.TRANSACTION_COLUMNS)
     buy = rows[0]
     assert (buy["ticker"], buy["kind"], buy["quantity"]) == ("AAPL", "buy", "0.00000001")
-    assert (buy["fee"], buy["reinvested"], buy["note"]) == ("25", "0", 'first, "quoted"')
-    assert (rows[1]["reinvested"], rows[1]["amount"]) == ("1", "")
+    assert (buy["fee"], buy["note"]) == ("25", 'first, "quoted"')
+    assert (rows[1]["kind"], rows[1]["amount"]) == ("sell", "")
 
 
 def test_zip_and_database_copy(filled):
@@ -117,7 +117,7 @@ def test_minimal_columns_and_semicolons_with_decimal_commas(conn, stock):
     assert first.transaction.date == date(2024, 3, 15)
     assert (first.transaction.quantity, first.transaction.price) == (D("1.5"), D("1234.56"))
     assert (first.transaction.currency, first.transaction.fee) == ("USD", 0)
-    assert second.transaction.reinvested
+    assert second.transaction.kind is K.SELL  # the old "reinvested" column is ignored
     assert csv_io.import_transactions(conn, [first, second]) == 2
 
 

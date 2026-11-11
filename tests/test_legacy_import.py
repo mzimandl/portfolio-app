@@ -104,9 +104,9 @@ def test_trades_become_buys_and_sells(imported, conn):
     buy, sell, dividend = transactions(conn, by_ticker["AAPL"])
     assert (buy.kind, buy.date) == (K.BUY, date(2024, 1, 10))
     assert (buy.quantity, buy.price, buy.currency) == (D("2"), D("51.129"), "USD")
-    assert (buy.fx_rate, buy.fee, buy.reinvested) == (D("25"), D("25"), False)
+    assert (buy.fx_rate, buy.fee) == (D("25"), D("25"))
     assert (sell.kind, sell.quantity, sell.price) == (K.SELL, D("0.5"), D("200"))
-    assert (sell.fx_rate, sell.fee, sell.reinvested) == (D("20"), D("10"), True)
+    assert (sell.fx_rate, sell.fee) == (D("20"), D("10"))
     assert (dividend.kind, dividend.amount) == (K.DIVIDEND, D("12.34"))
     assert (dividend.currency, dividend.fx_rate) == ("CZK", D("1"))
 
@@ -133,7 +133,6 @@ def test_deposits_withdrawals_and_fee_only_rows(imported, conn):
     assert deposit.fx_rate == 1
     assert (fee.kind, fee.fee, fee.amount) == (K.FEE, D("35"), None)
     assert (withdrawal.kind, withdrawal.amount, withdrawal.fee) == (K.WITHDRAWAL, D("400"), D("2"))
-    assert withdrawal.reinvested
     assert report.skipped["deposits rows (empty)"] == 1
 
 
@@ -174,7 +173,7 @@ def test_report(imported):
     assert checked[("AAPL", "quantity")] == 1.5
     assert checked[("AAPL", "bought")] == pytest.approx(2 * 51.129 / 0.04)
     assert checked[("SAVE", "fees")] == 37.0
-    assert checked[("SAVE", "reinvested")] == 400.0
+    assert checked[("SAVE", "withdrawn")] == 400.0
     assert ("WEBFUND", "quantity") not in checked
 
 

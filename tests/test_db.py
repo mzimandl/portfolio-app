@@ -80,3 +80,34 @@ def test_database_newer_than_app_is_rejected(tmp_path):
     directory = write_migrations(tmp_path, {"0001_a.sql": "CREATE TABLE a (x);"})
     with pytest.raises(db.MigrationError, match="newer version"):
         db.migrate(connection, directory)
+
+
+def test_migration_3_drops_the_reinvested_column_and_keeps_the_rows(tmp_path):
+    """Run migrations 1-2, add a row the old way, then let the rest run."""
+    from importlib import resources
+
+    source = resources.files("portfolio.core") / "migrations"
+    for entry in source.iterdir():
+        if entry.name.startswith(("0001", "0002")):
+            (tmp_path / entry.name).write_text(entry.read_text())
+    connection = db.connect(":memory:")
+    assert db.migrate(connection, tmp_path) == 2
+    connection.executescript(
+        """
+        INSERT INTO currencies VALUES ('CZK');
+        INSERT INTO instrument_types VALUES ('stock');
+        INSERT INTO instruments (ticker, type, currency, valuation)
+            VALUES ('X', 'stock', 'CZK', 'yahoo');
+        INSERT INTO transactions (date, instrument_id, kind, quantity, price, currency, fx_rate,
+                                  reinvested, note)
+            VALUES ('2024-01-02', 1, 'sell', '1.5', '100', 'CZK', '1', 1, 'kept');
+        """
+    )
+    connection.commit()
+
+    assert db.migrate(connection) >= 3
+    columns = [row[1] for row in connection.execute("PRAGMA table_info(transactions)")]
+    assert "reinvested" not in columns
+    row = connection.execute("SELECT date, kind, quantity, note FROM transactions").fetchone()
+    assert tuple(row) == ("2024-01-02", "sell", "1.5", "kept")
+    assert connection.execute("PRAGMA foreign_key_check").fetchall() == []

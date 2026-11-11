@@ -92,10 +92,3 @@ def test_fee_transaction_needs_a_fee():
 
 def test_zero_price_is_allowed():
     assert tx(K.BUY, **{**VALID[K.BUY], "price": D("0")}).price == 0
-
-
-def test_reinvested_only_on_sell_or_withdrawal():
-    assert tx(K.SELL, **VALID[K.SELL], reinvested=True).reinvested
-    assert tx(K.WITHDRAWAL, **VALID[K.WITHDRAWAL], reinvested=True).reinvested
-    with pytest.raises(ValidationError, match="reinvested"):
-        tx(K.BUY, **VALID[K.BUY], reinvested=True)

@@ -36,12 +36,10 @@ _COLUMNS = {
     "net_profit": _money("Net profit", "Profit plus dividends minus fees."),
     "invested": _money("Bought / deposited"),
     "returned": _money("Sold / withdrawn"),
-    "reinvested": _money("Of that reinvested"),
 }
 _ROUNDED = (
     "value", "cost_basis", "unrealised_profit", "price_profit", "fx_profit", "rewards",
     "realised_profit", "total_profit", "dividends", "fees", "net_profit", "invested", "returned",
-    "reinvested",
 )  # fmt: skip
 _TYPE_COLUMNS = [
     "type", "value", "cost_basis", "unrealised_profit", "price_profit", "fx_profit", "rewards",

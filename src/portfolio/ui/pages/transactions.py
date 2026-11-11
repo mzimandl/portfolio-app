@@ -106,7 +106,6 @@ def _ledger(conn: sqlite3.Connection, instruments: list[Instrument]) -> None:
             "Fee": number(t.fee),
             "Tax": number(t.tax),
             "Split": number(t.split_ratio),
-            "Reinvested": t.reinvested,
             "Note": t.note,
         }
         for t in rows
@@ -210,19 +209,13 @@ def _transaction_form(
             )
             position += 1
 
-    bottom = st.columns([1, 1, 2])
+    bottom = st.columns([1, 3])
     fee_text = bottom[0].text_input(
         f"Fee ({base})",
         value=decimal_text(editing.fee) if editing else "0",
         key=f"{key}_fee",
     )
-    can_reinvest = kind in (TransactionKind.SELL, TransactionKind.WITHDRAWAL)
-    reinvested = can_reinvest and bottom[1].checkbox(
-        "Proceeds reinvested",
-        value=bool(editing and editing.reinvested),
-        key=f"{key}_reinvested",
-    )
-    note = bottom[2].text_input(
+    note = bottom[1].text_input(
         "Note", value=(editing.note or "") if editing else "", key=f"{key}_note"
     )
 
@@ -238,7 +231,6 @@ def _transaction_form(
                 kind=kind,
                 currency=currency,
                 fee=parse_decimal(fee_text, "fee") or parse_decimal("0"),
-                reinvested=bool(reinvested),
                 note=note.strip() or None,
                 **numbers,
             )

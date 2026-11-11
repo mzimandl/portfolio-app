@@ -32,7 +32,6 @@ class Position:
     realised: float = 0.0  # proceeds of sales minus what the sold units had cost
     invested: float = 0.0  # buys and deposits
     returned: float = 0.0  # sells and withdrawals
-    reinvested: float = 0.0  # part of `returned` that was put back into other investments
     fees: float = 0.0
     dividends: float = 0.0
     # Cash put in minus cash taken out, in the instrument's currency, as a running total.
@@ -113,8 +112,6 @@ def apply(
         position.quantity -= event.quantity
         position._sell(event.quantity, base)
         position.returned += base
-        if event.reinvested:
-            position.reinvested += base
         position._add_cash(event.date, -local)
         return event.fee, base
     if kind in (K.DEPOSIT, K.WITHDRAWAL):
@@ -125,8 +122,6 @@ def apply(
             position._add_cash(event.date, local)
             return base + event.fee, 0.0
         position.returned += base
-        if event.reinvested:
-            position.reinvested += base
         position._add_cash(event.date, -local)
         return event.fee, base
     if kind is K.DIVIDEND:

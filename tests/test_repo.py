@@ -111,7 +111,7 @@ def test_transaction_round_trip_for_each_kind(conn, stock):
     rows = [
         buy(stock, fee=D("25"), note="first"),
         Transaction(day, stock.id, K.SELL, quantity=D("1"), price=D("160"), currency="USD",
-                    fx_rate=D("23.5"), reinvested=True),
+                    fx_rate=D("23.5")),
         Transaction(day, stock.id, K.DEPOSIT, amount=D("1000"), currency="CZK"),
         Transaction(day, stock.id, K.WITHDRAWAL, amount=D("10"), currency="CZK", fx_rate=D("1")),
         Transaction(day, stock.id, K.DIVIDEND, amount=D("8.5"), currency="USD", tax=D("1.5")),

@@ -87,7 +87,6 @@ transactions(
   fee,             -- in base currency (as in the old app)
   tax,             -- optional withholding tax on a dividend, in `currency`; `amount` is net
   split_ratio,     -- new units per old unit (10 for a 10:1 split); only for kind = 'split'
-  reinvested,      -- proceeds were reinvested (sell/withdrawal)
   note
 )
 
@@ -158,6 +157,11 @@ current Polars release.
 Each phase ends with passing tests and a commit.
 
 ## Details settled
+
+- **No `reinvested` flag** — the old app marked sales whose proceeds went into other
+  investments, because it dropped sold positions from its totals. Here the sale and the next buy
+  are both in the ledger and the gain is reported as realised profit (FIFO lots), so the flag was
+  removed (migration 3). Old CSV files with that column still import; the column is ignored.
 
 - **Splits** — holdings are computed by replaying the ledger; a `split` multiplies the quantity held
   so far. Phase 5 must re-download an instrument's whole price history when a split appears,

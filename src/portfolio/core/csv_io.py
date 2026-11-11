@@ -17,12 +17,12 @@ from portfolio.core.models import Transaction, TransactionKind, ValidationError
 
 TRANSACTION_COLUMNS = (
     "date", "ticker", "kind", "quantity", "price", "amount", "currency", "fx_rate", "fee", "tax",
-    "split_ratio", "reinvested", "note",
+    "split_ratio", "note",
 )  # fmt: skip
 _REQUIRED_COLUMNS = ("date", "ticker", "kind")
 _DECIMAL_COLUMNS = ("quantity", "price", "amount", "fx_rate", "fee", "tax", "split_ratio")
-_TRUE = {"1", "true", "yes", "y", "ano"}
-_FALSE = {"", "0", "false", "no", "n", "ne"}
+# Columns of files exported by earlier versions; read without complaint and not used.
+_IGNORED_COLUMNS = ("reinvested",)
 
 
 class CsvError(Exception):
@@ -49,7 +49,7 @@ def transactions_csv(conn: sqlite3.Connection) -> str:
             (
                 t.date.isoformat(), tickers[t.instrument_id], t.kind.value, text(t.quantity),
                 text(t.price), text(t.amount), t.currency, text(t.fx_rate), text(t.fee),
-                text(t.tax), text(t.split_ratio), int(t.reinvested), t.note,
+                text(t.tax), text(t.split_ratio), t.note,
             )
             for t in repo.list_transactions(conn)
         ),
@@ -184,7 +184,7 @@ def parse_transactions(text: str, conn: sqlite3.Connection) -> list[ParsedRow]:
     missing = [name for name in _REQUIRED_COLUMNS if name not in columns]
     if missing:
         raise CsvError(f"The file needs the columns: {', '.join(missing)}")
-    unknown = [name for name in columns if name not in TRANSACTION_COLUMNS]
+    unknown = [name for name in columns if name not in (*TRANSACTION_COLUMNS, *_IGNORED_COLUMNS)]
     if unknown:
         raise CsvError(
             f"Unknown columns: {', '.join(unknown)}. Allowed: {', '.join(TRANSACTION_COLUMNS)}"
@@ -215,9 +215,6 @@ def parse_transactions(text: str, conn: sqlite3.Connection) -> list[ParsedRow]:
             currency = cells.get("currency", "").upper() or None
             if currency and currency not in currencies:
                 raise ValueError(f"unknown currency '{currency}'")
-            reinvested = cells.get("reinvested", "").lower()
-            if reinvested not in _TRUE | _FALSE:
-                raise ValueError(f"reinvested '{reinvested}' is not yes or no")
             numbers = {
                 column: _parse_decimal(cells.get(column, ""), column, delimiter == ";")
                 for column in _DECIMAL_COLUMNS
@@ -228,7 +225,6 @@ def parse_transactions(text: str, conn: sqlite3.Connection) -> list[ParsedRow]:
                 instrument_id=instrument.id,
                 kind=kind,
                 currency=currency,
-                reinvested=reinvested in _TRUE,
                 note=cells.get("note") or None,
                 **numbers,
             )

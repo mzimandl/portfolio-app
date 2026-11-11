@@ -87,7 +87,6 @@ class Transaction:
     fee: Decimal = Decimal(0)
     tax: Decimal | None = None
     split_ratio: Decimal | None = None
-    reinvested: bool = False
     note: str | None = None
     id: int | None = None
 
@@ -108,8 +107,6 @@ class Transaction:
         self._check_number("fee", self.fee, strictly_positive=False)
         if kind is K.FEE and self.fee == 0:
             raise ValidationError("A fee transaction needs a 'fee' greater than zero")
-        if self.reinvested and kind not in (K.SELL, K.WITHDRAWAL):
-            raise ValidationError("Only a sell or withdrawal can be marked as reinvested")
 
     @staticmethod
     def _check_number(field: str, value: Decimal, *, strictly_positive: bool) -> None:

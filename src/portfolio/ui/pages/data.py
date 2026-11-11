@@ -10,7 +10,7 @@ from portfolio.core import csv_io, db, repo
 from portfolio.ui import common
 
 _KEPT = ("date", "kind", "quantity", "price", "amount", "currency", "fx_rate", "fee", "tax",
-         "split_ratio", "reinvested", "note")  # fmt: skip
+         "split_ratio", "note")  # fmt: skip
 
 
 def render() -> None:

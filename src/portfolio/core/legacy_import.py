@@ -180,7 +180,6 @@ def _collect_transactions(
             currency=currency,
             fx_rate=fx_rate,
             fee=_dec(row["fee"] or 0),
-            reinvested=bool(row["reinvested"]) and selling,
         )
 
     for row, instrument, add in rows(0, "trades"):
@@ -203,7 +202,6 @@ def _collect_transactions(
             currency=instrument.currency,
             fx_rate=cash_rate(instrument.currency),
             fee=fee,
-            reinvested=bool(row["reinvested"]) and amount < 0,
         )
 
     for row, instrument, add in rows(3, "dividends"):
@@ -310,14 +308,6 @@ _OLD_TOTALS = {
         ) WHERE volume < 0 GROUP BY ticker""",
     "deposited": "SELECT ticker, sum(amount) FROM deposits WHERE amount > 0 GROUP BY ticker",
     "withdrawn": "SELECT ticker, -sum(amount) FROM deposits WHERE amount < 0 GROUP BY ticker",
-    "reinvested": """
-        SELECT ticker, sum(x) FROM (
-            SELECT ticker, -volume * price / base_rate AS x FROM trades
-                WHERE volume < 0 AND reinvested = 1 UNION ALL
-            SELECT ticker, -volume * price / base_rate FROM crypto
-                WHERE volume < 0 AND reinvested = 1 UNION ALL
-            SELECT ticker, -amount FROM deposits WHERE amount < 0 AND reinvested = 1
-        ) GROUP BY ticker""",
     "fees": """
         SELECT ticker, sum(fee) FROM (
             SELECT ticker, fee FROM trades UNION ALL
@@ -345,16 +335,12 @@ def _new_totals(target: sqlite3.Connection) -> dict[str, dict[int, float]]:
             cash = t.quantity * t.price * t.fx_rate
             exact["quantity"][i] += sign * t.quantity
             exact["bought" if t.kind is K.BUY else "sold"][i] += cash
-            if t.reinvested:
-                exact["reinvested"][i] += cash
         elif t.kind is K.STAKING_REWARD:
             exact["quantity"][i] += t.quantity
         elif t.kind is K.DEPOSIT:
             exact["deposited"][i] += t.amount
         elif t.kind is K.WITHDRAWAL:
             exact["withdrawn"][i] += t.amount
-            if t.reinvested:
-                exact["reinvested"][i] += t.amount
         elif t.kind is K.DIVIDEND:
             exact["dividends"][i] += t.amount
     for what, per_instrument in exact.items():
