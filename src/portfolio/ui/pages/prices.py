@@ -4,7 +4,9 @@ import pandas as pd
 import streamlit as st
 
 from portfolio.core import repo
+from portfolio.core.analytics.timeseries import thin
 from portfolio.ui import common
+from portfolio.ui.pages.charts import MAX_POINTS
 
 
 def render() -> None:
@@ -46,10 +48,15 @@ def render() -> None:
 
 
 def _chart_and_table(points: list[tuple], unit: str, extra: dict | None = None) -> None:
-    frame = pd.DataFrame({"Close": [value for _, value in points]},
-                         index=pd.to_datetime([day for day, _ in points]))  # fmt: skip
+    drawn, spacing = thin(points, MAX_POINTS)
+    frame = pd.DataFrame({"Close": [value for _, value in drawn]},
+                         index=pd.to_datetime([day for day, _ in drawn]))  # fmt: skip
     st.line_chart(frame, y_label=unit)
-    table = {"Date": [day for day, _ in points], "Close": frame["Close"].tolist()} | (extra or {})
+    if spacing > 1:
+        st.caption(
+            f"The chart draws one point for every {spacing} stored days; the table has all of them."
+        )
+    table = {"Date": [day for day, _ in points], "Close": [v for _, v in points]} | (extra or {})
     newest_first = pd.DataFrame(table).iloc[::-1]
     st.caption(f"{len(points)} days, from {points[0][0]} to {points[-1][0]}.")
     st.dataframe(newest_first, hide_index=True, height=400, width="content")

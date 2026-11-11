@@ -410,3 +410,18 @@ def test_invested_by_period(book):
     assert months[2] == {"period": "2024-02", "total": 999, "stock": 999}
     with pytest.raises(ValueError):
         performance.invested_by_period(data, "week")
+
+
+def test_thin_keeps_both_ends_and_even_spacing():
+    points = list(range(1000))
+    kept, spacing = timeseries.thin(points, 100)
+    assert spacing == 10
+    assert kept[0] == 0 and kept[-1] == 999
+    assert len(kept) <= 101
+    assert {b - a for a, b in zip(kept[1:], kept[2:], strict=False)} == {10}
+
+    assert timeseries.thin(points, 1000) == (points, 1)
+    assert timeseries.thin(points, 5000) == (points, 1)
+    assert timeseries.thin([], 100) == ([], 1)
+    kept, spacing = timeseries.thin(list(range(401)), 400)
+    assert spacing == 2 and kept[0] == 0 and kept[-1] == 400 and len(kept) == 201

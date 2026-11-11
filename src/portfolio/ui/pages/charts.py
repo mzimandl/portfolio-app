@@ -3,7 +3,11 @@
 import pandas as pd
 import streamlit as st
 
+from portfolio.core.analytics.timeseries import thin
 from portfolio.ui import common
+
+# A chart is at most about this many pixels wide; more points only make it slow.
+MAX_POINTS = 400
 
 
 def render() -> None:
@@ -22,6 +26,7 @@ def render() -> None:
         return
 
     base = loaded.data.base_currency
+    days, spacing = thin(days, MAX_POINTS)
     index = pd.to_datetime([p.date for p in days])
     st.subheader("Value and money invested")
     st.line_chart(
@@ -45,4 +50,9 @@ def render() -> None:
     st.caption(
         "Each day uses the prices and exchange rates of that day. "
         "Profit = value − money still invested."
+        + (
+            f" Drawn with one point every {spacing} days; pick a shorter period for more detail."
+            if spacing > 1
+            else ""
+        )
     )

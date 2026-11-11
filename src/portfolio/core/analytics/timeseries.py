@@ -121,3 +121,19 @@ def all_daily(
         instrument_id: instrument_daily(data, instrument_id, end)
         for instrument_id in data.instrument_ids(include_inactive=include_inactive)
     }
+
+
+def thin[T](points: list[T], max_points: int) -> tuple[list[T], int]:
+    """At most about ``max_points`` evenly spaced points for drawing, and the spacing used.
+
+    The last point is always kept, so a chart ends on the current state. With spacing 1
+    the list is returned as it is.
+    """
+    if max_points < 2 or len(points) <= max_points:
+        return points, 1
+    step = -(-len(points) // max_points)  # rounded up
+    # Counted back from the end; the very first point is added so the range stays complete.
+    kept = points[::-1][::step][::-1]
+    if kept[0] is not points[0]:
+        kept.insert(0, points[0])
+    return kept, step
