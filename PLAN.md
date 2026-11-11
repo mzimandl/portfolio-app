@@ -135,8 +135,12 @@ current Polars release.
    Result: 665 numbers compared, 4 differ, all intended — ETH `rewards` and price profit (negative
    staking is now a sell at price 0) and price profit of the two savings accounts (the old app
    left it empty).
-5. **Yahoo provider and updater** — incremental per instrument and currency pair, errors reported
-   per ticker instead of only printed.
+5. **Yahoo provider and updater** — incremental per instrument and currency pair, saved one by
+   one so a failure of one ticker is reported and the rest still updates. Stores real closing
+   prices (`auto_adjust=False`); the old app stored dividend-adjusted ones, which understated
+   past values of dividend payers. A new split reloads that instrument's history and waits in
+   `pending_splits` until the user adds a `split` transaction or dismisses it
+   (`dismissed_splits`, migration 2).
 6. **UI** — Overview, Performance, Charts, Transactions (filterable editor with add/edit/delete),
    Prices, Settings; sidebar shows data freshness and a refresh button.
 7. **CSV import/export** — full export of every table (backup); transaction import with preview.

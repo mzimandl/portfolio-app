@@ -274,6 +274,10 @@ def _import_market_data(
             )
         )
     repo.save_prices(target, prices)
+    # The old ledger was adjusted by hand after splits, so none of them needs a transaction.
+    for price in prices:
+        if price.split:
+            repo.dismiss_split(target, price.instrument_id, price.date)
     report.imported["prices"] = len(prices)
 
     rates = [

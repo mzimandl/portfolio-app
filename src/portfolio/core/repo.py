@@ -360,6 +360,39 @@ def last_price_dates(conn: sqlite3.Connection) -> dict[int, date]:
     return {row[0]: date.fromisoformat(row[1]) for row in rows}
 
 
+# --- splits reported by the price source ----------------------------------------------------
+
+
+def pending_splits(conn: sqlite3.Connection) -> list[tuple[int, date, float]]:
+    """Reported splits not yet in the ledger and not dismissed: (instrument id, day, ratio).
+
+    Only for instruments that had transactions before the split; otherwise nothing changes.
+    """
+    rows = conn.execute(
+        """
+        SELECT p.instrument_id, p.date, p.split FROM prices AS p
+        WHERE p.split != 0
+          AND NOT EXISTS (SELECT 1 FROM dismissed_splits AS d
+                          WHERE d.instrument_id = p.instrument_id AND d.date = p.date)
+          AND NOT EXISTS (SELECT 1 FROM transactions AS t
+                          WHERE t.instrument_id = p.instrument_id AND t.date = p.date
+                            AND t.kind = 'split')
+          AND EXISTS (SELECT 1 FROM transactions AS t
+                      WHERE t.instrument_id = p.instrument_id AND t.date < p.date)
+        ORDER BY p.date, p.instrument_id
+        """
+    )
+    return [(row[0], date.fromisoformat(row[1]), row[2]) for row in rows]
+
+
+def dismiss_split(conn: sqlite3.Connection, instrument_id: int, on: date) -> None:
+    """Remember that this reported split needs no transaction."""
+    conn.execute(
+        "INSERT OR IGNORE INTO dismissed_splits (instrument_id, date) VALUES (?, ?)",
+        (instrument_id, on.isoformat()),
+    )
+
+
 # --- FX rates -------------------------------------------------------------------------------
 
 
