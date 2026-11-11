@@ -355,3 +355,18 @@ def test_returns_and_charts_default_to_investments_only(savings_apart):
 def test_scope_has_no_investments_entry_without_separate_types(database):
     at = clean(run_page("charts"))
     assert at.selectbox(key="charts_scope").options[0] == "All active"
+
+
+def test_overview_rows_are_tinted_by_profit_or_loss(database):
+    from portfolio.ui.pages import overview as page
+
+    assert page._tint(125.0) == page._GAIN
+    assert page._tint(-0.5) == page._LOSS
+    assert page._tint(0.0) == page._tint(None) == page._tint(float("nan")) == ""
+    html = page._tinted(
+        [{"ticker": "UP", "total_profit": 10}, {"ticker": "DOWN", "total_profit": -10}]
+    ).to_html()
+    assert "rgba(46, 160, 67" in html and "rgba(218, 54, 51" in html
+    # The page still gets the plain numbers.
+    at = clean(run_page("overview"))
+    assert list(at.dataframe[1].value["total_profit"]) == [2500, 40]

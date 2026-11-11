@@ -2,6 +2,7 @@
 
 from dataclasses import asdict
 
+import pandas as pd
 import streamlit as st
 
 from portfolio.core.analytics.overview import OverviewRow, overview, summarize
@@ -66,9 +67,26 @@ def _headline(rows: list[OverviewRow], *, with_dividends: bool) -> None:
         )  # fmt: skip
 
 
+_GAIN = "background-color: rgba(46, 160, 67, 0.18)"
+_LOSS = "background-color: rgba(218, 54, 51, 0.18)"
+
+
+def _tint(profit: float | None) -> str:
+    if profit is None or pd.isna(profit) or profit == 0:
+        return ""
+    return _GAIN if profit > 0 else _LOSS
+
+
+def _tinted(rows: list[dict]):
+    """The rows as a table whose lines are light green in profit and light red in loss."""
+    return pd.DataFrame(rows).style.apply(
+        lambda row: [_tint(row.get("total_profit"))] * len(row), axis=1
+    )
+
+
 def _table(rows: list[OverviewRow], columns: list[str]) -> None:
     st.dataframe(
-        [_rounded(asdict(row)) for row in rows],
+        _tinted([_rounded(asdict(row)) for row in rows]),
         column_config=_COLUMNS,
         column_order=columns,
         hide_index=True,
@@ -103,7 +121,9 @@ def render() -> None:
         ]
         type_columns = ["type", "value", "invested", "returned", "total_profit", "price_profit",
                         "fx_profit", "rewards", "dividends", "fees", "net_profit"]  # fmt: skip
-        st.dataframe(by_type, column_config=_COLUMNS, column_order=type_columns, hide_index=True)
+        st.dataframe(
+            _tinted(by_type), column_config=_COLUMNS, column_order=type_columns, hide_index=True
+        )
 
         st.subheader("Instruments")
         _table(investments, list(_COLUMNS))
