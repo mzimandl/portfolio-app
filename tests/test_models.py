@@ -21,6 +21,7 @@ VALID = {
     K.DIVIDEND: dict(amount=D("8.5"), currency="USD", tax=D("1.5")),
     K.STAKING_REWARD: dict(quantity=D("0.00000123")),
     K.SPLIT: dict(split_ratio=D("10")),
+    K.FEE: dict(fee=D("35")),
 }
 
 
@@ -80,6 +81,13 @@ def test_field_not_allowed_for_kind(kind, extra):
 def test_bad_numbers_rejected(change):
     with pytest.raises(ValidationError):
         tx(K.BUY, **{**VALID[K.BUY], **change})
+
+
+def test_fee_transaction_needs_a_fee():
+    with pytest.raises(ValidationError, match="greater than zero"):
+        tx(K.FEE)
+    with pytest.raises(ValidationError, match="cannot have"):
+        tx(K.FEE, fee=D("5"), amount=D("5"))
 
 
 def test_zero_price_is_allowed():

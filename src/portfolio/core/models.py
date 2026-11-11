@@ -23,6 +23,7 @@ class TransactionKind(StrEnum):
     DIVIDEND = "dividend"
     STAKING_REWARD = "staking_reward"
     SPLIT = "split"
+    FEE = "fee"  # a charge on its own, not tied to another transaction
 
 
 @dataclass(frozen=True)
@@ -95,6 +96,8 @@ class Transaction:
             if field != "currency":
                 self._check_number(field, value, strictly_positive=field in _STRICTLY_POSITIVE)
         self._check_number("fee", self.fee, strictly_positive=False)
+        if kind is K.FEE and self.fee == 0:
+            raise ValidationError("A fee transaction needs a 'fee' greater than zero")
         if self.reinvested and kind not in (K.SELL, K.WITHDRAWAL):
             raise ValidationError("Only a sell or withdrawal can be marked as reinvested")
 

@@ -71,7 +71,7 @@ instruments(
 
 transactions(
   id PK, date, instrument_id -> instruments,
-  kind CHECK IN ('buy','sell','deposit','withdrawal','dividend','staking_reward','split'),
+  kind CHECK IN ('buy','sell','deposit','withdrawal','dividend','staking_reward','split','fee'),
   quantity,        -- units; always positive, direction comes from kind
   price,           -- per unit, in `currency` (NULL for deposit/dividend/staking)
   amount,          -- cash amount in `currency` (deposit/withdrawal/dividend)
@@ -99,14 +99,15 @@ are rounded only for display.
 |---|---|
 | `trades` | `buy` (volume > 0) / `sell` (volume < 0); currency = instrument currency |
 | `crypto` | `buy` / `sell` with the row's own `currency` |
-| `deposits` | `deposit` (amount > 0) / `withdrawal` (amount < 0) |
+| `deposits` | `deposit` (amount > 0) / `withdrawal` (amount < 0); rows with only a fee become `fee` |
 | `dividends` | `dividend`, currency = instrument's `dividend_currency` |
-| `staking` | `staking_reward` (quantity only) |
+| `staking` | `staking_reward` (quantity only); negative rows become a `sell` at price 0 |
 | `values` | `valuations` |
 | `historical`, `fx` | `prices`, `fx_rates` |
 | `base_rate` | `fx_rate = 1 / base_rate` (old value divides, new value multiplies) |
 | evaluation `http` | only FFGLOB (inactive fund) uses it; FFGLOB and its rows are **not imported** |
-| splits | NFLX 10:1 on 2025-11-17 becomes a `split` transaction during import |
+| splits | none imported: the NFLX trades before its 10:1 split (2025-11-17) were already rewritten in post-split units in the old database |
+| unknown tickers | rows for tickers missing from `instruments` (ADA2, BTC2, SOL2, SGLN) are skipped, as the old app ignored them |
 
 ## Known bugs in the old app that the rewrite fixes
 
@@ -121,8 +122,9 @@ are rounded only for display.
 
 1. **Scaffold** — `uv` project, package layout, ruff, pytest, git repo, config loading.
 2. **Schema and repository** — migration runner, `0001_init.sql`, CRUD functions, tests on an in-memory DB.
-3. **Legacy import** — `scripts/import_legacy.py`; saves the old app's `/overview/get` output as a
-   fixture to compare against.
+3. **Legacy import** — `scripts/import_legacy.py` copies the data and compares totals per ticker
+   between both databases. `scripts/legacy_reference.py` runs the old app's own calculations and
+   saves them to `legacy/` (git-ignored) as reference numbers for phase 4.
 4. **Analytics** — positions, overview, time series (as-of joins of positions × prices × FX of that
    date), TWR and XIRR. Overview must match the legacy fixture per ticker; differences caused by
    fixed bugs are listed explicitly.

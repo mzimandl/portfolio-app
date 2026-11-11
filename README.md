@@ -18,6 +18,15 @@ uv run streamlit run src/portfolio/ui/app.py
 The config file is read from `config.toml` in the current directory, or from the path in the
 `PORTFOLIO_CONFIG` environment variable.
 
+## Importing data from the old app
+
+```bash
+uv run python scripts/import_legacy.py PATH_TO_OLD_DB --dry-run
+```
+
+Without `--dry-run` the data is saved to the database named in `config.toml`, which must be empty.
+The old database is only read. Nothing is saved unless every total matches the old data.
+
 ## Development
 
 ```bash

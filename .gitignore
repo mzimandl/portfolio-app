@@ -11,3 +11,6 @@ dist/
 *.db-journal
 *.db-wal
 *.db-shm
+
+# reference numbers from the old app (private data)
+/legacy/

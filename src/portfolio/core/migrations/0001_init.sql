@@ -26,7 +26,7 @@ CREATE TABLE transactions (
     date          TEXT NOT NULL CHECK (date GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'),
     instrument_id INTEGER NOT NULL REFERENCES instruments (id),
     kind          TEXT NOT NULL CHECK (kind IN (
-                      'buy', 'sell', 'deposit', 'withdrawal', 'dividend', 'staking_reward', 'split')),
+                      'buy', 'sell', 'deposit', 'withdrawal', 'dividend', 'staking_reward', 'split', 'fee')),
     quantity      TEXT,                               -- units, positive; direction comes from kind
     price         TEXT,                               -- per unit, in `currency`
     amount        TEXT,                               -- cash in `currency`; net for dividends
