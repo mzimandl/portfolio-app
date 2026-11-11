@@ -11,7 +11,12 @@ from portfolio.core.models import ValuationMethod
 
 @dataclass(frozen=True)
 class OverviewRow:
-    """Money is in base currency unless noted. None means a price or rate is missing."""
+    """Money is in base currency unless noted. None means a price or rate is missing.
+
+    Sales use up the oldest units first (FIFO). The profit has two parts: ``realised`` on
+    what was sold and ``unrealised`` on what is still held; only the unrealised part is
+    split into price, exchange rate and staking.
+    """
 
     ticker: str
     name: str | None
@@ -19,17 +24,20 @@ class OverviewRow:
     currency: str
     quantity: float | None  # None for manually valued instruments
     last_price: float | None  # in the instrument's currency
-    average_price: float | None  # average buy price, in the instrument's currency
+    average_price: float | None  # of the bought units still held, in the instrument's currency
     invested: float  # buys and deposits
     returned: float  # sells and withdrawals
     reinvested: float
     fees: float
     dividends: float
     value: float | None
-    total_profit: float | None  # value + returned - invested
-    price_profit: float | None  # part of total profit from price movement
-    fx_profit: float | None  # part of total profit from exchange-rate movement
-    rewards: float | None  # part of total profit that is staking rewards
+    cost_basis: float  # what the holding cost; for manual instruments, money still in
+    unrealised_profit: float | None  # value - cost basis
+    price_profit: float | None  # part of the unrealised profit from price movement
+    fx_profit: float | None  # part of the unrealised profit from exchange-rate movement
+    rewards: float | None  # part of the unrealised profit that is staking rewards held
+    realised_profit: float | None  # on units sold; None for manual instruments
+    total_profit: float | None  # value + returned - invested = unrealised + realised
     net_profit: float | None  # total profit + dividends - fees
 
 
@@ -52,25 +60,34 @@ def _row(data: PortfolioData, instrument_id: int, as_of: date) -> OverviewRow:
     last_price = prices.at(as_of) if prices and not manual else None
     value = value_of(position, instrument, data, as_of)
 
-    # What the buys would cost at today's exchange rates, against what they did cost.
-    buy_rates = {currency: data.fx_at(currency, as_of) for currency in position.buy_cost}
-    average_price = fx_profit = rewards = None
-    if not manual and all(rate is not None for rate in buy_rates.values()):
-        cost_now = sum(cash * buy_rates[c] for c, cash in position.buy_cost.items())
-        fx_profit = cost_now - position.bought
-        if position.buy_quantity > 0 and rate_now:
-            average_price = cost_now / (rate_now * position.buy_quantity)
-    if not manual and last_price is not None and rate_now is not None:
-        rewards = position.staking_quantity * last_price * rate_now
-
-    total_profit = price_profit = net_profit = None
+    total_profit = net_profit = None
     if value is not None:
         total_profit = value + position.returned - position.invested
         net_profit = total_profit + position.dividends - position.fees
-        if manual:
-            price_profit = total_profit
-        elif fx_profit is not None and rewards is not None:
-            price_profit = total_profit - fx_profit - rewards
+
+    average_price = fx_profit = rewards = price_profit = None
+    if manual:
+        cost_basis = position.invested - position.returned
+        unrealised = price_profit = total_profit
+        realised = None
+    else:
+        cost_basis = position.cost_basis
+        realised = position.realised
+        unrealised = None if value is None else value - cost_basis
+        # What the units still held would cost at today's exchange rates.
+        bought = [lot for lot in position.lots if not lot.staking]
+        rates = {lot.currency: data.fx_at(lot.currency, as_of) for lot in bought}
+        if all(rate is not None for rate in rates.values()):
+            cost_now = sum(lot.cost * rates[lot.currency] for lot in bought)
+            fx_profit = cost_now - cost_basis
+            if position.bought_quantity > 0 and rate_now:
+                average_price = cost_now / (rate_now * position.bought_quantity)
+        if position.staking_quantity == 0:
+            rewards = 0.0  # needs no price
+        elif last_price is not None and rate_now is not None:
+            rewards = position.staking_quantity * last_price * rate_now
+        if unrealised is not None and fx_profit is not None and rewards is not None:
+            price_profit = unrealised - fx_profit - rewards
 
     return OverviewRow(
         ticker=instrument.ticker,
@@ -86,17 +103,21 @@ def _row(data: PortfolioData, instrument_id: int, as_of: date) -> OverviewRow:
         fees=position.fees,
         dividends=position.dividends,
         value=value,
-        total_profit=total_profit,
+        cost_basis=cost_basis,
+        unrealised_profit=unrealised,
         price_profit=price_profit,
         fx_profit=fx_profit,
         rewards=rewards,
+        realised_profit=realised,
+        total_profit=total_profit,
         net_profit=net_profit,
     )
 
 
 _SUMMED = (
-    "invested", "returned", "reinvested", "fees", "dividends", "value", "total_profit",
-    "price_profit", "fx_profit", "rewards", "net_profit",
+    "invested", "returned", "reinvested", "fees", "dividends", "value", "cost_basis",
+    "unrealised_profit", "price_profit", "fx_profit", "rewards", "realised_profit",
+    "total_profit", "net_profit",
 )  # fmt: skip
 assert set(_SUMMED) <= {f.name for f in fields(OverviewRow)}
 

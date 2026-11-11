@@ -1,7 +1,6 @@
 """Replaying the ledger of one instrument into a position."""
 
 from bisect import bisect_left
-from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import date
 
@@ -13,14 +12,24 @@ _NO_QUANTITY = 1e-12
 
 
 @dataclass
+class Lot:
+    """Units acquired together and still held. Sales use up the oldest lots first (FIFO)."""
+
+    date: date
+    quantity: float
+    currency: str | None  # what the units were paid in; None for staking rewards
+    cost: float  # what the remaining units cost, in `currency`
+    cost_base: float  # the same in base currency, at the exchange rate of the purchase
+    staking: bool = False
+
+
+@dataclass
 class Position:
     """State of one instrument after some of its events. Money is in base currency."""
 
     quantity: float = 0.0
-    staking_quantity: float = 0.0  # part of `quantity` that came from staking rewards
-    buy_quantity: float = 0.0
-    buy_cost: dict[str, float] = field(default_factory=lambda: defaultdict(float))  # per currency
-    bought: float = 0.0  # what the buys cost, at the exchange rates of the time
+    lots: list[Lot] = field(default_factory=list)  # oldest first
+    realised: float = 0.0  # proceeds of sales minus what the sold units had cost
     invested: float = 0.0  # buys and deposits
     returned: float = 0.0  # sells and withdrawals
     reinvested: float = 0.0  # part of `returned` that was put back into other investments
@@ -30,6 +39,41 @@ class Position:
     # A manual valuation is topped up with the cash that moved since it was entered.
     cash_dates: list[date] = field(default_factory=list)
     cash_running: list[float] = field(default_factory=list)
+
+    @property
+    def cost_basis(self) -> float:
+        """What the units still held cost, at the exchange rates of their purchases."""
+        return sum(lot.cost_base for lot in self.lots)
+
+    @property
+    def staking_quantity(self) -> float:
+        """Units still held that came from staking rewards."""
+        return sum(lot.quantity for lot in self.lots if lot.staking)
+
+    @property
+    def bought_quantity(self) -> float:
+        """Units still held that were bought."""
+        return sum(lot.quantity for lot in self.lots if not lot.staking)
+
+    def _sell(self, quantity: float, proceeds: float) -> None:
+        """Use up the oldest lots and book the difference to the realised profit."""
+        cost = 0.0
+        remaining = quantity
+        while remaining > _NO_QUANTITY and self.lots:
+            lot = self.lots[0]
+            if lot.quantity <= remaining + _NO_QUANTITY:
+                cost += lot.cost_base
+                remaining -= lot.quantity
+                self.lots.pop(0)
+                continue
+            share = remaining / lot.quantity
+            cost += lot.cost_base * share
+            lot.cost -= lot.cost * share
+            lot.cost_base -= lot.cost_base * share
+            lot.quantity -= remaining
+            remaining = 0.0
+        # Selling more than is held has no cost to set against it.
+        self.realised += proceeds - cost
 
     def _add_cash(self, day: date, amount: float) -> None:
         self.cash_dates.append(day)
@@ -62,13 +106,12 @@ def apply(
         local = _to_instrument_currency(cash, base, event, instrument, data)
         if kind is K.BUY:
             position.quantity += event.quantity
-            position.buy_quantity += event.quantity
-            position.buy_cost[event.currency] += cash
-            position.bought += base
+            position.lots.append(Lot(event.date, event.quantity, event.currency, cash, base))
             position.invested += base
             position._add_cash(event.date, local)
             return base + event.fee, 0.0
         position.quantity -= event.quantity
+        position._sell(event.quantity, base)
         position.returned += base
         if event.reinvested:
             position.reinvested += base
@@ -92,11 +135,11 @@ def apply(
         return event.fee, base
     if kind is K.STAKING_REWARD:
         position.quantity += event.quantity
-        position.staking_quantity += event.quantity
+        position.lots.append(Lot(event.date, event.quantity, None, 0.0, 0.0, staking=True))
     elif kind is K.SPLIT:
         position.quantity *= event.split_ratio
-        position.staking_quantity *= event.split_ratio
-        position.buy_quantity *= event.split_ratio
+        for lot in position.lots:
+            lot.quantity *= event.split_ratio
     return event.fee, 0.0
 
 

@@ -100,11 +100,88 @@ def test_overview_of_a_foreign_stock(book):
     assert row.reinvested == pytest.approx(2205)
     assert (row.fees, row.dividends) == (15, 50)
     assert row.value == pytest.approx(1 * 110 * 22)  # 2420
-    assert row.total_profit == pytest.approx(625)  # 2420 + 2205 - 4000
-    assert row.fx_profit == pytest.approx(400)  # 200 USD bought at 20, now worth 22
+    assert row.cost_basis == pytest.approx(2000)  # the one share still held
+    assert row.unrealised_profit == pytest.approx(420)  # 2420 - 2000
+    assert row.fx_profit == pytest.approx(200)  # its 100 USD bought at 20, now worth 22
     assert row.rewards == 0
-    assert row.price_profit == pytest.approx(225)
+    assert row.price_profit == pytest.approx(220)  # 10 USD up, at 22
+    assert row.realised_profit == pytest.approx(205)  # sold for 2205 what cost 2000
+    assert row.total_profit == pytest.approx(625)  # 2420 + 2205 - 4000 = 420 + 205
     assert row.net_profit == pytest.approx(660)  # 625 + 50 - 15
+
+
+def test_sales_use_up_the_oldest_units_first(book):
+    stock = book.instrument("X")
+    book.prices(stock, {day(10): 200})
+    book.buy(stock, day(1), 10, 100)  # 1000
+    book.buy(stock, day(2), 10, 150)  # 1500
+    book.sell(stock, day(3), 15, 180)  # 2700: ten at 100 and five at 150 = 1750
+    row = only(overview(book.load(), day(10)), "X")
+
+    assert row.quantity == pytest.approx(5)
+    assert row.realised_profit == pytest.approx(2700 - 1750)
+    assert row.cost_basis == pytest.approx(750)  # five units at 150
+    assert row.average_price == pytest.approx(150)
+    assert row.unrealised_profit == pytest.approx(5 * 200 - 750)
+    assert row.price_profit == pytest.approx(250)
+    assert row.total_profit == pytest.approx(row.unrealised_profit + row.realised_profit)
+    # Before the sale nothing was realised.
+    assert only(overview(book.load(), day(2)), "X").realised_profit == 0
+
+
+def test_closed_position_keeps_its_realised_profit(book):
+    stock = book.instrument("X")
+    book.buy(stock, day(1), 2, 100)
+    book.sell(stock, day(3), 2, 130, fee=7)
+    row = only(overview(book.load(), day(10)), "X")
+    assert (row.quantity, row.value, row.cost_basis) == (0, 0, 0)
+    assert (row.unrealised_profit, row.fx_profit, row.price_profit, row.rewards) == (0, 0, 0, 0)
+    assert row.average_price is None
+    assert row.realised_profit == pytest.approx(60)
+    assert row.total_profit == pytest.approx(60)
+    assert row.net_profit == pytest.approx(53)
+
+
+def test_staking_units_cost_nothing_and_lost_units_realise_a_loss(book):
+    coin = book.instrument("C", type="crypto")
+    book.prices(coin, {day(10): 50})
+    book.tx(coin, day(1), K.STAKING_REWARD, quantity=2)
+    book.buy(coin, day(2), 10, 40)  # 400
+    book.sell(coin, day(3), 1, 45)  # oldest unit is a staking one: all 45 is profit
+    book.sell(coin, day(4), 3, 0)  # one staking unit and two bought ones are lost: -80
+    row = only(overview(book.load(), day(10)), "C")
+
+    assert row.quantity == pytest.approx(8)
+    assert row.realised_profit == pytest.approx(45 - 80)
+    assert row.cost_basis == pytest.approx(320)
+    assert row.rewards == 0  # no staking units are left
+    assert row.average_price == pytest.approx(40)
+    assert row.unrealised_profit == pytest.approx(8 * 50 - 320)
+    assert row.total_profit == pytest.approx(row.unrealised_profit + row.realised_profit)
+
+
+def test_exchange_rate_profit_only_counts_units_still_held(book):
+    stock = book.instrument("U", "USD")
+    book.fx("USD", {day(1): 20, day(10): 25})
+    book.prices(stock, {day(10): 10})
+    book.buy(stock, day(1), 10, 10, "USD", 20)  # 100 USD = 2000
+    book.sell(stock, day(5), 9, 10, "USD", 24)  # 90 USD = 2160, cost 1800
+    row = only(overview(book.load(), day(10)), "U")
+    assert row.realised_profit == pytest.approx(360)
+    assert row.fx_profit == pytest.approx(10 * 25 - 200)  # one unit: 10 USD from 20 to 25
+    assert row.price_profit == pytest.approx(0)
+
+
+def test_selling_more_than_held_does_not_break(book):
+    stock = book.instrument("X")
+    book.prices(stock, {day(10): 100})
+    book.buy(stock, day(1), 1, 100)
+    book.sell(stock, day(2), 3, 110)
+    row = only(overview(book.load(), day(10)), "X")
+    assert row.quantity == pytest.approx(-2)
+    assert row.cost_basis == 0
+    assert row.realised_profit == pytest.approx(330 - 100)
+    assert row.total_profit == pytest.approx(row.unrealised_profit + row.realised_profit)
 
 
 def test_overview_as_of_an_earlier_day(book):
@@ -156,6 +233,9 @@ def test_overview_of_a_manually_valued_instrument(book):
     assert row.total_profit == pytest.approx(10)
     assert row.price_profit == pytest.approx(10)
     assert row.net_profit == pytest.approx(-25)
+    assert row.cost_basis == pytest.approx(1300)  # money still in
+    assert row.unrealised_profit == pytest.approx(10)
+    assert row.realised_profit is None
     # Before any valuation exists the value is simply the money put in.
     assert only(overview(data, day(3)), "SAVE").value == pytest.approx(1000)
 
@@ -171,6 +251,11 @@ def test_split_scales_quantity_and_keeps_average_price_comparable(book):
     row = only(overview(data, day(10)), "NFLX")
     assert row.quantity == pytest.approx(10)
     assert row.average_price == pytest.approx(100)
+    assert row.cost_basis == pytest.approx(1000)
+    book.sell(stock, day(8), 4, 105)  # after the split: four of the ten new units
+    sold = only(overview(book.load(), day(10)), "NFLX")
+    assert sold.realised_profit == pytest.approx(4 * 105 - 400)
+    assert (sold.quantity, sold.cost_basis) == (pytest.approx(6), pytest.approx(600))
     assert row.value == pytest.approx(1100)
     history = timeseries.instrument_daily(data, stock, day(10))
     assert [p.value for p in history if p.date in (day(3), day(6))] == pytest.approx([1000, 1050])

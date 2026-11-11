@@ -8,58 +8,86 @@ import streamlit as st
 from portfolio.core.analytics.overview import OverviewRow, overview, summarize
 from portfolio.ui import common
 
-_MONEY = st.column_config.NumberColumn(format="localized")
+
+def _money(label: str, help: str | None = None):
+    return st.column_config.NumberColumn(label, format="localized", help=help)
+
+
 _COLUMNS = {
     "ticker": "Ticker",
     "name": "Name",
     "type": "Type",
     "currency": "Currency",
     "quantity": st.column_config.NumberColumn("Quantity", format="%.6g"),
-    "last_price": st.column_config.NumberColumn("Last price", format="localized"),
-    "average_price": st.column_config.NumberColumn("Average buy price", format="localized"),
-    "value": st.column_config.NumberColumn("Value", format="localized"),
-    "invested": st.column_config.NumberColumn("Bought / deposited", format="localized"),
-    "returned": st.column_config.NumberColumn("Sold / withdrawn", format="localized"),
-    "reinvested": st.column_config.NumberColumn("Of that reinvested", format="localized"),
-    "total_profit": st.column_config.NumberColumn("Profit", format="localized"),
-    "price_profit": st.column_config.NumberColumn("From price", format="localized"),
-    "fx_profit": st.column_config.NumberColumn("From exchange rate", format="localized"),
-    "rewards": st.column_config.NumberColumn("Staking rewards", format="localized"),
-    "dividends": st.column_config.NumberColumn("Dividends", format="localized"),
-    "fees": st.column_config.NumberColumn("Fees", format="localized"),
-    "net_profit": st.column_config.NumberColumn("Net profit", format="localized"),
+    "last_price": _money("Last price"),
+    "average_price": _money("Average buy price", "Of the bought units you still hold."),
+    "value": _money("Value"),
+    "cost_basis": _money(
+        "Cost", "What the units you still hold cost. Oldest units are sold first."
+    ),
+    "unrealised_profit": _money("Unrealised", "Value minus cost of what you still hold."),
+    "price_profit": _money("From price", "Part of the unrealised profit."),
+    "fx_profit": _money("From exchange rate", "Part of the unrealised profit."),
+    "rewards": _money("Staking rewards", "Staking units you still hold, at today's price."),
+    "realised_profit": _money("Realised", "On units sold: what you got minus what they cost."),
+    "total_profit": _money("Profit", "Unrealised plus realised."),
+    "dividends": _money("Dividends"),
+    "fees": _money("Fees"),
+    "net_profit": _money("Net profit", "Profit plus dividends minus fees."),
+    "invested": _money("Bought / deposited"),
+    "returned": _money("Sold / withdrawn"),
+    "reinvested": _money("Of that reinvested"),
 }
 _ROUNDED = (
-    "value", "invested", "returned", "reinvested", "total_profit", "price_profit", "fx_profit",
-    "rewards", "dividends", "fees", "net_profit",
+    "value", "cost_basis", "unrealised_profit", "price_profit", "fx_profit", "rewards",
+    "realised_profit", "total_profit", "dividends", "fees", "net_profit", "invested", "returned",
+    "reinvested",
 )  # fmt: skip
-
-_SEPARATE_COLUMNS = ["ticker", "name", "type", "currency", "value", "invested", "returned",
-                     "reinvested", "total_profit", "fees", "net_profit"]  # fmt: skip
+_TYPE_COLUMNS = [
+    "type", "value", "cost_basis", "unrealised_profit", "price_profit", "fx_profit", "rewards",
+    "realised_profit", "total_profit", "dividends", "fees", "net_profit",
+]  # fmt: skip
+_SEPARATE_COLUMNS = [
+    "ticker", "name", "type", "currency", "value", "cost_basis", "total_profit", "invested",
+    "returned", "fees", "net_profit",
+]  # fmt: skip
 
 
 def _rounded(row: dict) -> dict:
     return {k: round(v) if k in _ROUNDED and v is not None else v for k, v in row.items()}
 
 
-def _headline(rows: list[OverviewRow], *, with_dividends: bool) -> None:
+def _share(part: float, whole: float) -> str | None:
+    return common.percent(part / whole) if whole > 0 else None
+
+
+def _headline(rows: list[OverviewRow], *, investments: bool) -> None:
     total = summarize(rows)["total"]
-    still_in = total["invested"] - total["returned"]
-    put_in = total["invested"]
-    cells = [*st.columns(3), *st.columns(3)] if with_dividends else st.columns(3)
-    cells[0].metric("Value", common.number(total["value"]))
-    cells[1].metric("Still invested" if with_dividends else "Still deposited",
-                    common.number(still_in))  # fmt: skip
-    cells[2].metric(
-        "Profit",
-        common.number(total["total_profit"], signed=True),
-        delta=common.percent(total["total_profit"] / put_in) if put_in else None,
-        help="The percentage is the profit relative to everything ever put in.",
-    )
-    if with_dividends:
-        cells[3].metric("Dividends", common.number(total["dividends"]))
-        cells[4].metric("Fees", common.number(total["fees"]))
-        cells[5].metric("Net profit", common.number(total["net_profit"], signed=True))
+    cost = total["cost_basis"]
+    if investments:
+        cells = [*st.columns(4), *st.columns(4)]
+        cells[0].metric("Value", common.number(total["value"]))
+        cells[1].metric("Cost of holdings", common.number(cost))
+        cells[2].metric(
+            "Unrealised profit",
+            common.number(total["unrealised_profit"], signed=True),
+            delta=_share(total["unrealised_profit"], cost),
+            help="Value minus cost of what you still hold. The percentage is of that cost.",
+        )
+        cells[3].metric("Realised profit", common.number(total["realised_profit"], signed=True))
+        cells[4].metric("Dividends", common.number(total["dividends"]))
+        cells[5].metric("Fees", common.number(total["fees"]))
+        cells[6].metric("Net profit", common.number(total["net_profit"], signed=True))
+    else:
+        cells = st.columns(4)
+        cells[0].metric("Value", common.number(total["value"]))
+        cells[1].metric("Still deposited", common.number(cost))
+        cells[2].metric(
+            "Profit",
+            common.number(total["total_profit"], signed=True),
+            delta=_share(total["total_profit"], cost),
+            help="Value minus the money still deposited; the percentage is relative to it.",
+        )
     if total["missing"]:
         st.warning(
             "No price or exchange rate for: " + ", ".join(total["missing"])
@@ -107,10 +135,10 @@ def render() -> None:
     separate = [row for row in rows if common.is_separate(row.type)]
 
     if investments:
-        _headline(investments, with_dividends=True)
+        _headline(investments, investments=True)
         st.caption(
-            f"All amounts in {base}. Profit = value + sold − bought. "
-            "Net profit adds dividends and subtracts fees."
+            f"All amounts in {base}. Sales use up the oldest units first. "
+            "Net profit = unrealised + realised + dividends − fees."
             + (f" {common.separate_label()} is not included here." if separate else "")
         )
 
@@ -119,10 +147,8 @@ def render() -> None:
             _rounded({"type": name} | {k: v for k, v in sums.items() if k != "missing"})
             for name, sums in sorted(summarize(investments, key=lambda row: row.type).items())
         ]
-        type_columns = ["type", "value", "invested", "returned", "total_profit", "price_profit",
-                        "fx_profit", "rewards", "dividends", "fees", "net_profit"]  # fmt: skip
         st.dataframe(
-            _tinted(by_type), column_config=_COLUMNS, column_order=type_columns, hide_index=True
+            _tinted(by_type), column_config=_COLUMNS, column_order=_TYPE_COLUMNS, hide_index=True
         )
 
         st.subheader("Instruments")
@@ -130,7 +156,7 @@ def render() -> None:
 
     if separate:
         st.header(common.separate_label())
-        _headline(separate, with_dividends=False)
+        _headline(separate, investments=False)
         if not investments:
             st.caption(f"All amounts in {base}.")
         _table(separate, _SEPARATE_COLUMNS)

@@ -325,9 +325,13 @@ def test_overview_keeps_separate_types_out_of_the_headline(savings_apart):
     at = clean(run_page("overview"))
     values = [m.value for m in at.metric if m.label == "Value"]
     assert values == ["6\u00a0900", "1\u00a0040"]  # investments, then savings
-    profits = [(m.value, m.delta) for m in at.metric if m.label == "Profit"]
-    # AAPL: 6900 - 4400 bought; savings: 1040 - 1000 deposited
-    assert profits == [("+2\u00a0500", "+56,8\u00a0%"), ("+40", "+4,0\u00a0%")]
+    by_label = {m.label: (m.value, m.delta) for m in at.metric}
+    # AAPL: worth 6900, cost 4400; savings: worth 1040, 1000 deposited
+    assert by_label["Cost of holdings"][0] == "4\u00a0400"
+    assert by_label["Unrealised profit"] == ("+2\u00a0500", "+56,8\u00a0%")
+    assert by_label["Realised profit"][0] == "0"
+    assert by_label["Still deposited"][0] == "1\u00a0000"
+    assert by_label["Profit"] == ("+40", "+4,0\u00a0%")
     assert [h.value for h in at.header] == ["Savings"]
     by_type, instruments, savings = at.dataframe
     assert list(by_type.value["type"]) == ["stock"]

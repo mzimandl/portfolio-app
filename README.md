@@ -77,11 +77,14 @@ left empty: the market rate of that day is used.
 
 | Number | Definition |
 |---|---|
-| Profit | value + sold/withdrawn − bought/deposited. Fees and dividends are not in it. |
-| Net profit | profit + dividends − fees. |
-| From exchange rate | What the buys would cost at today's rate minus what they cost then. |
-| Staking rewards | Units received from staking × today's price. |
-| From price | Profit − from exchange rate − staking rewards. |
+| Cost | What the units you still hold cost, at the exchange rates of their purchases. Sales use up the oldest units first (FIFO). |
+| Unrealised profit | Value − cost. |
+| From exchange rate | Part of the unrealised profit: what those units would cost at today's rate minus what they cost then. |
+| Staking rewards | Part of the unrealised profit: staking units still held × today's price. |
+| From price | The rest of the unrealised profit. |
+| Realised profit | On units sold: what you got for them minus what they had cost. Units from staking cost nothing; units lost (sold at price 0) realise their cost as a loss. |
+| Profit | Unrealised + realised, which equals value + sold − bought. |
+| Net profit | Profit + dividends − fees. |
 | Return (time-weighted) | How the investments did, regardless of when money was added. Not annualised. |
 | Yearly return on your money | XIRR: the yearly rate earned given when each payment was made. |
 
