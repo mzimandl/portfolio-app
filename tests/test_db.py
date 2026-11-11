@@ -1,0 +1,82 @@
+import sqlite3
+
+import pytest
+
+from portfolio.core import db
+
+
+def write_migrations(tmp_path, files: dict[str, str]):
+    for name, sql in files.items():
+        (tmp_path / name).write_text(sql)
+    return tmp_path
+
+
+def test_migrate_creates_schema_and_is_repeatable(conn):
+    assert db.schema_version(conn) >= 1
+    version = db.schema_version(conn)
+    assert db.migrate(conn) == version
+    tables = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
+    assert {"instruments", "transactions", "valuations", "prices", "fx_rates"} <= tables
+
+
+def test_foreign_keys_are_enforced(conn):
+    with pytest.raises(sqlite3.IntegrityError):
+        conn.execute(
+            "INSERT INTO transactions (date, instrument_id, kind) VALUES ('2024-01-01', 99, 'buy')"
+        )
+
+
+def test_writes_need_a_commit(tmp_path):
+    path = tmp_path / "sub" / "p.db"
+    first = db.connect(path)
+    db.migrate(first)
+    first.execute("INSERT INTO currencies (code) VALUES ('CZK')")
+    first.close()  # no commit
+    second = db.connect(path)
+    assert second.execute("SELECT count(*) FROM currencies").fetchone()[0] == 0
+    with second:
+        second.execute("INSERT INTO currencies (code) VALUES ('CZK')")
+    second.close()
+    third = db.connect(path)
+    assert third.execute("SELECT count(*) FROM currencies").fetchone()[0] == 1
+
+
+def test_only_pending_migrations_run(tmp_path):
+    connection = db.connect(":memory:")
+    directory = write_migrations(tmp_path, {"0001_a.sql": "CREATE TABLE a (x);"})
+    assert db.migrate(connection, directory) == 1
+    write_migrations(tmp_path, {"0002_b.sql": "CREATE TABLE b (x);"})
+    assert db.migrate(connection, directory) == 2
+    assert db.schema_version(connection) == 2
+
+
+def test_failed_migration_is_rolled_back(tmp_path):
+    connection = db.connect(":memory:")
+    directory = write_migrations(
+        tmp_path,
+        {
+            "0001_a.sql": "CREATE TABLE a (x);",
+            "0002_b.sql": "CREATE TABLE b (x); INSERT INTO a VALUES (1); CREATE TABLE a (x);",
+        },
+    )
+    with pytest.raises(db.MigrationError, match="0002_b.sql"):
+        db.migrate(connection, directory)
+    assert db.schema_version(connection) == 1
+    tables = {r[0] for r in connection.execute("SELECT name FROM sqlite_master")}
+    assert tables == {"a"}
+    assert connection.execute("SELECT count(*) FROM a").fetchone()[0] == 0
+
+
+def test_gap_in_migration_numbers_is_rejected(tmp_path):
+    directory = write_migrations(tmp_path, {"0001_a.sql": "", "0003_c.sql": ""})
+    with pytest.raises(db.MigrationError, match="without gaps"):
+        db.migrate(db.connect(":memory:"), directory)
+
+
+def test_database_newer_than_app_is_rejected(tmp_path):
+    connection = db.connect(":memory:")
+    connection.execute("PRAGMA user_version = 5")
+    connection.commit()
+    directory = write_migrations(tmp_path, {"0001_a.sql": "CREATE TABLE a (x);"})
+    with pytest.raises(db.MigrationError, match="newer version"):
+        db.migrate(connection, directory)
