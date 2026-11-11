@@ -67,8 +67,8 @@ def _headline(rows: list[OverviewRow], *, with_dividends: bool) -> None:
         )  # fmt: skip
 
 
-_GAIN = "background-color: rgba(46, 160, 67, 0.18)"
-_LOSS = "background-color: rgba(218, 54, 51, 0.18)"
+_GAIN = "background-color: rgba(46, 160, 67, 0.30)"
+_LOSS = "background-color: rgba(218, 54, 51, 0.30)"
 
 
 def _tint(profit: float | None) -> str:
