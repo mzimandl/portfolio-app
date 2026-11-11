@@ -1,61 +1,192 @@
 # Portfolio
 
-Personal portfolio tracker: Python, Streamlit, SQLite. See [PLAN.md](PLAN.md) for the design.
+A personal portfolio tracker: stocks, ETFs, crypto and manually valued accounts, in one base
+currency. Python, Streamlit and a single SQLite file. Built to keep working for years with
+little upkeep; [PLAN.md](PLAN.md) records the design decisions.
 
-## Setup
+## Quick start
+
+Needs [uv](https://docs.astral.sh/uv/). It installs the right Python by itself.
 
 ```bash
 uv sync
-cp config.sample.toml config.toml
 ```
 
-## Run
+```bash
+cp config.sample.toml config.toml
+```
 
 ```bash
 uv run streamlit run src/portfolio/ui/app.py
 ```
 
-The config file is read from `config.toml` in the current directory, or from the path in the
-`PORTFOLIO_CONFIG` environment variable.
+The app opens at http://localhost:8501 and listens on this computer only.
 
-## Importing data from the old app
+## Configuration
 
-```bash
-uv run python scripts/import_legacy.py PATH_TO_OLD_DB --dry-run
-```
+`config.toml` is read from the current directory, or from the path in the `PORTFOLIO_CONFIG`
+environment variable.
 
-Without `--dry-run` the data is saved to the database named in `config.toml`, which must be empty.
-The old database is only read. Nothing is saved unless every total matches the old data.
+| Setting | Meaning |
+|---|---|
+| `db` | Path of the SQLite database. Relative paths are relative to the config file. Created on first start. |
+| `base_currency` | Currency everything is reported in, e.g. `CZK`. |
+| `locale` | Number formatting: `cs`, `sk`, `de` or `en`. |
+| `benchmark` | Optional Yahoo symbol to compare returns against, e.g. `VWCE.DE`. |
 
-## Updating prices
+## Using it
+
+Start in **Settings**: add currencies, instrument types and instruments. Then record what
+happens in **Transactions**.
+
+| Page | Shows |
+|---|---|
+| Overview | What you hold now, what it cost, and the profit split into price, exchange rate and staking. |
+| Performance | Returns for the portfolio, a type or one instrument; by year; against the benchmark; new money per year or month. |
+| Charts | Value, money invested and profit, day by day. |
+| Transactions | The ledger: filter, add, edit, delete. A second tab holds manual valuations. |
+| Prices | Stored prices and exchange rates. |
+| Import / export | Backup downloads and CSV import of transactions. |
+| Settings | Instruments, currencies, instrument types. |
+
+### Transaction kinds
+
+Numbers are always positive; the kind gives the direction.
+
+| Kind | Fields | Meaning |
+|---|---|---|
+| `buy`, `sell` | quantity, price, currency, exchange rate | A trade. The currency may differ from the instrument's (crypto bought for USD). |
+| `deposit`, `withdrawal` | amount, currency | Money into or out of a manually valued instrument (savings, funds). |
+| `dividend` | amount, currency, optional tax | The net amount received; tax is what was withheld. |
+| `staking_reward` | quantity | Units received for free. |
+| `split` | ratio | New units per old unit, e.g. 10 for a 10:1 split. |
+| `fee` | fee | A charge on its own, not tied to another transaction. |
+
+Every kind can also carry a fee, always in base currency. The exchange rate is base currency
+per 1 unit of the transaction's currency. On deposits, withdrawals and dividends it may be
+left empty: the market rate of that day is used.
+
+### Two ways an instrument is valued
+
+- **Yahoo:** quantity held × the latest downloaded price.
+- **By hand:** the last value you entered under *Manual valuations*, plus deposits and minus
+  withdrawals made on that day or later.
+
+### How the numbers are defined
+
+| Number | Definition |
+|---|---|
+| Profit | value + sold/withdrawn − bought/deposited. Fees and dividends are not in it. |
+| Net profit | profit + dividends − fees. |
+| From exchange rate | What the buys would cost at today's rate minus what they cost then. |
+| Staking rewards | Units received from staking × today's price. |
+| From price | Profit − from exchange rate − staking rewards. |
+| Return (time-weighted) | How the investments did, regardless of when money was added. Not annualised. |
+| Yearly return on your money | XIRR: the yearly rate earned given when each payment was made. |
+
+Both returns include dividends and are after fees. A manually valued account that gains value
+you did not deposit (an employer's pension contribution, for example) shows that as return,
+which can make the time-weighted figure very large.
+
+## Prices
+
+The **Update prices** button, or:
 
 ```bash
 uv run python scripts/update_prices.py
 ```
 
-Downloads prices and exchange rates from Yahoo since the last update. `--full` downloads every
-history again. If Yahoo reports a split, the script says so; add it as a `split` transaction or
-dismiss it, otherwise the value of that instrument is wrong.
+It downloads what is new since the last update for every active instrument you hold and every
+currency in use. `--full` downloads all histories again. A ticker that fails is reported and
+the rest still updates.
 
-To use another source, write a class with the three methods described in
-`src/portfolio/core/providers/base.py`.
+**Splits.** When Yahoo reports a split, a notice appears on every page. Choose *Add split* if
+your recorded quantities are from before the split, or *Dismiss* if you already rewrote them.
+Until you decide, that instrument's value is wrong.
 
-## Backup and CSV
+**When Yahoo stops working.** Yahoo has no official API and the `yfinance` package breaks
+now and then. First try a newer version:
 
-The whole database is the one file named in `config.toml`; copying it is a complete backup.
-The Import / export page offers that file and a zip of every table as CSV, and imports
-transactions from a CSV file after showing what it read. From the command line:
+```bash
+uv lock --upgrade-package yfinance
+```
+
+If that does not help, everything that touches Yahoo is in
+`src/portfolio/core/providers/yahoo.py`. Another source is a class with the three methods
+described in `src/portfolio/core/providers/base.py`, returned from `provider()` in
+`src/portfolio/ui/common.py` and used in `scripts/update_prices.py`.
+
+## Backup
+
+The whole database is the one file named in `config.toml`. Copying it is a complete backup;
+putting it back is the restore. The *Import / export* page offers that file as a download,
+plus a zip with every table as CSV. From the command line:
 
 ```bash
 uv run python scripts/export_csv.py FOLDER
 ```
 
-## Development
+The database deliberately stays a single file (no WAL mode), so it can live in a synced
+folder. Do not open the app on two computers at the same time.
+
+## Maintenance
 
 ```bash
 uv run pytest
+```
+
+```bash
 uv run ruff check
+```
+
+```bash
 uv run ruff format
 ```
 
-Code under `src/portfolio/core` must not import Streamlit; `tests/test_architecture.py` checks this.
+**Upgrading dependencies.** The versions in `uv.lock` are the ones the app was tested with,
+and it keeps working with them as long as you like. To upgrade, run `uv lock --upgrade`, then
+`uv sync` and the tests. If something breaks, `git checkout uv.lock` goes back.
+
+**Where things are.**
+
+```
+src/portfolio/
+  core/                 no Streamlit in here (a test enforces it)
+    config.py           the config file
+    db.py               connection, migrations runner
+    migrations/         numbered SQL files, applied in order on start
+    models.py           records and the rules for each transaction kind
+    repo.py             reading and writing records
+    analytics/          positions, overview, daily history, returns
+    providers/          sources of prices; yahoo.py is the only one
+    updater.py          downloading new prices and rates
+    csv_io.py           CSV export and import
+    legacy_import.py    one-off import from the old app
+  ui/                   Streamlit; each page is a render() function
+scripts/                command-line entry points
+tests/
+```
+
+**If Streamlit ever has to go**, only `ui/` is rewritten. The calculations, the storage and
+the price updates do not depend on it.
+
+**Changing the database layout.** Add the next numbered file to `core/migrations/`
+(`0003_….sql`). It runs once, in a transaction, the next time the app or a script starts.
+Never edit a migration that has already run on your database.
+
+**Numbers.** What you type (quantities, prices, amounts, rates) is stored as exact decimal
+text. Market prices and everything calculated from them are ordinary floating-point numbers,
+rounded only for display.
+
+## Importing from the old app
+
+One-off, into an empty database:
+
+```bash
+uv run python scripts/import_legacy.py PATH_TO_OLD_DB --dry-run
+```
+
+Without `--dry-run` the data is saved to the database named in `config.toml`. The old database
+is only read, and nothing is saved unless every total per ticker matches the old data.
+`scripts/legacy_reference.py` and `scripts/compare_legacy.py` compare the new calculations
+with the old app's own output; they are only meaningful right after an import.

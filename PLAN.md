@@ -1,5 +1,8 @@
 # Portfolio app rewrite — plan
 
+**Status: all eight phases are finished.** This file is kept as the record of what was decided
+and why; [README.md](README.md) describes how to use and maintain the app.
+
 Rewrite of `../portfolio-app` (Sanic + Polars + React) as a Python + Streamlit app.
 Goal: a personal portfolio tracker that stays reliable and easy to maintain for many years.
 
@@ -150,7 +153,7 @@ current Polars release.
 7. **CSV import/export** — every table as CSV (instruments named by ticker) and the database
    file itself as downloads; transactions imported from CSV with a preview, errors per line and
    detection of rows already in the database. Importing is all or nothing.
-8. **Docs** — README: install, run, backup, how to add a provider.
+8. **Docs** — README: setup, use, definitions of the numbers, prices, backup, maintenance.
 
 Each phase ends with passing tests and a commit.
 
