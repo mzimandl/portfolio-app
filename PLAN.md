@@ -18,6 +18,7 @@ Goal: a personal portfolio tracker that stays reliable and easy to maintain for 
 | Dividends | Net amount received plus an optional withholding-tax field |
 | Performance extras | Breakdown by type, benchmark comparison, profit split into price vs FX, invested per month/year |
 | Tooling | `uv` + lockfile, `ruff`, `pytest` |
+| Returns | Dividends count as money received and fees as money paid, so returns are after fees |
 
 ## Architecture rule
 
@@ -40,10 +41,11 @@ portfolio-app-refactor/
         yahoo.py              # prices + FX
       updater.py              # incremental price/FX refresh
       analytics/
-        positions.py          # daily holdings per instrument
-        overview.py           # current state per instrument
+        data.py               # everything loaded once; exchange rates resolved
+        positions.py          # replaying one instrument's ledger into a position
+        overview.py           # current state per instrument, sums by type
         timeseries.py         # value / invested / profit per day
-        performance.py        # TWR, XIRR, per year / instrument / total
+        performance.py        # TWR, XIRR, per year, benchmark, new money per period
       csv_io.py               # import/export
     ui/
       app.py                  # navigation, sidebar (data freshness + refresh button)
@@ -90,8 +92,11 @@ fx_rates(date, from_currency, to_currency, close, PK(date, from_currency, to_cur
 ```
 
 Numbers in the ledger (`quantity`, `price`, `amount`, `fx_rate`, `fee`) are stored as exact decimal
-text and handled as `Decimal` in Python. Market prices and derived analytics use floats in Polars and
-are rounded only for display.
+text and handled as `Decimal` in Python. Market prices and derived analytics use floats and are rounded only for display.
+
+Analytics are plain Python, without Polars: the data is small (the whole day-by-day history
+computes in under 0.1 s) and the old app's Polars code had already stopped working on the
+current Polars release.
 
 ### Mapping from the old database
 
@@ -125,9 +130,11 @@ are rounded only for display.
 3. **Legacy import** — `scripts/import_legacy.py` copies the data and compares totals per ticker
    between both databases. `scripts/legacy_reference.py` runs the old app's own calculations and
    saves them to `legacy/` (git-ignored) as reference numbers for phase 4.
-4. **Analytics** — positions, overview, time series (as-of joins of positions × prices × FX of that
-   date), TWR and XIRR. Overview must match the legacy fixture per ticker; differences caused by
-   fixed bugs are listed explicitly.
+4. **Analytics** — positions, overview, day-by-day history, TWR and XIRR, per year, benchmark,
+   new money per period. `scripts/compare_legacy.py` checks them against the old app's output.
+   Result: 665 numbers compared, 4 differ, all intended — ETH `rewards` and price profit (negative
+   staking is now a sell at price 0) and price profit of the two savings accounts (the old app
+   left it empty).
 5. **Yahoo provider and updater** — incremental per instrument and currency pair, errors reported
    per ticker instead of only printed.
 6. **UI** — Overview, Performance, Charts, Transactions (filterable editor with add/edit/delete),
@@ -140,7 +147,8 @@ Each phase ends with passing tests and a commit.
 ## Details settled
 
 - **Splits** — holdings are computed by replaying the ledger; a `split` multiplies the quantity held
-  so far. Yahoo prices are already split-adjusted, so trades before a split are compared against
+  so far. Phase 5 must re-download an instrument's whole price history when a split appears,
+  because prices stored before the split are in the old units. Yahoo prices are already split-adjusted, so trades before a split are compared against
   adjusted prices by dividing their price by the later split ratios.
 - **Benchmark** — a Yahoo symbol set in the config (e.g. an S&P 500 or MSCI World ETF). It is stored
   as an instrument of type `benchmark` with prices but no transactions, and is excluded from the
