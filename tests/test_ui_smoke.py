@@ -183,8 +183,9 @@ def test_overview_page(database):
     # 2 shares x 150 USD x 23 = 6900, plus savings 1040
     assert labels["Value"] == "7\u00a0940"
     assert labels["Dividends"] == "50"
-    assert len(at.dataframe) == 2
-    assert list(at.dataframe[1].value["ticker"]) == ["AAPL", "SAVE"]
+    assert len(at.dataframe) == 3
+    assert list(at.dataframe[2].value["ticker"]) == ["AAPL", "SAVE"]
+    assert list(at.dataframe[2].value["share"]) == pytest.approx([6900 / 7940, 1040 / 7940])
 
 
 def test_overview_follows_changes_made_outside_the_app(database):
@@ -350,8 +351,10 @@ def test_overview_keeps_separate_types_out_of_the_headline(savings_apart):
     assert by_label["Still deposited"][0] == "1\u00a0000"
     assert by_label["Profit"] == ("+40", "+4,0\u00a0%")
     assert [h.value for h in at.header] == ["Savings"]
-    by_type, instruments, savings = at.dataframe
+    by_type, by_currency, instruments, savings = at.dataframe
     assert list(by_type.value["type"]) == ["stock"]
+    assert list(by_currency.value["currency"]) == ["USD"]
+    assert list(by_currency.value["share"]) == [1.0]
     assert list(instruments.value["ticker"]) == ["AAPL"]
     assert list(savings.value["ticker"]) == ["SAVE"]
     assert "Savings is not included" in at.caption[0].value
@@ -390,4 +393,4 @@ def test_overview_rows_are_tinted_by_profit_or_loss(database):
     assert "rgba(46, 160, 67" in html and "rgba(218, 54, 51" in html
     # The page still gets the plain numbers.
     at = clean(run_page("overview"))
-    assert list(at.dataframe[1].value["total_profit"]) == [2500, 40]
+    assert list(at.dataframe[2].value["total_profit"]) == [2500, 40]

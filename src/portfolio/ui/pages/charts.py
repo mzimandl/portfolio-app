@@ -3,6 +3,7 @@
 import pandas as pd
 import streamlit as st
 
+from portfolio.core.analytics import performance
 from portfolio.core.analytics.timeseries import thin
 from portfolio.ui import common
 
@@ -17,10 +18,9 @@ def render() -> None:
     with left:
         _, ids = common.scope_picker(loaded, "charts_scope")
     period = right.selectbox("Period", common.PERIODS, key="charts_period")
-    days = common.history(loaded, ids)
+    history = common.history(loaded, ids)
     start = common.period_start(period, loaded.today)
-    if start:
-        days = [p for p in days if p.date >= start]
+    days = [p for p in history if p.date >= start] if start else history
     if not days:
         st.info("Nothing to show for this selection.")
         return
@@ -46,6 +46,19 @@ def render() -> None:
             index=index,
         ),
         y_label=base,
+    )
+    drops, _ = thin(performance.drops(history, start), MAX_POINTS)
+    st.subheader("Drop from the high")
+    st.area_chart(
+        pd.DataFrame(
+            {"Below the high (%)": [drop * 100 for _, drop in drops]},
+            index=pd.to_datetime([day for day, _ in drops]),
+        ),
+        y_label="%",
+    )
+    st.caption(
+        "How far the time-weighted return is below its highest point so far in the period. "
+        "New money does not move it."
     )
     st.caption(
         "Each day uses the prices and exchange rates of that day. "

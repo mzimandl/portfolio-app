@@ -22,6 +22,9 @@ _COLUMNS = {
     "last_price": _money("Last price"),
     "average_price": _money("Average buy price", "Of the bought units you still hold."),
     "value": _money("Value"),
+    "share": st.column_config.NumberColumn(
+        "Share", format="percent", help="Of the value of all investments."
+    ),
     "cost_basis": _money(
         "Cost", "What the units you still hold cost. Oldest units are sold first."
     ),
@@ -42,8 +45,8 @@ _ROUNDED = (
     "realised_profit", "total_profit", "dividends", "fees", "net_profit", "invested", "returned",
 )  # fmt: skip
 _TYPE_COLUMNS = [
-    "type", "value", "cost_basis", "unrealised_profit", "price_profit", "fx_profit", "rewards",
-    "realised_profit", "total_profit", "dividends", "fees", "net_profit",
+    "type", "value", "share", "cost_basis", "unrealised_profit", "price_profit", "fx_profit",
+    "rewards", "realised_profit", "total_profit", "dividends", "fees", "net_profit",
 ]  # fmt: skip
 _SEPARATE_COLUMNS = [
     "ticker", "name", "type", "currency", "value", "cost_basis", "total_profit", "invested",
@@ -142,9 +145,26 @@ def _sales(loaded: common.Loaded, include_inactive: bool) -> None:
     )
 
 
+def _with_share(row: dict, whole: float) -> dict:
+    value = row.get("value")
+    return row | {"share": value / whole if value is not None and whole > 0 else None}
+
+
+def _groups(rows: list[OverviewRow], field: str, whole: float) -> list[dict]:
+    """Sums per type or currency, with each group's share of the whole value."""
+    sums = summarize(rows, key=lambda row: getattr(row, field))
+    return [
+        _with_share(
+            _rounded({field: name} | {k: v for k, v in group.items() if k != "missing"}), whole
+        )
+        for name, group in sorted(sums.items())
+    ]
+
+
 def _table(rows: list[OverviewRow], columns: list[str]) -> None:
+    whole = sum(row.value or 0.0 for row in rows)
     st.dataframe(
-        _tinted([_rounded(asdict(row)) for row in rows]),
+        _tinted([_with_share(_rounded(asdict(row)), whole) for row in rows]),
         column_config=_COLUMNS,
         column_order=columns,
         hide_index=True,
@@ -172,13 +192,21 @@ def render() -> None:
             + (f" {common.separate_label()} is not included here." if separate else "")
         )
 
+        whole = sum(row.value or 0.0 for row in investments)
         st.subheader("By type")
-        by_type = [
-            _rounded({"type": name} | {k: v for k, v in sums.items() if k != "missing"})
-            for name, sums in sorted(summarize(investments, key=lambda row: row.type).items())
-        ]
         st.dataframe(
-            _tinted(by_type), column_config=_COLUMNS, column_order=_TYPE_COLUMNS, hide_index=True
+            _tinted(_groups(investments, "type", whole)),
+            column_config=_COLUMNS,
+            column_order=_TYPE_COLUMNS,
+            hide_index=True,
+        )
+        st.subheader("By currency")
+        st.caption("The currency each instrument is quoted in.")
+        st.dataframe(
+            _tinted(_groups(investments, "currency", whole)),
+            column_config=_COLUMNS,
+            column_order=["currency", *_TYPE_COLUMNS[1:]],
+            hide_index=True,
         )
 
         st.subheader("Instruments")

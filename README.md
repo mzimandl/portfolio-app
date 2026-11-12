@@ -43,8 +43,8 @@ happens in **Transactions**.
 | Page | Shows |
 |---|---|
 | Overview | What you hold now, what it cost, and the profit split into price, exchange rate and staking. Below it, every sale and what it realised. |
-| Performance | Returns for the portfolio, a type or one instrument; by year; against the benchmark; new money per year or month. |
-| Charts | Value, money invested and profit, day by day. |
+| Performance | Returns for the portfolio, a type or one instrument; the deepest drop; by year; against the benchmark; new money per year or month. |
+| Charts | Value, money invested, profit and the drop from the high, day by day. |
 | Transactions | The ledger: filter, add, edit, delete. A second tab holds manual valuations. |
 | Prices | Stored prices and exchange rates. |
 | Import / export | Backup downloads and CSV import of transactions. |
@@ -89,6 +89,8 @@ left empty: the market rate of that day is used.
 | Net profit | Profit + dividends − fees. |
 | Return (time-weighted) | How the investments did, regardless of when money was added. Not annualised. |
 | Yearly return on your money | XIRR: the yearly rate earned given when each payment was made. |
+| Deepest drop | The largest fall of the time-weighted return from a high. Measured on the return, so new money does not hide it. |
+| Share | An instrument's, type's or currency's part of the value of all investments. |
 
 **Benchmark.** With `benchmark` set, Performance compares in two ways. Its return is that of
 holding it for the whole period with dividends reinvested, comparable with the time-weighted

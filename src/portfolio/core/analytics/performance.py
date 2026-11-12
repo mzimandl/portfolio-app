@@ -47,6 +47,69 @@ def twr(
     return growth - 1.0
 
 
+def growth(
+    days: Sequence[DayPoint], start: date | None = None, end: date | None = None
+) -> list[tuple[date, float]]:
+    """What 1 unit of money invested before the period is worth at the end of each day,
+    by the time-weighted return. New money does not move it."""
+    window = _window(days, start, end)
+    if not window:
+        return []
+    points = []
+    level = 1.0
+    previous = _value_before(days, window[0].date)
+    for point in window:
+        base = previous + point.put_in
+        if base > _TINY:
+            level *= (point.value + point.taken_out) / base
+        previous = point.value
+        points.append((point.date, level))
+    return points
+
+
+def drops(
+    days: Sequence[DayPoint], start: date | None = None, end: date | None = None
+) -> list[tuple[date, float]]:
+    """How far below its highest level so far the growth is each day (-0.2 means 20 % below)."""
+    points = []
+    peak = 1.0
+    for day, level in growth(days, start, end):
+        peak = max(peak, level)
+        points.append((day, level / peak - 1.0 if peak > _TINY else 0.0))
+    return points
+
+
+@dataclass(frozen=True)
+class Drawdown:
+    deepest: float  # the largest drop from a peak, as a negative fraction (0 if none)
+    peak: date | None  # the day of the high before that drop
+    trough: date | None  # the day it was deepest
+    recovered: date | None  # the first day back at that high; None if not yet
+    current: float  # how far below the highest level the last day is
+
+
+def drawdown(
+    days: Sequence[DayPoint], start: date | None = None, end: date | None = None
+) -> Drawdown | None:
+    """The deepest drop of the time-weighted growth in the period, and where it stands now."""
+    levels = growth(days, start, end)
+    if not levels:
+        return None
+    deepest, peak_day, trough_day, recovered = 0.0, None, None, None
+    high, high_day = 1.0, levels[0][0]
+    for day, level in levels:
+        if level >= high:
+            high, high_day = level, day
+            if trough_day is not None and recovered is None and high_day > trough_day:
+                recovered = day
+            continue
+        drop = level / high - 1.0 if high > _TINY else 0.0
+        if drop < deepest:
+            deepest, peak_day, trough_day, recovered = drop, high_day, day, None
+    current = levels[-1][1] / high - 1.0 if high > _TINY else 0.0
+    return Drawdown(deepest, peak_day, trough_day, recovered, current)
+
+
 def xirr(flows: Sequence[tuple[date, float]]) -> float | None:
     """Yearly rate at which the dated cash flows balance out (0.10 means 10 % a year).
 

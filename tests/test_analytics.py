@@ -444,6 +444,41 @@ def test_twr_includes_dividends_and_fees(book):
     assert performance.twr(timeseries.instrument_daily(data, costly, day(3))) == pytest.approx(-0.2)
 
 
+def test_drawdown_ignores_new_money(book):
+    stock = book.instrument("X")
+    book.prices(stock, {day(1): 100, day(3): 120, day(5): 90, day(6): 96, day(8): 130, day(9): 117})
+    book.buy(stock, day(1), 1, 100)
+    book.buy(stock, day(4), 10, 120)  # a lot of new money just before the fall
+    history = timeseries.instrument_daily(book.load(), stock, day(9))
+
+    levels = dict(performance.growth(history))
+    assert levels[day(3)] == pytest.approx(1.2)
+    assert levels[day(5)] == pytest.approx(0.9)
+    assert levels[day(9)] == pytest.approx(1.17)
+    assert levels[day(9)] - 1 == pytest.approx(performance.twr(history))
+
+    result = performance.drawdown(history)
+    assert result.deepest == pytest.approx(90 / 120 - 1)
+    # The high is held for two days; the drop is counted from the last of them.
+    assert (result.peak, result.trough, result.recovered) == (day(4), day(5), day(8))
+    assert result.current == pytest.approx(117 / 130 - 1)
+    assert dict(performance.drops(history))[day(6)] == pytest.approx(96 / 120 - 1)
+
+    # Within a period the high is counted from the period's start.
+    late = performance.drawdown(history, start=day(6))
+    assert late.deepest == pytest.approx(-0.10)
+    assert (late.peak, late.trough, late.recovered) == (day(8), day(9), None)
+    assert performance.drawdown(history, start=date(2030, 1, 1)) is None
+
+
+def test_drawdown_of_something_that_only_rose(book):
+    stock = book.instrument("X")
+    book.prices(stock, {day(1): 100, day(3): 120})
+    book.buy(stock, day(1), 1, 100)
+    result = performance.drawdown(timeseries.instrument_daily(book.load(), stock, day(4)))
+    assert (result.deepest, result.peak, result.trough, result.current) == (0.0, None, None, 0.0)
+
+
 def test_xirr():
     assert performance.xirr([(date(2023, 1, 1), -1000), (date(2024, 1, 1), 1100)]) == pytest.approx(
         0.10, abs=1e-6

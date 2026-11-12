@@ -19,6 +19,34 @@ def _benchmark_id(loaded: common.Loaded) -> int | None:
     return next((i.id for i in loaded.data.instruments.values() if i.ticker == symbol), None)
 
 
+def _drawdown(days, start: date, today: date) -> None:
+    result = performance.drawdown(days, start, today)
+    if result is None:
+        return
+    cells = st.columns(3)
+    cells[0].metric(
+        "Deepest drop",
+        common.percent(result.deepest),
+        help="The largest fall of the time-weighted return from a high, in the period. "
+        "New money does not hide it.",
+    )
+    cells[1].metric(
+        "Now below the high",
+        common.percent(result.current),
+        help="How far the return is today below its highest point in the period.",
+    )
+    if result.trough is not None:
+        after = (
+            f"back at the high on {result.recovered}"
+            if result.recovered
+            else "not yet back at that high"
+        )
+        st.caption(
+            f"The deepest drop ran from {result.peak} to {result.trough} "
+            f"({(result.trough - result.peak).days} days); {after}."
+        )
+
+
 def _benchmark(data, benchmark_id: int, days, start: date, today: date) -> None:
     """The same money, paid in and taken out on the same days, held in the benchmark."""
     symbol = common.config().benchmark
@@ -93,6 +121,7 @@ def render() -> None:
         "The yearly return on your money (XIRR) takes the timing of your payments into "
         "account. Both include dividends and are after fees."
     )
+    _drawdown(days, start, today)
     if benchmark_id is not None:
         _benchmark(data, benchmark_id, days, start, today)
 
