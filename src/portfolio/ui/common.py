@@ -8,7 +8,7 @@ from datetime import date
 
 import streamlit as st
 
-from portfolio.core import db
+from portfolio.core import backup, db
 from portfolio.core.analytics.data import PortfolioData, load_data
 from portfolio.core.analytics.timeseries import DayPoint, all_daily, combine
 from portfolio.core.config import Config, load_config
@@ -31,11 +31,18 @@ def _migrate(path: str) -> None:
         conn.close()
 
 
+def _prepare() -> None:
+    """Before the database is used: today's backup first, then any pending migration."""
+    cfg = config()
+    backup.daily_backup(cfg.db_path, cfg.backup_dir, date.today(), cfg.backup_keep)
+    _migrate(str(cfg.db_path))
+
+
 @contextmanager
 def connection() -> Iterator[sqlite3.Connection]:
     """A database connection for this run of the page. Use ``with conn:`` around writes."""
     path = config().db_path
-    _migrate(str(path))
+    _prepare()
     conn = db.connect(path)
     try:
         yield conn
@@ -71,7 +78,7 @@ def portfolio() -> Loaded:
     Shared between reruns: treat it as read-only.
     """
     path = config().db_path
-    _migrate(str(path))
+    _prepare()
     stat = path.stat()
     return _load(str(path), config().base_currency, date.today(), (stat.st_mtime_ns, stat.st_size))
 

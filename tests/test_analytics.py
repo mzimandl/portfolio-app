@@ -797,3 +797,27 @@ def test_checks_are_quiet_about_healthy_data(book):
     book.prices(stock, {day(1): 100, day(9): 104})
     book.buy(stock, day(1), 1, 101)
     assert checks.run_checks(book.load(), day(10)) == []
+
+
+def test_a_checked_finding_comes_back_only_when_it_changes(book):
+    dust = book.instrument("DUST")
+    book.prices(dust, {day(1): 10, day(9): 10})
+    book.buy(dust, day(1), 1000, 10)
+    book.sell(dust, day(2), 999.5, 10)
+    (finding,) = checks.run_checks(book.load(), day(10))
+    assert finding.instrument_id == dust
+
+    repo.mark_finding_reviewed(book.conn, finding.identity, day(10))
+    repo.mark_finding_reviewed(book.conn, finding.identity, day(11))  # twice is fine
+    assert repo.list_reviewed_findings(book.conn) == {finding.identity}
+    # Another price changes what the leftover is worth, not what it is.
+    book.prices(dust, {day(10): 12})
+    (same,) = checks.run_checks(book.load(), day(10))
+    assert same.detail != finding.detail and same.identity == finding.identity
+    # Another quantity is another finding.
+    book.sell(dust, day(3), 0.1, 10)
+    (changed,) = checks.run_checks(book.load(), day(10))
+    assert changed.identity not in repo.list_reviewed_findings(book.conn)
+
+    repo.unmark_finding_reviewed(book.conn, finding.identity)
+    assert repo.list_reviewed_findings(book.conn) == set()

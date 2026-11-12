@@ -106,6 +106,16 @@ def export_all(conn: sqlite3.Connection) -> dict[str, str]:
                 )
             ),
         ),
+        "reviewed_findings.csv": _csv(
+            ["check", "ticker", "date", "key", "reviewed_on"],
+            (
+                (row[0], tickers[row[1]], row[2], row[3], row[4])
+                for row in conn.execute(
+                    "SELECT check_name, instrument_id, date, key, reviewed_on "
+                    "FROM reviewed_findings ORDER BY check_name, instrument_id, date, key"
+                )
+            ),
+        ),
     }  # fmt: skip
 
 

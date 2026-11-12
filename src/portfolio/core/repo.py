@@ -396,6 +396,36 @@ def dismiss_split(conn: sqlite3.Connection, instrument_id: int, on: date) -> Non
     )
 
 
+# --- findings of the checks that were looked at ----------------------------------------------
+
+FindingKey = tuple[str, int, date | None, str]  # check, instrument id, day, key
+
+
+def list_reviewed_findings(conn: sqlite3.Connection) -> set[FindingKey]:
+    rows = conn.execute("SELECT check_name, instrument_id, date, key FROM reviewed_findings")
+    return {
+        (row[0], row[1], date.fromisoformat(row[2]) if row[2] else None, row[3]) for row in rows
+    }
+
+
+def mark_finding_reviewed(conn: sqlite3.Connection, finding: FindingKey, on: date) -> None:
+    check, instrument_id, day, key = finding
+    conn.execute(
+        "INSERT OR IGNORE INTO reviewed_findings "
+        "(check_name, instrument_id, date, key, reviewed_on) VALUES (?, ?, ?, ?, ?)",
+        (check, instrument_id, day.isoformat() if day else "", key, on.isoformat()),
+    )
+
+
+def unmark_finding_reviewed(conn: sqlite3.Connection, finding: FindingKey) -> None:
+    check, instrument_id, day, key = finding
+    conn.execute(
+        "DELETE FROM reviewed_findings "
+        "WHERE check_name = ? AND instrument_id = ? AND date = ? AND key = ?",
+        (check, instrument_id, day.isoformat() if day else "", key),
+    )
+
+
 # --- FX rates -------------------------------------------------------------------------------
 
 

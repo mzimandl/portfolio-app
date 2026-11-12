@@ -1,6 +1,6 @@
 """Checks of the data: things that look wrong or out of date. Nothing is changed."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date, timedelta
 
 from portfolio.core.analytics import dividends
@@ -49,6 +49,14 @@ class Finding:
     ticker: str
     date: date | None
     detail: str
+    instrument_id: int = 0
+    # What makes this "the same finding" when it was marked as looked at. By default the
+    # detail: once the record changes, the finding counts as new and shows up again.
+    key: str = ""
+
+    @property
+    def identity(self) -> tuple[str, int, date | None, str]:
+        return (self.check, self.instrument_id, self.date, self.key or self.detail)
 
 
 def run_checks(data: PortfolioData, as_of: date | None = None) -> list[Finding]:
@@ -57,15 +65,22 @@ def run_checks(data: PortfolioData, as_of: date | None = None) -> list[Finding]:
     found: list[Finding] = []
     ids = data.instrument_ids()
     for instrument_id in ids:
-        found += _instrument(data, instrument_id, as_of)
+        found += [
+            replace(finding, instrument_id=instrument_id)
+            for finding in _instrument(data, instrument_id, as_of)
+        ]
+    by_ticker = {data.instruments[i].ticker: i for i in ids}
     for row in dividends.by_instrument(data, ids, as_of):
         if row.missing:
             found.append(
                 Finding(
-                    DIVIDENDS, row.ticker, None,
+                    DIVIDENDS,
+                    row.ticker,
+                    None,
                     f"{row.payments} recorded, {row.payments + row.missing} expected",
+                    by_ticker[row.ticker],
                 )
-            )  # fmt: skip
+            )
     order = list(EXPLANATIONS)
     found.sort(key=lambda f: (order.index(f.check), f.ticker, f.date or date.min))
     return found
@@ -122,7 +137,9 @@ def _instrument(data: PortfolioData, instrument_id: int, as_of: date) -> list[Fi
         if acquired > _TINY and position.quantity / acquired < _LEFTOVER_SHARE:
             value = value_of(position, instrument, data, as_of)
             worth = "" if value is None else f", worth {value:.2f} {data.base_currency}"
-            found.append(Finding(LEFTOVER, ticker, None, f"{position.quantity:g} left{worth}"))
+            left = f"{position.quantity:g} left"
+            # The worth changes with the price every day; the quantity is what was looked at.
+            found.append(Finding(LEFTOVER, ticker, None, left + worth, key=left))
 
     # Downloaded prices are in today's units; a trade before a split is not.
     later_splits = 1.0

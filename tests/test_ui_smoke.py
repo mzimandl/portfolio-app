@@ -247,6 +247,24 @@ def test_checks_page(database):
     assert run_page("checks").success
 
 
+def test_findings_can_be_marked_as_checked_and_shown_again(database):
+    at = clean(run_page("checks"))
+    at.button(key="checks_mark_prices_out_of_date").click().run()
+    clean(at)
+    assert [s.value for s in at.subheader] == ["Manual values out of date (1)"]
+    database.rollback()
+    assert len(repo.list_reviewed_findings(database)) == 2
+    database.rollback()  # let go of the database again
+    at.button(key="checks_mark_manual_values_out_of_date").click().run()
+    assert "Nothing to look at" in clean(at).success[0].value
+    assert list(at.dataframe[0].value["Ticker"]) == ["AAPL", "AAPL", "SAVE"]  # the checked ones
+
+
+def test_the_app_backs_up_the_database_before_using_it(database, tmp_path):
+    clean(run_page("overview"))
+    assert [p.name for p in (tmp_path / "backups").iterdir()] == [f"p-{date.today()}.db"]
+
+
 def test_prices_and_settings_pages(database):
     clean(run_page("prices"))
     at = clean(run_page("settings"))

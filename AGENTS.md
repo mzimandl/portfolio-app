@@ -47,7 +47,8 @@ or better through `portfolio.core.repo` and `load_data`.
 - `portfolio.db` in the project folder is the user's **real data**. It is git-ignored, as are
   `config.toml` and every `*.db`. Never put its contents into a commit, a test or a fixture.
 - **Before changing data in it**: ask unless the user already said to, copy the file first
-  (`portfolio.before-<what>.db`), make the change through `repo` functions inside `with conn:`,
+  (`portfolio.before-<what>.db`; the automatic daily copy in `backups/` may be older than
+  the user's last edit), make the change through `repo` functions inside `with conn:`,
   then print the affected totals before and after. Net profit should usually stay the same
   when a record is only re-classified.
 - A change of schema is a migration, never a manual edit (see below).
@@ -61,7 +62,8 @@ or better through `portfolio.core.repo` and `load_data`.
 src/portfolio/core/
   config.py        config.toml: db, base_currency, locale, benchmark, separate_types
   db.py            connect(), migrate()
-  migrations/      0001 … 0004, applied in order by PRAGMA user_version
+  backup.py        daily_backup(): dated copy before the day's first use
+  migrations/      0001 … 0005, applied in order by PRAGMA user_version
   models.py        records; which fields each transaction kind requires or allows
   repo.py          all SQL. Functions never commit: the caller wraps them in `with conn:`
   analytics/
@@ -129,6 +131,13 @@ tests/             one file per core module, plus test_ui_smoke.py
 - Downloaded prices are real closes (`auto_adjust=False`) and split-adjusted by Yahoo. A
   quantity from before a split is scaled with the later split ratios when compared with them.
 
+- A finding of the Checks page has an `identity` (check, instrument, day, key). The user can
+  mark it as checked (`reviewed_findings` table); it shows again when the identity changes.
+  A new check must give a `key` whenever its detail text contains something that changes by
+  itself, like a value at today's price.
+- In tests, a read through the fixture connection leaves a transaction open and blocks the
+  page's writes ("database is locked"): call `database.rollback()` after reading.
+
 ## Streamlit traps already hit
 
 - **`st.cache_resource` / `st.cache_data` do not hash arguments whose name starts with an
@@ -163,6 +172,6 @@ tests/             one file per core module, plus test_ui_smoke.py
 
 Everything planned is built: the eight phases in PLAN.md, then staking corrections, benchmark
 with the same cash flows, sales and purchases-held tables, drawdown, allocation shares,
-monthly returns, the Dividends and Checks pages, and consistent numbers for trades paid in
-another currency. The Checks page lists the records in the user's data that still look wrong;
+monthly returns, the Dividends and Checks pages, consistent numbers for trades paid in
+another currency, automatic daily backups and marking findings as checked. The Checks page lists the records in the user's data that still look wrong;
 they are the user's to verify against statements, not something to fix unasked.

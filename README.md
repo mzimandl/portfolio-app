@@ -34,6 +34,8 @@ environment variable.
 | `base_currency` | Currency everything is reported in, e.g. `CZK`. |
 | `locale` | Number formatting: `cs`, `sk`, `de` or `en`. |
 | `benchmark` | Optional Yahoo symbol to compare returns against, e.g. `VWCE.DE`. |
+| `backup_dir` | Optional folder for the automatic backups. Default: `backups` next to the database. |
+| `backup_keep` | Optional number of automatic backups to keep. Default 30; 0 switches them off. |
 | `separate_types` | Optional list of instrument types reported apart from the investments, e.g. `["savings"]`. They get their own totals on the Overview and are left out of the default view of returns and charts. |
 
 ## Using it
@@ -49,7 +51,7 @@ happens in **Transactions**.
 | Dividends | Received per year and instrument, yield on cost and on value, and what the price data says was due. |
 | Transactions | The ledger: filter, add, edit, delete. A second tab holds manual valuations. |
 | Prices | Stored prices and exchange rates. |
-| Checks | Things that look wrong or out of date: old prices, trade prices and exchange rates far from the market, leftovers, dividends not recorded. It changes nothing. |
+| Checks | Things that look wrong or out of date: old prices, trade prices and exchange rates far from the market, leftovers, dividends not recorded. It changes none of your records. A finding you looked at can be marked as checked; it stays hidden until the record behind it changes. |
 | Import / export | Backup downloads and CSV import of transactions. |
 | Settings | Instruments, currencies, instrument types. |
 
@@ -144,8 +146,15 @@ described in `src/portfolio/core/providers/base.py`, returned from `provider()` 
 
 ## Backup
 
-The whole database is the one file named in `config.toml`. Copying it is a complete backup;
-putting it back is the restore. The *Import / export* page offers that file as a download,
+**Automatic.** Before the app or the price script first uses the database on a day, it copies
+it to the `backups` folder as `portfolio-YYYY-MM-DD.db`, so each copy holds the state from
+before that day's changes. No copy is made when nothing changed since the last one. The
+newest 30 are kept. To go back, stop the app and put a copy in place of the database file.
+If the database lives in a synced folder, the copies are synced with it; set `backup_dir` to
+keep them elsewhere.
+
+**By hand.** The whole database is the one file named in `config.toml`. Copying it is a
+complete backup; putting it back is the restore. The *Import / export* page offers that file as a download,
 plus a zip with every table as CSV. From the command line:
 
 ```bash
@@ -180,6 +189,7 @@ src/portfolio/
   core/                 no Streamlit in here (a test enforces it)
     config.py           the config file
     db.py               connection, migrations runner
+    backup.py           dated copies of the database
     migrations/         numbered SQL files, applied in order on start
     models.py           records and the rules for each transaction kind
     repo.py             reading and writing records
@@ -197,7 +207,7 @@ tests/
 the price updates do not depend on it.
 
 **Changing the database layout.** Add the next numbered file to `core/migrations/`
-(`0005_….sql`). It runs once, in a transaction, the next time the app or a script starts.
+(`0006_….sql`). It runs once, in a transaction, the next time the app or a script starts.
 Never edit a migration that has already run on your database.
 
 **Numbers.** What you type (quantities, prices, amounts, rates) is stored as exact decimal

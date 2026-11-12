@@ -6,7 +6,7 @@ from decimal import Decimal
 
 import streamlit as st
 
-from portfolio.core import csv_io, db, repo
+from portfolio.core import backup, csv_io, db, repo
 from portfolio.ui import common
 
 _KEPT = ("date", "kind", "quantity", "price", "amount", "currency", "fx_rate", "fee", "tax",
@@ -27,6 +27,17 @@ def _export(conn: sqlite3.Connection) -> None:
         "The database file is a complete backup: to restore it, put it where the config file "
         "points. The CSV files hold the same data in a form any spreadsheet can open."
     )
+    cfg = common.config()
+    copies = backup.list_backups(cfg.db_path, cfg.backup_dir)
+    if cfg.backup_keep == 0:
+        st.caption("Automatic backups are switched off (`backup_keep = 0` in the config file).")
+    else:
+        newest = f"; the newest is {copies[-1].name}" if copies else ""
+        st.caption(
+            f"Automatic backups: a copy is made before the first use on every day the data "
+            f"changed, and the last {cfg.backup_keep} are kept. There are {len(copies)} in "
+            f"`{cfg.backup_dir}`{newest}."
+        )
     stamp = date.today().isoformat()
     left, right, _ = st.columns([1, 1, 2])
     left.download_button(

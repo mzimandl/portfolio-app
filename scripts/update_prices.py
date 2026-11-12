@@ -2,9 +2,10 @@
 
 import argparse
 import sys
+from datetime import date
 from pathlib import Path
 
-from portfolio.core import db, repo
+from portfolio.core import backup, db, repo
 from portfolio.core.config import load_config
 from portfolio.core.providers.yahoo import YahooProvider
 from portfolio.core.updater import update_market_data
@@ -17,6 +18,7 @@ def main() -> int:
     args = parser.parse_args()
 
     config = load_config(args.config)
+    backup.daily_backup(config.db_path, config.backup_dir, date.today(), config.backup_keep)
     conn = db.connect(config.db_path)
     db.migrate(conn)
     result = update_market_data(

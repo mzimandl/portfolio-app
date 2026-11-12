@@ -13,5 +13,10 @@ locale = "cs"
 # They are left out of the headline numbers and of the default view of returns and charts.
 separate_types = ["savings"]
 
+# Optional: automatic backups. A copy of the database is made before the first use on every
+# day the data changed. Default: a "backups" folder next to the database, the last 30 kept.
+# backup_dir = "backups"
+# backup_keep = 30        # 0 switches them off
+
 # Optional: Yahoo symbol to compare portfolio performance against.
 # benchmark = "VWCE.DE"

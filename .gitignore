@@ -17,3 +17,6 @@ dist/
 
 .claude/
 .agents/
+
+# automatic copies of the database
+/backups/

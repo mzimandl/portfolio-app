@@ -24,6 +24,9 @@ class Config:
     benchmark: str | None = None
     # Instrument types reported apart from the investments (e.g. savings accounts).
     separate_types: tuple[str, ...] = ()
+    # Dated copies of the database: where, and how many to keep (0 = make none).
+    backup_dir: Path | None = None
+    backup_keep: int = 30
 
 
 def resolve_config_path(path: str | Path | None = None) -> Path:
@@ -71,10 +74,22 @@ def load_config(path: str | Path | None = None) -> Config:
     ):
         raise ConfigError(f"'separate_types' in {config_path} must be a list of type names")
 
+    backup_keep = data.get("backup_keep", 30)
+    if isinstance(backup_keep, bool) or not isinstance(backup_keep, int) or backup_keep < 0:
+        raise ConfigError(f"'backup_keep' in {config_path} must be a whole number, 0 or more")
+    # Next to the database unless told otherwise; relative paths are relative to the config.
+    backup_dir = (
+        (config_path.parent / Path(text("backup_dir")).expanduser()).resolve()
+        if "backup_dir" in data
+        else db_path.parent / "backups"
+    )
+
     return Config(
         db_path=db_path,
         base_currency=base_currency,
         locale=text("locale"),
         benchmark=text("benchmark", required=False),
         separate_types=tuple(name.strip() for name in separate_types),
+        backup_dir=backup_dir,
+        backup_keep=backup_keep,
     )
