@@ -16,3 +16,4 @@ dist/
 /legacy/
 
 .claude/
+.agents/

@@ -240,10 +240,33 @@ def test_overview_of_crypto_bought_in_two_currencies_with_staking(book):
     assert row.invested == pytest.approx(141000)
     assert row.value == pytest.approx(0.21 * 40000 * 26)  # 218400
     assert row.total_profit == pytest.approx(77400)
-    assert row.fx_profit == pytest.approx(3000 * 26 + 3300 * 22 - 141000)  # 9600
+    # The dollars paid 66000 / 25 = 2640 EUR worth of the coin, which is priced in EUR.
+    assert row.fx_profit == pytest.approx((3000 + 2640) * 26 - 141000)  # 5640
     assert row.rewards == pytest.approx(0.01 * 40000 * 26)  # 10400
-    assert row.price_profit == pytest.approx(57400)
-    assert row.average_price == pytest.approx((3000 * 26 + 3300 * 22) / (26 * 0.2))
+    assert row.price_profit == pytest.approx(77400 - 5640 - 10400)
+    assert row.average_price == pytest.approx((3000 + 2640) / 0.2)
+
+
+def test_paying_in_base_currency_for_an_instrument_priced_in_another(book):
+    """The same purchase entered in CZK or in EUR gives the same numbers."""
+    in_czk = book.instrument("CSG", "EUR")
+    in_eur = book.instrument("CSG2", "EUR")
+    book.fx("EUR", {day(1): 25, day(10): 24})
+    for stock in (in_czk, in_eur):
+        book.prices(stock, {day(1): 14, day(10): 16})
+    book.buy(in_czk, day(1), 10, 350)  # 3500 CZK
+    book.buy(in_eur, day(1), 10, 14, "EUR", 25)  # 140 EUR = 3500 CZK
+    data = book.load()
+
+    czk, eur = only(overview(data, day(10)), "CSG"), only(overview(data, day(10)), "CSG2")
+    for name in ("value", "cost_basis", "average_price", "fx_profit", "price_profit",
+                 "unrealised_profit", "total_profit"):  # fmt: skip
+        assert getattr(czk, name) == pytest.approx(getattr(eur, name)), name
+    assert czk.value == pytest.approx(10 * 16 * 24)
+    assert czk.average_price == pytest.approx(14)  # in EUR, comparable with the price
+    assert czk.fx_profit == pytest.approx(140 * (24 - 25))
+    assert czk.price_profit == pytest.approx(10 * (16 - 14) * 24)
+    assert checks.run_checks(data, day(10)) == []
 
 
 def test_overview_of_a_manually_valued_instrument(book):

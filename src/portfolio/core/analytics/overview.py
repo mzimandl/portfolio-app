@@ -73,14 +73,13 @@ def _row(data: PortfolioData, instrument_id: int, as_of: date) -> OverviewRow:
         cost_basis = position.cost_basis
         realised = position.realised
         unrealised = None if value is None else value - cost_basis
-        # What the units still held would cost at today's exchange rates.
-        bought = [lot for lot in position.lots if not lot.staking]
-        rates = {lot.currency: data.fx_at(lot.currency, as_of) for lot in bought}
-        if all(rate is not None for rate in rates.values()):
-            cost_now = sum(lot.cost * rates[lot.currency] for lot in bought)
-            fx_profit = cost_now - cost_basis
-            if position.bought_quantity > 0 and rate_now:
-                average_price = cost_now / (rate_now * position.bought_quantity)
+        # The exchange-rate part: what the units cost in the instrument's currency, at
+        # today's rate, minus what was really paid. The same whatever currency paid for them.
+        bought_cost = sum(lot.cost for lot in position.lots if not lot.staking)
+        if rate_now is not None:
+            fx_profit = bought_cost * rate_now - cost_basis
+        if position.bought_quantity > 0:
+            average_price = bought_cost / position.bought_quantity
         if position.staking_quantity == 0:
             rewards = 0.0  # needs no price
         elif last_price is not None and rate_now is not None:

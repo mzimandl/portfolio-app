@@ -271,6 +271,19 @@ def test_transactions_page_adds_a_buy(database):
     assert (added.fx_rate, added.fee, added.instrument_id) == (D("23.4"), D("12"), 1)
 
 
+def test_form_offers_the_currency_last_used_for_the_instrument(database):
+    key = "tx_form_new_buy_1_currency"
+    assert run_page("transactions").selectbox(key=key).value == "USD"
+    repo.add_transaction(
+        database,
+        Transaction(
+            date(2024, 6, 1), 1, K.BUY, quantity=D(1), price=D(3000), currency="CZK", fx_rate=D(1)
+        ),
+    )
+    database.commit()
+    assert run_page("transactions").selectbox(key=key).value == "CZK"
+
+
 def test_transactions_page_explains_bad_input(database):
     at = run_page("transactions")
     at.text_input(key="tx_form_new_buy_quantity").set_value("abc")

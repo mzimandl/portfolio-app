@@ -17,9 +17,11 @@ class Lot:
 
     date: date
     quantity: float
-    currency: str | None  # what the units were paid in; None for staking rewards
-    cost: float  # what the remaining units cost, in `currency`
-    cost_base: float  # the same in base currency, at the exchange rate of the purchase
+    # What the remaining units cost, in the instrument's currency. A purchase paid in another
+    # currency is converted at the market rate of its day, so it does not matter what was
+    # paid with: the units are priced in the instrument's currency from then on.
+    cost: float
+    cost_base: float  # what was really paid, in base currency
     staking: bool = False
 
 
@@ -143,7 +145,7 @@ def apply(
         local = _to_instrument_currency(cash, base, event, instrument, data)
         if kind is K.BUY:
             position.quantity += event.quantity
-            position.lots.append(Lot(event.date, event.quantity, event.currency, cash, base))
+            position.lots.append(Lot(event.date, event.quantity, local, base))
             position.invested += base
             position._add_cash(event.date, local)
             return base + event.fee, 0.0
@@ -168,7 +170,7 @@ def apply(
         return event.fee, base
     if kind is K.STAKING_REWARD:
         position.quantity += event.quantity
-        position.lots.append(Lot(event.date, event.quantity, None, 0.0, 0.0, staking=True))
+        position.lots.append(Lot(event.date, event.quantity, 0.0, 0.0, staking=True))
     elif kind is K.STAKING_CORRECTION:
         position.quantity -= event.quantity
         position._take_back_staking(event.date, event.quantity)

@@ -182,7 +182,9 @@ allocation shares, monthly returns, purchases still held, the Dividends page and
   as an instrument of type `benchmark` with prices but no transactions, and is excluded from the
   portfolio totals. Comparison: portfolio TWR vs benchmark return (dividends reinvested) over the
   same period, in base currency, and the same cash flows invested in the benchmark instead.
-- **Price vs FX profit** — per instrument: FX profit = cost in trade currency × (current FX − FX at
-  purchase); price profit = total profit − FX profit − staking rewards (same definition as the old Overview).
+- **Price vs FX profit** — per instrument: FX profit = cost in the instrument's currency × current
+  FX − what was paid; price profit = unrealised profit − FX profit − staking rewards. A purchase
+  paid in another currency is converted to the instrument's at the market rate of its day (the old
+  Overview used the trade currency, which gave no FX effect for a EUR share paid in CZK).
 - **Invested per period** — net new money per month and per year, split into securities, crypto and deposits.
 - **By type** — every Overview and Performance figure can be grouped by instrument type.

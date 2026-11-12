@@ -190,7 +190,7 @@ def _transaction_form(
         elif kind is TransactionKind.DIVIDEND and instrument.dividend_currency:
             suggested = instrument.dividend_currency
         else:
-            suggested = instrument.currency
+            suggested = _last_trade_currency(conn, instrument) or instrument.currency
         currency = cells[position % 4].selectbox(
             "Currency",
             currencies,
@@ -254,6 +254,14 @@ def _transaction_form(
             with conn:
                 repo.delete_transaction(conn, editing.id)
             _changed("Transaction deleted.")
+
+
+def _last_trade_currency(conn: sqlite3.Connection, instrument: Instrument) -> str | None:
+    """What this instrument was last bought or sold in, offered again for the next trade."""
+    trades = repo.list_transactions(
+        conn, instrument_id=instrument.id, kinds=[TransactionKind.BUY, TransactionKind.SELL]
+    )
+    return trades[-1].currency if trades else None
 
 
 # --- manual valuations ----------------------------------------------------------------------

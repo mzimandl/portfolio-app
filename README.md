@@ -58,7 +58,7 @@ Numbers are always positive; the kind gives the direction.
 
 | Kind | Fields | Meaning |
 |---|---|---|
-| `buy`, `sell` | quantity, price, currency, exchange rate | A trade. The currency may differ from the instrument's (crypto bought for USD). |
+| `buy`, `sell` | quantity, price, currency, exchange rate | A trade, in the currency you really paid or received. It may differ from the instrument's: see below. |
 | `deposit`, `withdrawal` | amount, currency | Money into or out of a manually valued instrument (savings, funds). |
 | `dividend` | amount, currency, optional tax | The net amount received; tax is what was withheld. |
 | `staking_reward` | quantity | Units received for free. |
@@ -69,6 +69,15 @@ Numbers are always positive; the kind gives the direction.
 Every kind can also carry a fee, always in base currency. The exchange rate is base currency
 per 1 unit of the transaction's currency. On deposits, withdrawals and dividends it may be
 left empty: the market rate of that day is used.
+
+### Paying in another currency than the instrument's
+
+An instrument's currency is the one its downloaded prices are in. A trade can be in any
+currency: a share priced in EUR bought for CZK on another exchange, or a coin priced in EUR
+bought for USD. Enter the price and currency you really paid. The value always comes from the
+downloaded price and the exchange rate of the instrument's currency, and the purchase is
+converted to that currency at the market rate of its day, so the average buy price and the
+split into price and exchange rate are the same whatever you paid with.
 
 ### Two ways an instrument is valued
 
@@ -83,7 +92,7 @@ left empty: the market rate of that day is used.
 |---|---|
 | Cost | What the units you still hold cost, at the exchange rates of their purchases. Sales use up the oldest units first (FIFO). |
 | Unrealised profit | Value − cost. |
-| From exchange rate | Part of the unrealised profit: what those units would cost at today's rate minus what they cost then. |
+| From exchange rate | Part of the unrealised profit: what those units cost in the instrument's currency, at today's rate, minus what you paid. |
 | Staking rewards | Part of the unrealised profit: staking units still held × today's price. |
 | From price | The rest of the unrealised profit. |
 | Realised profit | On units sold: what you got for them minus what they had cost. Units from staking cost nothing; units lost (sold at price 0) realise their cost as a loss. |
