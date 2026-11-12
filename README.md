@@ -72,7 +72,8 @@ left empty: the market rate of that day is used.
 
 - **Yahoo:** quantity held × the latest downloaded price.
 - **By hand:** the last value you entered under *Manual valuations*, plus deposits and minus
-  withdrawals made on that day or later.
+  withdrawals made on that day or later. A value entered on the day of a deposit should
+  therefore be the value before that deposit; the valuations table points such days out.
 
 ### How the numbers are defined
 

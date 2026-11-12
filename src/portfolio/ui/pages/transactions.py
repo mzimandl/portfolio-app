@@ -259,6 +259,16 @@ def _transaction_form(
 # --- manual valuations ----------------------------------------------------------------------
 
 
+def _cash_by_day(conn: sqlite3.Connection, instrument_id: int) -> dict[date, float]:
+    """Deposits minus withdrawals per day, in the currency they were recorded in."""
+    kinds = [TransactionKind.DEPOSIT, TransactionKind.WITHDRAWAL]
+    totals: dict[date, float] = {}
+    for t in repo.list_transactions(conn, instrument_id=instrument_id, kinds=kinds):
+        sign = 1 if t.kind is TransactionKind.DEPOSIT else -1
+        totals[t.date] = totals.get(t.date, 0.0) + sign * float(t.amount)
+    return totals
+
+
 def _valuations(conn: sqlite3.Connection, instruments: list[Instrument]) -> None:
     manual = [i for i in instruments if i.valuation is ValuationMethod.MANUAL]
     if not manual:
@@ -292,13 +302,29 @@ def _valuations(conn: sqlite3.Connection, instruments: list[Instrument]) -> None
 
     rows = repo.list_valuations(conn, instrument.id)
     rows.reverse()
+    same_day = _cash_by_day(conn, instrument.id)
+    if any(v.date in same_day for v in rows):
+        st.warning(
+            "Some values share their day with a deposit or withdrawal, which is added on top "
+            "of the value. If the value you entered already contained it, it is counted twice "
+            "until the next value: lower the value by that amount, or move the value one day "
+            "later."
+        )
     event = st.dataframe(
-        [{"Date": v.date, "Value": float(v.value)} for v in rows],
+        [
+            {"Date": v.date, "Value": float(v.value), "Added on top": same_day.get(v.date)}
+            for v in rows
+        ],
         hide_index=True,
         on_select="rerun",
         selection_mode="single-row",
         key=f"val_table_{instrument.id}_{st.session_state.get('tx_version', 0)}",
-        column_config={"Value": st.column_config.NumberColumn(format="localized")},
+        column_config={
+            "Value": st.column_config.NumberColumn(format="localized"),
+            "Added on top": st.column_config.NumberColumn(
+                format="localized", help="Deposits minus withdrawals recorded on the same day."
+            ),
+        },
         width="content",
     )
     chosen = event.selection.rows if event else []

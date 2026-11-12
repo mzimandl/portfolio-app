@@ -253,6 +253,14 @@ def test_transactions_page_explains_bad_input(database):
     assert len(repo.list_transactions(database)) == 3
 
 
+def test_valuation_on_the_day_of_a_deposit_is_pointed_out(database):
+    assert not run_page("transactions").warning
+    repo.set_valuation(database, Valuation(2, date(2023, 6, 1), D("1000")))
+    database.commit()
+    at = run_page("transactions")
+    assert "counted twice" in at.warning[0].value
+
+
 def test_valuation_can_be_saved(database):
     at = run_page("transactions")
     at.text_input(key="val_value").set_value("1 100,50")
