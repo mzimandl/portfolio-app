@@ -5,7 +5,7 @@ from dataclasses import asdict
 import pandas as pd
 import streamlit as st
 
-from portfolio.core.analytics.overview import OverviewRow, overview, sales, summarize
+from portfolio.core.analytics.overview import OverviewRow, lots, overview, sales, summarize
 from portfolio.ui import common
 
 
@@ -161,6 +161,48 @@ def _groups(rows: list[OverviewRow], field: str, whole: float) -> list[dict]:
     ]
 
 
+def _lots(loaded: common.Loaded, include_inactive: bool) -> None:
+    held = [
+        lot
+        for lot in lots(loaded.data, loaded.today, include_inactive=include_inactive)
+        if not common.is_separate(lot.type)
+    ]
+    if not held:
+        return
+    with st.expander("Purchases still held"):
+        st.caption(
+            "What you hold, purchase by purchase, oldest first. Sales used up the oldest "
+            "units, so these are what remains. The age is what a holding-period rule for "
+            "tax would look at."
+        )
+        staking = st.toggle("Show staking rewards", key="overview_lots_staking")
+        rows = [
+            {
+                "Bought": lot.date,
+                "Ticker": lot.ticker,
+                "Type": lot.type,
+                "Age (years)": lot.age_days / 365.25,
+                "Quantity": lot.quantity,
+                "Cost": round(lot.cost),
+                "Value": None if lot.value is None else round(lot.value),
+                "Profit": None if lot.profit is None else round(lot.profit),
+            }
+            for lot in held
+            if staking or not lot.staking
+        ]
+        st.dataframe(
+            _tinted(rows, "Profit"),
+            column_config={
+                "Age (years)": st.column_config.NumberColumn(format="%.1f"),
+                "Quantity": st.column_config.NumberColumn(format="%.6g"),
+                "Cost": _money("Cost"),
+                "Value": _money("Value"),
+                "Profit": _money("Profit"),
+            },
+            hide_index=True,
+        )
+
+
 def _table(rows: list[OverviewRow], columns: list[str]) -> None:
     whole = sum(row.value or 0.0 for row in rows)
     st.dataframe(
@@ -212,6 +254,7 @@ def render() -> None:
         st.subheader("Instruments")
         _table(investments, list(_COLUMNS))
         _sales(loaded, include_inactive)
+        _lots(loaded, include_inactive)
 
     if separate:
         st.header(common.separate_label())

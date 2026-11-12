@@ -154,6 +154,54 @@ def sales(
     return rows
 
 
+@dataclass(frozen=True)
+class LotRow:
+    """Units acquired together and still held, in base currency."""
+
+    ticker: str
+    type: str
+    date: date  # when they were acquired
+    age_days: int
+    quantity: float
+    cost: float  # at the exchange rate of the purchase; 0 for staking rewards
+    value: float | None
+    profit: float | None
+    staking: bool
+
+
+def lots(
+    data: PortfolioData, as_of: date | None = None, *, include_inactive: bool = False
+) -> list[LotRow]:
+    """What is still held, purchase by purchase, oldest first. Sales used up the oldest
+    units first, so these are the ones that remain."""
+    as_of = as_of or date.today()
+    rows = []
+    for instrument_id in data.instrument_ids(include_inactive=include_inactive):
+        instrument = data.instruments[instrument_id]
+        if instrument.valuation is ValuationMethod.MANUAL:
+            continue
+        prices = data.prices.get(instrument_id)
+        price = prices.at(as_of) if prices else None
+        rate = data.fx_at(instrument.currency, as_of)
+        for lot in position_at(data, instrument_id, as_of).lots:
+            value = None if price is None or rate is None else lot.quantity * price * rate
+            rows.append(
+                LotRow(
+                    ticker=instrument.ticker,
+                    type=instrument.type,
+                    date=lot.date,
+                    age_days=(as_of - lot.date).days,
+                    quantity=lot.quantity,
+                    cost=lot.cost_base,
+                    value=value,
+                    profit=None if value is None else value - lot.cost_base,
+                    staking=lot.staking,
+                )
+            )
+    rows.sort(key=lambda row: (row.date, row.ticker))
+    return rows
+
+
 _SUMMED = (
     "invested", "returned", "fees", "dividends", "value", "cost_basis",
     "unrealised_profit", "price_profit", "fx_profit", "rewards", "realised_profit",

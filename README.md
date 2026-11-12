@@ -42,11 +42,13 @@ happens in **Transactions**.
 
 | Page | Shows |
 |---|---|
-| Overview | What you hold now, what it cost, and the profit split into price, exchange rate and staking. Below it, every sale and what it realised. |
-| Performance | Returns for the portfolio, a type or one instrument; the deepest drop; by year; against the benchmark; new money per year or month. |
+| Overview | What you hold now, what it cost, and the profit split into price, exchange rate and staking. Below it, every sale and what it realised, and the purchases still held with their age. |
+| Performance | Returns for the portfolio, a type or one instrument; the deepest drop; by year and by month; each instrument's part of the profit; against the benchmark; new money per year or month. |
 | Charts | Value, money invested, profit and the drop from the high, day by day. |
+| Dividends | Received per year and instrument, yield on cost and on value, and what the price data says was due. |
 | Transactions | The ledger: filter, add, edit, delete. A second tab holds manual valuations. |
 | Prices | Stored prices and exchange rates. |
+| Checks | Things that look wrong or out of date: old prices, trade prices and exchange rates far from the market, leftovers, dividends not recorded. It changes nothing. |
 | Import / export | Backup downloads and CSV import of transactions. |
 | Settings | Instruments, currencies, instrument types. |
 
@@ -171,7 +173,7 @@ src/portfolio/
     migrations/         numbered SQL files, applied in order on start
     models.py           records and the rules for each transaction kind
     repo.py             reading and writing records
-    analytics/          positions, overview, daily history, returns
+    analytics/          positions, overview, daily history, returns, dividends, checks
     providers/          sources of prices; yahoo.py is the only one
     updater.py          downloading new prices and rates
     csv_io.py           CSV export and import

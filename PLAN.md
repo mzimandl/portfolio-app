@@ -157,6 +157,11 @@ current Polars release.
 
 Each phase ends with passing tests and a commit.
 
+## Added after the eight phases
+
+Staking corrections (migration 4), benchmark with the same cash flows, list of sales, drawdown,
+allocation shares, monthly returns, purchases still held, the Dividends page and the Checks page.
+
 ## Details settled
 
 - **Staking corrections** — the old app stored staking units taken back as negative rewards.

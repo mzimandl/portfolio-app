@@ -45,6 +45,7 @@ class Event:
     rate: float  # base currency per 1 unit of `currency`
     fee: float
     split_ratio: float
+    tax: float = 0.0  # withheld on a dividend, in `currency`
 
 
 @dataclass
@@ -136,4 +137,5 @@ def _to_event(t: Transaction, data: PortfolioData) -> Event:
         rate=rate,
         fee=float(t.fee),
         split_ratio=float(t.split_ratio or 1),
+        tax=float(t.tax or 0),
     )

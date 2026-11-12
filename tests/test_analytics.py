@@ -6,9 +6,9 @@ from decimal import Decimal as D
 import pytest
 
 from portfolio.core import repo
-from portfolio.core.analytics import performance, timeseries
+from portfolio.core.analytics import checks, dividends, performance, timeseries
 from portfolio.core.analytics.data import Series, load_data
-from portfolio.core.analytics.overview import overview, sales, summarize
+from portfolio.core.analytics.overview import lots, overview, sales, summarize
 from portfolio.core.models import FxRate, Instrument, Price, Transaction, Valuation
 from portfolio.core.models import TransactionKind as K
 from portfolio.core.models import ValuationMethod as V
@@ -639,3 +639,138 @@ def test_thin_keeps_both_ends_and_even_spacing():
     assert timeseries.thin([], 100) == ([], 1)
     kept, spacing = timeseries.thin(list(range(401)), 400)
     assert spacing == 2 and kept[0] == 0 and kept[-1] == 400 and len(kept) == 201
+
+
+def test_lots_still_held(book):
+    stock = book.instrument("X", "USD")
+    book.prices(stock, {day(30): 150})
+    book.fx("USD", {day(30): 22})
+    book.buy(stock, day(1), 2, 100, "USD", 20)
+    book.buy(stock, day(11), 2, 110, "USD", 20)
+    book.tx(stock, day(12), K.STAKING_REWARD, quantity=1)
+    book.sell(stock, day(21), 3, 150, "USD", 22)
+    data = book.load()
+
+    bought, reward = lots(data, day(30))
+    assert (bought.ticker, bought.date, bought.age_days) == ("X", day(11), 19)
+    assert (bought.quantity, bought.cost) == pytest.approx((1, 2200))
+    assert (bought.value, bought.profit) == pytest.approx((3300, 1100))
+    assert (reward.staking, reward.cost, reward.value) == (True, 0, pytest.approx(3300))
+    assert sum(row.cost for row in lots(data, day(30))) == pytest.approx(
+        only(overview(data, day(30)), "X").cost_basis
+    )
+    assert [row.value for row in lots(data, day(15))] == [None, None, None]  # no price yet
+
+
+def test_monthly_returns_multiply_to_the_whole(book):
+    stock = book.instrument("X")
+    book.prices(
+        stock,
+        {day(1): 100, day(31): 110, day(29, 2): 99, date(2025, 1, 1): 99, date(2025, 1, 31): 198},
+    )
+    book.buy(stock, day(1), 1, 100)
+    book.buy(stock, day(10, 2), 5, 110)
+    history = timeseries.instrument_daily(book.load(), stock, date(2025, 1, 31))
+
+    months = performance.monthly(history)
+    assert months[2024][1] == pytest.approx(0.10)
+    assert months[2024][2] == pytest.approx(-0.10)
+    assert months[2024][7] == pytest.approx(0)
+    assert months[2025] == {1: pytest.approx(1.0)}
+    whole = 1.0
+    for year in months.values():
+        for value in year.values():
+            whole *= 1 + value
+    assert whole - 1 == pytest.approx(performance.twr(history))
+
+
+def paying_stock(book):
+    stock = book.instrument("X", "USD")
+    repo.save_prices(
+        book.conn,
+        [
+            Price(stock, date(2023, 1, 2), close=100),
+            Price(stock, date(2023, 3, 1), close=100, dividend=1.0),
+            Price(stock, date(2023, 6, 1), close=100, dividend=1.0),
+            Price(stock, date(2023, 9, 1), close=100, dividend=0.5),  # after a 2:1 split
+            Price(stock, date(2024, 3, 1), close=100, dividend=0.5),
+        ],
+    )
+    book.fx("USD", {date(2023, 1, 2): 20})
+    book.buy(stock, date(2023, 3, 1), 10, 100, "USD", 20)  # bought on the day: too late
+    book.tx(stock, date(2023, 6, 20), K.DIVIDEND, amount=8.5, currency="USD", fx_rate=20, tax=1.5)
+    book.tx(stock, date(2023, 7, 1), K.SPLIT, split_ratio=2)
+    book.tx(stock, date(2023, 9, 20), K.DIVIDEND, amount=8.5, currency="USD", fx_rate=20, tax=1.5)
+    return stock
+
+
+def test_expected_dividends_follow_the_units_held(book):
+    stock = paying_stock(book)
+    data = book.load()
+    found = dividends.expected(data, stock, date(2024, 12, 31))
+    assert [(e.date, e.quantity, e.gross) for e in found] == [
+        (date(2023, 6, 1), 20, 400),  # 10 units then, 20 as counted today
+        (date(2023, 9, 1), 20, 200),
+        (date(2024, 3, 1), 20, 200),
+    ]
+    assert dividends.expected(data, stock, date(2023, 8, 1)) == found[:1]
+
+
+def test_dividends_by_year_and_instrument(book):
+    stock = paying_stock(book)
+    quiet = book.instrument("Q")
+    book.buy(quiet, date(2023, 1, 2), 1, 10)
+    data = book.load()
+    today = date(2024, 12, 31)
+
+    this_year, last_year = dividends.by_year(data, [stock, quiet], today)
+    assert (last_year.year, last_year.ticker, last_year.payments) == (2023, "X", 2)
+    assert (last_year.received, last_year.tax) == pytest.approx((340, 60))
+    assert (last_year.expected, last_year.expected_payments) == (pytest.approx(600), 2)
+    assert (this_year.year, this_year.received, this_year.payments) == (2024, 0, 0)
+    assert (this_year.expected, this_year.expected_payments) == (pytest.approx(200), 1)
+
+    (row,) = dividends.by_instrument(data, [stock, quiet], today)
+    assert (row.ticker, row.payments, row.missing) == ("X", 2, 1)
+    assert (row.received, row.tax, row.last_year) == pytest.approx((340, 60, 0))
+    # A dividend reported in the last two months may not have been paid out yet.
+    assert dividends.by_instrument(data, [stock], date(2024, 3, 20))[0].missing == 0
+
+
+def test_checks_find_what_looks_wrong(book):
+    today = date(2024, 6, 30)
+    stock = paying_stock(book)  # one dividend not recorded
+    book.fx("USD", {date(2024, 1, 10): 22})
+    book.buy(stock, date(2024, 1, 10), 1, 130, "USD", 22)  # 30 % above the close
+    book.buy(stock, date(2024, 1, 11), 1, 100, "USD", 24)  # rate 9 % off
+    dust = book.instrument("DUST")
+    book.prices(dust, {today: 10})
+    book.buy(dust, day(1), 1000, 10)
+    book.sell(dust, day(2), 999.5, 10)
+    short = book.instrument("SHORT")
+    book.prices(short, {today: 10})
+    book.buy(short, day(1), 1, 10)
+    book.sell(short, day(2), 2, 10)
+    save = book.instrument("SAVE", type="savings", valuation=V.MANUAL)
+    book.tx(save, day(5), K.DEPOSIT, amount=500, currency="CZK", fx_rate=1)
+    repo.set_valuation(book.conn, Valuation(save, day(5), D("1000")))
+
+    found = {(f.check, f.ticker) for f in checks.run_checks(book.load(), today)}
+    assert found == {
+        (checks.STALE_PRICE, "X"),  # newest price and newest rate
+        (checks.PRICE_OFF, "X"),
+        (checks.RATE_OFF, "X"),
+        (checks.DIVIDENDS, "X"),
+        (checks.LEFTOVER, "DUST"),
+        (checks.OVERSOLD, "SHORT"),
+        (checks.STALE_VALUATION, "SAVE"),
+        (checks.SAME_DAY, "SAVE"),
+    }
+    assert {f.check for f in checks.run_checks(book.load(), today)} <= set(checks.EXPLANATIONS)
+
+
+def test_checks_are_quiet_about_healthy_data(book):
+    stock = book.instrument("X")
+    book.prices(stock, {day(1): 100, day(9): 104})
+    book.buy(stock, day(1), 1, 101)
+    assert checks.run_checks(book.load(), day(10)) == []

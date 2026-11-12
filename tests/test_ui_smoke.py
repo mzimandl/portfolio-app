@@ -183,7 +183,7 @@ def test_overview_page(database):
     # 2 shares x 150 USD x 23 = 6900, plus savings 1040
     assert labels["Value"] == "7\u00a0940"
     assert labels["Dividends"] == "50"
-    assert len(at.dataframe) == 3
+    assert len(at.dataframe) == 4  # by type, by currency, instruments, purchases held
     assert list(at.dataframe[2].value["ticker"]) == ["AAPL", "SAVE"]
     assert list(at.dataframe[2].value["share"]) == pytest.approx([6900 / 7940, 1040 / 7940])
 
@@ -223,6 +223,28 @@ def test_charts_page(database):
     assert len(at.get("vega_lite_chart")) + len(at.get("arrow_vega_lite_chart")) >= 2
     at.selectbox(key="charts_scope").select("Type: savings").run()
     clean(at)
+
+
+def test_dividends_page(database):
+    at = clean(run_page("dividends"))
+    labels = {m.label: m.value for m in at.metric}
+    assert labels["Received in total"] == "50"
+    assert list(at.dataframe[0].value["Ticker"]) == ["AAPL"]
+    database.execute("DELETE FROM transactions WHERE kind = 'dividend'")
+    database.commit()
+    assert "No dividends recorded" in run_page("dividends").info[0].value
+
+
+def test_checks_page(database):
+    at = clean(run_page("checks"))
+    assert [s.value for s in at.subheader] == [
+        "Prices out of date (2)",  # AAPL: its price and the USD rate
+        "Manual values out of date (1)",
+    ]
+    assert set(at.dataframe[0].value["Ticker"]) == {"AAPL"}
+    database.execute("DELETE FROM transactions")
+    database.commit()
+    assert run_page("checks").success
 
 
 def test_prices_and_settings_pages(database):
@@ -351,7 +373,8 @@ def test_overview_keeps_separate_types_out_of_the_headline(savings_apart):
     assert by_label["Still deposited"][0] == "1\u00a0000"
     assert by_label["Profit"] == ("+40", "+4,0\u00a0%")
     assert [h.value for h in at.header] == ["Savings"]
-    by_type, by_currency, instruments, savings = at.dataframe
+    by_type, by_currency, instruments, purchases, savings = at.dataframe
+    assert list(purchases.value["Ticker"]) == ["AAPL"]
     assert list(by_type.value["type"]) == ["stock"]
     assert list(by_currency.value["currency"]) == ["USD"]
     assert list(by_currency.value["share"]) == [1.0]

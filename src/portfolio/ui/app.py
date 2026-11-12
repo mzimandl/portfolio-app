@@ -6,7 +6,9 @@ from portfolio.core.config import ConfigError
 from portfolio.ui import common, shell
 from portfolio.ui.pages import (
     charts,
+    checks,
     data,
+    dividends,
     overview,
     performance,
     prices,
@@ -29,8 +31,10 @@ def main() -> None:
             st.Page(overview.render, title="Overview", url_path="overview", default=True),
             st.Page(performance.render, title="Performance", url_path="performance"),
             st.Page(charts.render, title="Charts", url_path="charts"),
+            st.Page(dividends.render, title="Dividends", url_path="dividends"),
             st.Page(transactions.render, title="Transactions", url_path="transactions"),
             st.Page(prices.render, title="Prices", url_path="prices"),
+            st.Page(checks.render, title="Checks", url_path="checks"),
             st.Page(data.render, title="Import / export", url_path="data"),
             st.Page(settings.render, title="Settings", url_path="settings"),
         ]

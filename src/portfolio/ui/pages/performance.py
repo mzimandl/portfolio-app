@@ -19,6 +19,34 @@ def _benchmark_id(loaded: common.Loaded) -> int | None:
     return next((i.id for i in loaded.data.instruments.values() if i.ticker == symbol), None)
 
 
+_MONTHS = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+_GAIN = "background-color: rgba(46, 160, 67, 0.30)"
+_LOSS = "background-color: rgba(218, 54, 51, 0.30)"
+
+
+def _by_month(days) -> None:
+    months = performance.monthly(days)
+    if not months:
+        return
+    st.subheader("By month")
+    frame = pd.DataFrame(
+        [
+            {"Year": str(year)} | {name: months[year].get(i) for i, name in enumerate(_MONTHS, 1)}
+            for year in sorted(months, reverse=True)
+        ]
+    )
+    styled = frame.style.map(
+        lambda v: "" if pd.isna(v) or v == 0 else (_GAIN if v > 0 else _LOSS),
+        subset=list(_MONTHS),
+    )
+    st.dataframe(
+        styled,
+        column_config={name: st.column_config.NumberColumn(format=_PERCENT) for name in _MONTHS},
+        hide_index=True,
+    )
+    st.caption("Time-weighted return of each calendar month, dividends included, after fees.")
+
+
 def _drawdown(days, start: date, today: date) -> None:
     result = performance.drawdown(days, start, today)
     if result is None:
@@ -151,10 +179,12 @@ def render() -> None:
     if benchmark_id is None:
         year_config["Benchmark"] = None
     st.dataframe(year_rows, column_config=year_config, hide_index=True)
+    _by_month(days)
 
     if len(ids) > 1:
         st.subheader(f"Instruments, {period.lower()}")
         instrument_rows = []
+        whole = profit if profit > 0 else None
         for instrument_id in ids:
             history = loaded.daily.get(instrument_id) or []
             in_period = [p for p in history if p.date >= start]
@@ -169,8 +199,10 @@ def render() -> None:
                     "Type": instrument.type,
                     "Value": round(in_period[-1].value),
                     "Net profit": round(
-                        in_period[-1].net_profit - (earlier[-1].net_profit if earlier else 0.0)
+                        net := in_period[-1].net_profit
+                        - (earlier[-1].net_profit if earlier else 0.0)
                     ),
+                    "Part of the profit": net / whole if whole else None,
                     "Return": performance.twr(history, start, today),
                     "Yearly return": performance.money_weighted(history, start, today)
                     if (today - first_day).days >= _LONG_ENOUGH_DAYS
@@ -182,6 +214,11 @@ def render() -> None:
             column_config={
                 "Value": st.column_config.NumberColumn(format="localized"),
                 "Net profit": st.column_config.NumberColumn(format="localized"),
+                "Part of the profit": st.column_config.NumberColumn(
+                    format=_PERCENT,
+                    help="This instrument's net profit as a part of the net profit of the "
+                    "whole selection in the period. Empty when the selection made a loss.",
+                ),
                 "Return": st.column_config.NumberColumn(format=_PERCENT),
                 "Yearly return": st.column_config.NumberColumn(format=_PERCENT),
             },

@@ -197,6 +197,21 @@ def yearly(days: Sequence[DayPoint]) -> list[YearRow]:
     return rows
 
 
+def monthly(days: Sequence[DayPoint]) -> dict[int, dict[int, float]]:
+    """Time-weighted return of every calendar month: ``{year: {month: return}}``."""
+    spans: dict[tuple[int, int], list[date]] = {}
+    for point in days:
+        key = (point.date.year, point.date.month)
+        if key in spans:
+            spans[key][1] = point.date
+        else:
+            spans[key] = [point.date, point.date]
+    months: dict[int, dict[int, float]] = defaultdict(dict)
+    for (year, month), (first, last) in spans.items():
+        months[year][month] = twr(days, first, last)
+    return dict(months)
+
+
 def _worth(data: PortfolioData, instrument_id: int, day: date) -> float | None:
     """One unit of the instrument in base currency on ``day``."""
     prices = data.prices.get(instrument_id)
