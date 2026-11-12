@@ -53,6 +53,8 @@ class PortfolioData:
     instruments: dict[int, Instrument] = field(default_factory=dict)
     events: dict[int, list[Event]] = field(default_factory=dict)  # per instrument, oldest first
     prices: dict[int, Series] = field(default_factory=dict)
+    # Dividend per unit on its day, in the instrument's currency; only days that have one.
+    dividends: dict[int, dict[date, float]] = field(default_factory=dict)
     valuations: dict[int, Series] = field(default_factory=dict)
     fx: dict[str, Series] = field(default_factory=dict)  # currency -> rate to base
     warnings: list[str] = field(default_factory=list)
@@ -91,7 +93,11 @@ def _points(rows, key, value) -> dict:
 def load_data(conn: sqlite3.Connection, base_currency: str) -> PortfolioData:
     data = PortfolioData(base_currency=base_currency)
     data.instruments = {i.id: i for i in repo.list_instruments(conn)}
-    data.prices = _points(repo.list_prices(conn), lambda p: p.instrument_id, lambda p: p.close)
+    prices = repo.list_prices(conn)
+    data.prices = _points(prices, lambda p: p.instrument_id, lambda p: p.close)
+    for price in prices:
+        if price.dividend:
+            data.dividends.setdefault(price.instrument_id, {})[price.date] = price.dividend
     data.valuations = _points(
         repo.list_valuations(conn), lambda v: v.instrument_id, lambda v: v.value
     )

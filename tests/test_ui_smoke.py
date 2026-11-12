@@ -198,7 +198,9 @@ def test_performance_page(database):
     at = clean(run_page("performance"))
     labels = {m.label: m.value for m in at.metric}
     assert labels["Return (time-weighted)"].startswith("+")
-    assert labels["Benchmark SPY"] == "+25,5 %"  # 480 x 23 / (400 x 22) - 1
+    assert labels["SPY return"] == "+25,5 %"  # 480 x 23 / (400 x 22) - 1
+    assert "Yearly return of your money in SPY" in labels
+    assert any(label.startswith("You are ") for label in labels)
     years = at.dataframe[0].value
     assert list(years["Year"])[:2] == ["2023", "2024"]
     # One instrument only: the per-instrument table disappears.

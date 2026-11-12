@@ -175,7 +175,8 @@ Each phase ends with passing tests and a commit.
   adjusted prices by dividing their price by the later split ratios.
 - **Benchmark** — a Yahoo symbol set in the config (e.g. an S&P 500 or MSCI World ETF). It is stored
   as an instrument of type `benchmark` with prices but no transactions, and is excluded from the
-  portfolio totals. Comparison: portfolio TWR vs benchmark return over the same period, in base currency.
+  portfolio totals. Comparison: portfolio TWR vs benchmark return (dividends reinvested) over the
+  same period, in base currency, and the same cash flows invested in the benchmark instead.
 - **Price vs FX profit** — per instrument: FX profit = cost in trade currency × (current FX − FX at
   purchase); price profit = total profit − FX profit − staking rewards (same definition as the old Overview).
 - **Invested per period** — net new money per month and per year, split into securities, crypto and deposits.

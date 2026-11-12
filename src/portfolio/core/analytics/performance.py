@@ -134,22 +134,69 @@ def yearly(days: Sequence[DayPoint]) -> list[YearRow]:
     return rows
 
 
-def price_return(data: PortfolioData, instrument_id: int, start: date, end: date) -> float | None:
-    """Return of simply holding one instrument from ``start`` to ``end``, in base currency.
+def _worth(data: PortfolioData, instrument_id: int, day: date) -> float | None:
+    """One unit of the instrument in base currency on ``day``."""
+    prices = data.prices.get(instrument_id)
+    price = prices.at(day) if prices else None
+    rate = data.fx_at(data.instruments[instrument_id].currency, day)
+    return None if price is None or rate is None else price * rate
+
+
+def _dividend_growth(data: PortfolioData, instrument_id: int, day: date) -> float:
+    """How many units one unit becomes when that day's dividend is reinvested."""
+    dividend = data.dividends.get(instrument_id, {}).get(day)
+    price = data.prices[instrument_id].at(day) if dividend else None
+    return 1.0 + dividend / price if dividend and price else 1.0
+
+
+def holding_return(data: PortfolioData, instrument_id: int, start: date, end: date) -> float | None:
+    """Return of simply holding one instrument from ``start`` to ``end``, in base currency,
+    with its dividends reinvested.
 
     Used for the benchmark. None if a price or exchange rate is missing at either end.
     """
-    instrument = data.instruments[instrument_id]
-    prices = data.prices.get(instrument_id)
-    if not prices:
+    first, last = _worth(data, instrument_id, start), _worth(data, instrument_id, end)
+    if not first or last is None:
         return None
-    worth = []
-    for day in (start, end):
-        price, rate = prices.at(day), data.fx_at(instrument.currency, day)
-        if price is None or rate is None:
-            return None
-        worth.append(price * rate)
-    return worth[1] / worth[0] - 1.0 if worth[0] else None
+    units = 1.0
+    for day in data.dividends.get(instrument_id, {}):
+        if start < day <= end:
+            units *= _dividend_growth(data, instrument_id, day)
+    return units * last / first - 1.0
+
+
+def same_money(
+    data: PortfolioData,
+    instrument_id: int,
+    days: Sequence[DayPoint],
+    start: date | None = None,
+    end: date | None = None,
+) -> list[DayPoint]:
+    """What the same payments would have done in another instrument (the benchmark).
+
+    Whatever ``days`` were worth before ``start`` is put in on the first day; after that the
+    same money goes in and comes out on the same days. Dividends are reinvested. Money that
+    arrives before the instrument has a price waits as cash. The value can turn negative:
+    more was taken out than the instrument would have made.
+    """
+    window = _window(days, start, end)
+    if not window:
+        return []
+    opening = _value_before(days, window[0].date)
+    units = cash = invested = 0.0
+    points = []
+    for index, point in enumerate(window):
+        put_in = point.put_in + (opening if index == 0 else 0.0)
+        cash += put_in - point.taken_out
+        invested += put_in - point.taken_out
+        worth = _worth(data, instrument_id, point.date)
+        if worth:
+            units *= _dividend_growth(data, instrument_id, point.date)
+            units += cash / worth
+            cash = 0.0
+        value = cash + (units * worth if worth else 0.0)
+        points.append(DayPoint(point.date, value, put_in, point.taken_out, invested, 0.0))
+    return points
 
 
 _MONEY_IN = {K.BUY: 1, K.DEPOSIT: 1, K.SELL: -1, K.WITHDRAWAL: -1}

@@ -23,6 +23,21 @@ class Lot:
     staking: bool = False
 
 
+@dataclass(frozen=True)
+class Sale:
+    """Units that left the position on one day, in base currency."""
+
+    date: date
+    quantity: float
+    proceeds: float
+    cost: float  # what the units had cost
+    held_days: float  # how long they were held, averaged over the units
+
+    @property
+    def profit(self) -> float:
+        return self.proceeds - self.cost
+
+
 @dataclass
 class Position:
     """State of one instrument after some of its events. Money is in base currency."""
@@ -30,6 +45,7 @@ class Position:
     quantity: float = 0.0
     lots: list[Lot] = field(default_factory=list)  # oldest first
     realised: float = 0.0  # proceeds of sales minus what the sold units had cost
+    sales: list[Sale] = field(default_factory=list)
     invested: float = 0.0  # buys and deposits
     returned: float = 0.0  # sells and withdrawals
     fees: float = 0.0
@@ -54,27 +70,34 @@ class Position:
         """Units still held that were bought."""
         return sum(lot.quantity for lot in self.lots if not lot.staking)
 
-    def _sell(self, quantity: float, proceeds: float) -> None:
+    def _sell(self, day: date, quantity: float, proceeds: float) -> None:
         """Use up the oldest lots and book the difference to the realised profit."""
         cost = 0.0
+        unit_days = 0.0
         remaining = quantity
         while remaining > _NO_QUANTITY and self.lots:
             lot = self.lots[0]
+            age = (day - lot.date).days
             if lot.quantity <= remaining + _NO_QUANTITY:
                 cost += lot.cost_base
+                unit_days += lot.quantity * age
                 remaining -= lot.quantity
                 self.lots.pop(0)
                 continue
             share = remaining / lot.quantity
             cost += lot.cost_base * share
+            unit_days += remaining * age
             lot.cost -= lot.cost * share
             lot.cost_base -= lot.cost_base * share
             lot.quantity -= remaining
             remaining = 0.0
         # Selling more than is held has no cost to set against it.
         self.realised += proceeds - cost
+        covered = quantity - remaining
+        held_days = unit_days / covered if covered > _NO_QUANTITY else 0.0
+        self.sales.append(Sale(day, quantity, proceeds, cost, held_days))
 
-    def _take_back_staking(self, quantity: float) -> None:
+    def _take_back_staking(self, day: date, quantity: float) -> None:
         """Remove staking units, oldest first. They cost nothing, so no loss is realised."""
         remaining = quantity
         for lot in [lot for lot in self.lots if lot.staking]:
@@ -87,7 +110,7 @@ class Position:
                 self.lots.remove(lot)
         if remaining > _NO_QUANTITY:
             # More than staking ever gave: the rest are bought units, lost.
-            self._sell(remaining, 0.0)
+            self._sell(day, remaining, 0.0)
 
     def _add_cash(self, day: date, amount: float) -> None:
         self.cash_dates.append(day)
@@ -125,7 +148,7 @@ def apply(
             position._add_cash(event.date, local)
             return base + event.fee, 0.0
         position.quantity -= event.quantity
-        position._sell(event.quantity, base)
+        position._sell(event.date, event.quantity, base)
         position.returned += base
         position._add_cash(event.date, -local)
         return event.fee, base
@@ -148,7 +171,7 @@ def apply(
         position.lots.append(Lot(event.date, event.quantity, None, 0.0, 0.0, staking=True))
     elif kind is K.STAKING_CORRECTION:
         position.quantity -= event.quantity
-        position._take_back_staking(event.quantity)
+        position._take_back_staking(event.date, event.quantity)
     elif kind is K.SPLIT:
         position.quantity *= event.split_ratio
         for lot in position.lots:

@@ -112,6 +112,48 @@ def _row(data: PortfolioData, instrument_id: int, as_of: date) -> OverviewRow:
     )
 
 
+@dataclass(frozen=True)
+class SaleRow:
+    """One sale and what it realised, in base currency."""
+
+    date: date
+    ticker: str
+    type: str
+    quantity: float
+    proceeds: float
+    cost: float  # what the sold units had cost (oldest units first)
+    profit: float
+    held_days: float  # averaged over the units sold
+
+
+def sales(
+    data: PortfolioData, as_of: date | None = None, *, include_inactive: bool = False
+) -> list[SaleRow]:
+    """Every sale of a priced instrument, newest first. Their profits add up to the
+    realised profit of the overview."""
+    as_of = as_of or date.today()
+    rows = []
+    for instrument_id in data.instrument_ids(include_inactive=include_inactive):
+        instrument = data.instruments[instrument_id]
+        if instrument.valuation is ValuationMethod.MANUAL:
+            continue
+        for sale in position_at(data, instrument_id, as_of).sales:
+            rows.append(
+                SaleRow(
+                    date=sale.date,
+                    ticker=instrument.ticker,
+                    type=instrument.type,
+                    quantity=sale.quantity,
+                    proceeds=sale.proceeds,
+                    cost=sale.cost,
+                    profit=sale.profit,
+                    held_days=sale.held_days,
+                )
+            )
+    rows.sort(key=lambda row: (row.date, row.ticker), reverse=True)
+    return rows
+
+
 _SUMMED = (
     "invested", "returned", "fees", "dividends", "value", "cost_basis",
     "unrealised_profit", "price_profit", "fx_profit", "rewards", "realised_profit",

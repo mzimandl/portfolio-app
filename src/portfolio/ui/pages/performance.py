@@ -19,6 +19,47 @@ def _benchmark_id(loaded: common.Loaded) -> int | None:
     return next((i.id for i in loaded.data.instruments.values() if i.ticker == symbol), None)
 
 
+def _benchmark(data, benchmark_id: int, days, start: date, today: date) -> None:
+    """The same money, paid in and taken out on the same days, held in the benchmark."""
+    symbol = common.config().benchmark
+    st.subheader(f"Against {symbol}")
+    twin = performance.same_money(data, benchmark_id, days, start, today)
+    prices = data.prices.get(benchmark_id)
+    if not twin or not prices:
+        st.info(f"No prices for {symbol} yet. Use Update prices.")
+        return
+    long_enough = (today - start).days >= _LONG_ENOUGH_DAYS
+    ahead = days[-1].value - twin[-1].value
+    cells = st.columns(3)
+    cells[0].metric(
+        f"{symbol} return",
+        common.percent(performance.holding_return(data, benchmark_id, start, today)),
+        help="Of holding it for the whole period, dividends reinvested.",
+    )
+    cells[1].metric(
+        f"Yearly return of your money in {symbol}",
+        common.percent(performance.money_weighted(twin) if long_enough else None),
+        help="Comparable with the yearly return on your money above.",
+    )
+    cells[2].metric(
+        "You are ahead by" if ahead >= 0 else "You are behind by",
+        common.money(abs(ahead)),
+        help=f"Your value today minus what the same money would be worth in {symbol}: "
+        f"{common.money(twin[-1].value)}.",
+    )
+    note = (
+        f"The same money on the same days, put into {symbol} instead: what you held at the "
+        "start of the period, then every payment in and out, fees and dividends included. "
+        "No fees or taxes are charged on the benchmark side."
+    )
+    if prices.dates[0] > twin[0].date:
+        note += (
+            f" {symbol} has prices only from {prices.dates[0]}; money paid before that waits "
+            "as cash until then."
+        )
+    st.caption(note)
+
+
 def render() -> None:
     st.title("Performance")
     loaded = common.portfolio()
@@ -43,18 +84,17 @@ def render() -> None:
     window = [p for p in days if p.date >= start]
     before = [p for p in days if p.date < start]
     profit = window[-1].net_profit - (before[-1].net_profit if before else 0.0)
-    cells = st.columns(4)
+    cells = st.columns(3)
     cells[0].metric("Return (time-weighted)", common.percent(twr))
     cells[1].metric("Yearly return on your money", common.percent(yearly_rate))
     cells[2].metric("Net profit in the period", common.money(profit, signed=True))
-    if benchmark_id is not None:
-        benchmark = performance.price_return(data, benchmark_id, start, today)
-        cells[3].metric(f"Benchmark {common.config().benchmark}", common.percent(benchmark))
     st.caption(
         "The time-weighted return shows how the investments did, whenever money was added. "
         "The yearly return on your money (XIRR) takes the timing of your payments into "
         "account. Both include dividends and are after fees."
     )
+    if benchmark_id is not None:
+        _benchmark(data, benchmark_id, days, start, today)
 
     st.subheader("By year")
     year_rows = []
@@ -70,7 +110,7 @@ def render() -> None:
                 "End value": round(row.end_value),
                 "Net profit": round(row.profit),
                 "Return": row.twr,
-                "Benchmark": performance.price_return(data, benchmark_id, year_start, year_end)
+                "Benchmark": performance.holding_return(data, benchmark_id, year_start, year_end)
                 if benchmark_id is not None
                 else None,
             }

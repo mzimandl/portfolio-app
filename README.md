@@ -42,7 +42,7 @@ happens in **Transactions**.
 
 | Page | Shows |
 |---|---|
-| Overview | What you hold now, what it cost, and the profit split into price, exchange rate and staking. |
+| Overview | What you hold now, what it cost, and the profit split into price, exchange rate and staking. Below it, every sale and what it realised. |
 | Performance | Returns for the portfolio, a type or one instrument; by year; against the benchmark; new money per year or month. |
 | Charts | Value, money invested and profit, day by day. |
 | Transactions | The ledger: filter, add, edit, delete. A second tab holds manual valuations. |
@@ -89,6 +89,12 @@ left empty: the market rate of that day is used.
 | Net profit | Profit + dividends − fees. |
 | Return (time-weighted) | How the investments did, regardless of when money was added. Not annualised. |
 | Yearly return on your money | XIRR: the yearly rate earned given when each payment was made. |
+
+**Benchmark.** With `benchmark` set, Performance compares in two ways. Its return is that of
+holding it for the whole period with dividends reinvested, comparable with the time-weighted
+return. "Your money in the benchmark" puts the same amounts in and takes them out on the same
+days, which is comparable with the yearly return on your money and tells how far ahead or
+behind you are. No fees or taxes are charged on the benchmark side.
 
 Both returns include dividends and are after fees. A manually valued account that gains value
 you did not deposit (an employer's pension contribution, for example) shows that as return,

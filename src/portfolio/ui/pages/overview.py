@@ -5,7 +5,7 @@ from dataclasses import asdict
 import pandas as pd
 import streamlit as st
 
-from portfolio.core.analytics.overview import OverviewRow, overview, summarize
+from portfolio.core.analytics.overview import OverviewRow, overview, sales, summarize
 from portfolio.ui import common
 
 
@@ -103,10 +103,42 @@ def _tint(profit: float | None) -> str:
     return _GAIN if profit > 0 else _LOSS
 
 
-def _tinted(rows: list[dict]):
+def _tinted(rows: list[dict], by: str = "total_profit"):
     """The rows as a table whose lines are light green in profit and light red in loss."""
-    return pd.DataFrame(rows).style.apply(
-        lambda row: [_tint(row.get("total_profit"))] * len(row), axis=1
+    return pd.DataFrame(rows).style.apply(lambda row: [_tint(row.get(by))] * len(row), axis=1)
+
+
+def _sales(loaded: common.Loaded, include_inactive: bool) -> None:
+    rows = [
+        {
+            "Date": sale.date,
+            "Ticker": sale.ticker,
+            "Type": sale.type,
+            "Quantity": sale.quantity,
+            "Received": round(sale.proceeds),
+            "Cost": round(sale.cost),
+            "Profit": round(sale.profit),
+            "Held (days)": round(sale.held_days),
+        }
+        for sale in sales(loaded.data, loaded.today, include_inactive=include_inactive)
+        if not common.is_separate(sale.type)
+    ]
+    if not rows:
+        return
+    st.subheader("Sales")
+    st.caption(
+        "Every sale and what it realised: what you received minus what those units had cost, "
+        "oldest units first. Units lost (sold at price 0) show their cost as a loss."
+    )
+    st.dataframe(
+        _tinted(rows, "Profit"),
+        column_config={
+            "Quantity": st.column_config.NumberColumn(format="%.6g"),
+            "Received": _money("Received"),
+            "Cost": _money("Cost"),
+            "Profit": _money("Profit"),
+        },
+        hide_index=True,
     )
 
 
@@ -151,6 +183,7 @@ def render() -> None:
 
         st.subheader("Instruments")
         _table(investments, list(_COLUMNS))
+        _sales(loaded, include_inactive)
 
     if separate:
         st.header(common.separate_label())

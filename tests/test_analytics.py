@@ -8,7 +8,7 @@ import pytest
 from portfolio.core import repo
 from portfolio.core.analytics import performance, timeseries
 from portfolio.core.analytics.data import Series, load_data
-from portfolio.core.analytics.overview import overview, summarize
+from portfolio.core.analytics.overview import overview, sales, summarize
 from portfolio.core.models import FxRate, Instrument, Price, Transaction, Valuation
 from portfolio.core.models import TransactionKind as K
 from portfolio.core.models import ValuationMethod as V
@@ -499,9 +499,74 @@ def test_benchmark_price_return(book):
     book.prices(index, {day(1): 100, day(10): 120})
     book.fx("USD", {day(1): 20, day(10): 22})
     data = book.load()
-    assert performance.price_return(data, index, day(1), day(10)) == pytest.approx(0.32)
-    assert performance.price_return(data, index, date(2023, 1, 1), day(10)) is None
+    assert performance.holding_return(data, index, day(1), day(10)) == pytest.approx(0.32)
+    assert performance.holding_return(data, index, date(2023, 1, 1), day(10)) is None
     assert index not in data.instrument_ids()  # no transactions, so not part of the portfolio
+
+
+def test_benchmark_return_reinvests_dividends(book):
+    index = book.instrument("SPX", type="benchmark")
+    repo.save_prices(
+        book.conn,
+        [
+            Price(index, day(1), close=100),
+            Price(index, day(5), close=100, dividend=5),
+            Price(index, day(10), close=110),
+        ],
+    )
+    data = book.load()
+    assert performance.holding_return(data, index, day(1), day(10)) == pytest.approx(
+        1.05 * 1.10 - 1
+    )
+    # A dividend on the first day belongs to whoever held it before.
+    assert performance.holding_return(data, index, day(5), day(10)) == pytest.approx(0.10)
+
+
+def test_same_money_in_the_benchmark(book):
+    stock = book.instrument("X")
+    index = book.instrument("SPX", type="benchmark")
+    book.prices(stock, {day(1): 100, day(10): 100})
+    book.prices(index, {day(3): 50, day(5): 100, day(10): 200})
+    book.buy(stock, day(1), 10, 100)  # 1000, waits as cash until the index has a price
+    book.buy(stock, day(5), 5, 100)  # 500
+    book.sell(stock, day(8), 4, 100)  # 400 out
+    data = book.load()
+    history = timeseries.instrument_daily(data, stock, day(10))
+
+    twin = performance.same_money(data, index, history)
+    by_day = {p.date: p for p in twin}
+    assert by_day[day(2)].value == pytest.approx(1000)
+    assert by_day[day(3)].value == pytest.approx(1000)  # 20 units at 50
+    assert by_day[day(5)].value == pytest.approx(25 * 100)
+    assert by_day[day(8)].value == pytest.approx(21 * 100)
+    assert twin[-1].value == pytest.approx(21 * 200)
+    assert twin[-1].invested == pytest.approx(1100)
+    assert [p.put_in for p in twin] == [p.put_in for p in history]
+
+    # From day 6 on: what the portfolio was worth the day before goes in first.
+    later = performance.same_money(data, index, history, start=day(6))
+    assert later[0].put_in == pytest.approx(1500)
+    assert later[-1].value == pytest.approx((15 - 4) * 200)
+    assert performance.twr(later) == pytest.approx(1.0)
+    assert performance.same_money(data, index, history, start=date(2030, 1, 1)) == []
+
+
+def test_sales_list_what_each_one_realised(book):
+    stock = book.instrument("X", "USD")
+    save = book.instrument("SAVE", type="savings", valuation=V.MANUAL)
+    book.buy(stock, day(1), 2, 100, "USD", 20)  # 4000
+    book.buy(stock, day(11), 2, 110, "USD", 20)  # 4400
+    book.sell(stock, day(21), 3, 150, "USD", 22)  # 9900 for units that cost 4000 + 2200
+    book.tx(save, day(1), K.DEPOSIT, amount=100, currency="CZK", fx_rate=1)
+    book.tx(save, day(2), K.WITHDRAWAL, amount=50, currency="CZK", fx_rate=1)
+    data = book.load()
+
+    (sale,) = sales(data, day(30))
+    assert (sale.date, sale.ticker, sale.quantity) == (day(21), "X", 3)
+    assert (sale.proceeds, sale.cost, sale.profit) == pytest.approx((9900, 6200, 3700))
+    assert sale.held_days == pytest.approx((2 * 20 + 1 * 10) / 3)
+    assert sale.profit == pytest.approx(only(overview(data, day(30)), "X").realised_profit)
+    assert sales(data, day(20)) == []
 
 
 def test_invested_by_period(book):
