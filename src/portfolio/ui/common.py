@@ -55,7 +55,8 @@ class Loaded:
 
 
 @st.cache_resource(max_entries=2, show_spinner=False)
-def _load(path: str, base_currency: str, today: date, _token: tuple) -> Loaded:
+def _load(path: str, base_currency: str, today: date, token: tuple) -> Loaded:
+    """``token`` changes with the database file, so a change there gives fresh data."""
     conn = db.connect(path)
     try:
         data = load_data(conn, base_currency)

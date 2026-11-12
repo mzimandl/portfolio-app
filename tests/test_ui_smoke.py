@@ -187,6 +187,13 @@ def test_overview_page(database):
     assert list(at.dataframe[1].value["ticker"]) == ["AAPL", "SAVE"]
 
 
+def test_overview_follows_changes_made_outside_the_app(database):
+    assert not run_page("overview").info
+    database.execute("DELETE FROM transactions")
+    database.commit()
+    assert "No transactions yet" in run_page("overview").info[0].value
+
+
 def test_overview_page_with_empty_database(database):
     database.execute("DELETE FROM transactions")
     database.commit()
