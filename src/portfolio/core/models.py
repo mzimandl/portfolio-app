@@ -22,6 +22,7 @@ class TransactionKind(StrEnum):
     WITHDRAWAL = "withdrawal"
     DIVIDEND = "dividend"
     STAKING_REWARD = "staking_reward"
+    STAKING_CORRECTION = "staking_correction"  # staking units taken back
     SPLIT = "split"
     FEE = "fee"  # a charge on its own, not tied to another transaction
 
@@ -43,7 +44,7 @@ K = TransactionKind
 
 # Which optional fields each kind uses: field -> kinds where it is required / merely allowed.
 _REQUIRED: dict[str, set[TransactionKind]] = {
-    "quantity": {K.BUY, K.SELL, K.STAKING_REWARD},
+    "quantity": {K.BUY, K.SELL, K.STAKING_REWARD, K.STAKING_CORRECTION},
     "price": {K.BUY, K.SELL},
     "amount": {K.DEPOSIT, K.WITHDRAWAL, K.DIVIDEND},
     "currency": {K.BUY, K.SELL, K.DEPOSIT, K.WITHDRAWAL, K.DIVIDEND},

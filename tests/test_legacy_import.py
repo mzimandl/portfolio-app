@@ -122,8 +122,8 @@ def test_crypto_keeps_its_own_currency_and_staking(imported, conn):
     )
     assert (lost.kind, lost.quantity, lost.price, lost.currency) == (K.SELL, D("0.0002"), 0, "EUR")
     assert (reward.kind, reward.quantity) == (K.STAKING_REWARD, D("0.00000123"))
-    assert (taken_back.kind, taken_back.quantity, taken_back.price) == (K.SELL, D("0.0000005"), 0)
-    assert "staking" in taken_back.note
+    assert (taken_back.kind, taken_back.quantity) == (K.STAKING_CORRECTION, D("0.0000005"))
+    assert taken_back.price is None
 
 
 def test_deposits_withdrawals_and_fee_only_rows(imported, conn):

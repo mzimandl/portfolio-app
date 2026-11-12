@@ -78,7 +78,8 @@ instruments(
 
 transactions(
   id PK, date, instrument_id -> instruments,
-  kind CHECK IN ('buy','sell','deposit','withdrawal','dividend','staking_reward','split','fee'),
+  kind CHECK IN ('buy','sell','deposit','withdrawal','dividend','staking_reward',
+                 'staking_correction','split','fee'),
   quantity,        -- units; always positive, direction comes from kind
   price,           -- per unit, in `currency` (NULL for deposit/dividend/staking)
   amount,          -- cash amount in `currency` (deposit/withdrawal/dividend)
@@ -110,7 +111,7 @@ current Polars release.
 | `crypto` | `buy` / `sell` with the row's own `currency` |
 | `deposits` | `deposit` (amount > 0) / `withdrawal` (amount < 0); rows with only a fee become `fee` |
 | `dividends` | `dividend`, currency = instrument's `dividend_currency` |
-| `staking` | `staking_reward` (quantity only); negative rows become a `sell` at price 0 |
+| `staking` | `staking_reward` (quantity only); negative rows become a `staking_correction` |
 | `values` | `valuations` |
 | `historical`, `fx` | `prices`, `fx_rates` |
 | `base_rate` | `fx_rate = 1 / base_rate` (old value divides, new value multiplies) |
@@ -157,6 +158,11 @@ current Polars release.
 Each phase ends with passing tests and a commit.
 
 ## Details settled
+
+- **Staking corrections** — the old app stored staking units taken back as negative rewards.
+  They were first imported as sells at price 0, which booked a loss on the oldest bought units.
+  Since migration 4 they are `staking_correction` rows: removed from the staking units held,
+  with no realised loss. A sell at price 0 remains the way to record units really lost.
 
 - **No `reinvested` flag** — the old app marked sales whose proceeds went into other
   investments, because it dropped sold positions from its totals. Here the sale and the next buy

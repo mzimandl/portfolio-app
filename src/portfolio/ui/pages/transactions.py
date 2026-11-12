@@ -25,6 +25,7 @@ _KIND_LABELS = {
     TransactionKind.WITHDRAWAL: "Withdrawal",
     TransactionKind.DIVIDEND: "Dividend",
     TransactionKind.STAKING_REWARD: "Staking reward",
+    TransactionKind.STAKING_CORRECTION: "Staking correction",
     TransactionKind.SPLIT: "Split",
     TransactionKind.FEE: "Fee only",
 }

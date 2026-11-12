@@ -210,26 +210,17 @@ def _collect_transactions(
             fx_rate=cash_rate(currency))  # fmt: skip
 
     negative_staking = 0
-    for row, instrument, add in rows(4, "staking"):
+    for row, _instrument, add in rows(4, "staking"):
         if row["volume"] > 0:
             add(K.STAKING_REWARD, quantity=_dec(row["volume"]))
         elif row["volume"] < 0:
-            # Coins taken back. Same convention the old data uses for coins lost to
-            # network fees: a sell at price zero.
             negative_staking += 1
-            add(
-                K.SELL,
-                quantity=_dec(-row["volume"]),
-                price=Decimal(0),
-                currency=instrument.currency,
-                fx_rate=Decimal(1),
-                note="Negative staking in the old app",
-            )
+            add(K.STAKING_CORRECTION, quantity=_dec(-row["volume"]))
         else:
             report.skipped["staking rows (empty)"] += 1
     if negative_staking:
         report.notes.append(
-            f"{negative_staking} negative staking rows were imported as sells at price 0"
+            f"{negative_staking} negative staking rows were imported as staking corrections"
         )
     return result
 
@@ -337,6 +328,8 @@ def _new_totals(target: sqlite3.Connection) -> dict[str, dict[int, float]]:
             exact["bought" if t.kind is K.BUY else "sold"][i] += cash
         elif t.kind is K.STAKING_REWARD:
             exact["quantity"][i] += t.quantity
+        elif t.kind is K.STAKING_CORRECTION:
+            exact["quantity"][i] -= t.quantity
         elif t.kind is K.DEPOSIT:
             exact["deposited"][i] += t.amount
         elif t.kind is K.WITHDRAWAL:

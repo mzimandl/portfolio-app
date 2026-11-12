@@ -60,6 +60,7 @@ Numbers are always positive; the kind gives the direction.
 | `deposit`, `withdrawal` | amount, currency | Money into or out of a manually valued instrument (savings, funds). |
 | `dividend` | amount, currency, optional tax | The net amount received; tax is what was withheld. |
 | `staking_reward` | quantity | Units received for free. |
+| `staking_correction` | quantity | Staking units taken back. They come off the staking units you hold, with no loss. |
 | `split` | ratio | New units per old unit, e.g. 10 for a 10:1 split. |
 | `fee` | fee | A charge on its own, not tied to another transaction. |
 
@@ -175,7 +176,7 @@ tests/
 the price updates do not depend on it.
 
 **Changing the database layout.** Add the next numbered file to `core/migrations/`
-(`0003_….sql`). It runs once, in a transaction, the next time the app or a script starts.
+(`0005_….sql`). It runs once, in a transaction, the next time the app or a script starts.
 Never edit a migration that has already run on your database.
 
 **Numbers.** What you type (quantities, prices, amounts, rates) is stored as exact decimal

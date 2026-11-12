@@ -111,3 +111,43 @@ def test_migration_3_drops_the_reinvested_column_and_keeps_the_rows(tmp_path):
     row = connection.execute("SELECT date, kind, quantity, note FROM transactions").fetchone()
     assert tuple(row) == ("2024-01-02", "sell", "1.5", "kept")
     assert connection.execute("PRAGMA foreign_key_check").fetchall() == []
+
+
+def test_migration_4_turns_negative_staking_sells_into_corrections(tmp_path):
+    from importlib import resources
+
+    source = resources.files("portfolio.core") / "migrations"
+    for entry in source.iterdir():
+        if entry.name.startswith(("0001", "0002", "0003")):
+            (tmp_path / entry.name).write_text(entry.read_text())
+    connection = db.connect(":memory:")
+    assert db.migrate(connection, tmp_path) == 3
+    connection.executescript(
+        """
+        INSERT INTO currencies VALUES ('EUR');
+        INSERT INTO instrument_types VALUES ('crypto');
+        INSERT INTO instruments (ticker, type, currency, valuation)
+            VALUES ('ETH', 'crypto', 'EUR', 'yahoo');
+        INSERT INTO transactions (date, instrument_id, kind, quantity, price, currency, fx_rate,
+                                  note)
+            VALUES ('2023-04-18', 1, 'sell', '0.004', '0', 'EUR', '1',
+                    'Negative staking in the old app'),
+                   ('2024-02-28', 1, 'sell', '0.0002', '0', 'EUR', '1', NULL);
+        """
+    )
+    connection.commit()
+
+    assert db.migrate(connection) >= 4
+    rows = [
+        tuple(row)
+        for row in connection.execute(
+            "SELECT id, kind, quantity, price, currency, fx_rate, note FROM transactions"
+        )
+    ]
+    assert rows == [
+        (1, "staking_correction", "0.004", None, None, None, None),
+        (2, "sell", "0.0002", "0", "EUR", "1", None),
+    ]
+    indexes = {row[1] for row in connection.execute("PRAGMA index_list(transactions)")}
+    assert {"transactions_instrument_date", "transactions_date"} <= indexes
+    assert connection.execute("PRAGMA foreign_key_check").fetchall() == []

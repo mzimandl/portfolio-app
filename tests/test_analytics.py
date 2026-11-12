@@ -159,6 +159,36 @@ def test_staking_units_cost_nothing_and_lost_units_realise_a_loss(book):
     assert row.total_profit == pytest.approx(row.unrealised_profit + row.realised_profit)
 
 
+def test_staking_correction_takes_back_free_units_without_a_loss(book):
+    coin = book.instrument("C", type="crypto")
+    book.prices(coin, {day(10): 50})
+    book.buy(coin, day(1), 10, 40)  # 400
+    book.tx(coin, day(2), K.STAKING_REWARD, quantity=2)
+    book.tx(coin, day(3), K.STAKING_REWARD, quantity=1)
+    book.tx(coin, day(4), K.STAKING_CORRECTION, quantity=2.5)
+    row = only(overview(book.load(), day(10)), "C")
+
+    assert row.quantity == pytest.approx(10.5)
+    assert row.realised_profit == pytest.approx(0)
+    assert row.cost_basis == pytest.approx(400)
+    assert row.rewards == pytest.approx(0.5 * 50)
+    assert row.total_profit == pytest.approx(10.5 * 50 - 400)
+
+
+def test_staking_correction_beyond_the_rewards_loses_bought_units(book):
+    coin = book.instrument("C", type="crypto")
+    book.prices(coin, {day(10): 50})
+    book.buy(coin, day(1), 10, 40)
+    book.tx(coin, day(2), K.STAKING_REWARD, quantity=1)
+    book.tx(coin, day(3), K.STAKING_CORRECTION, quantity=3)
+    row = only(overview(book.load(), day(10)), "C")
+
+    assert row.quantity == pytest.approx(8)
+    assert row.realised_profit == pytest.approx(-80)
+    assert row.cost_basis == pytest.approx(320)
+    assert row.rewards == 0
+
+
 def test_exchange_rate_profit_only_counts_units_still_held(book):
     stock = book.instrument("U", "USD")
     book.fx("USD", {day(1): 20, day(10): 25})

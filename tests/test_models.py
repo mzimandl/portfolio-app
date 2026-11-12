@@ -20,6 +20,7 @@ VALID = {
     K.WITHDRAWAL: dict(amount=D("1000"), currency="CZK"),
     K.DIVIDEND: dict(amount=D("8.5"), currency="USD", tax=D("1.5")),
     K.STAKING_REWARD: dict(quantity=D("0.00000123")),
+    K.STAKING_CORRECTION: dict(quantity=D("0.00000123")),
     K.SPLIT: dict(split_ratio=D("10")),
     K.FEE: dict(fee=D("35")),
 }

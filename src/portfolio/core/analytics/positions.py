@@ -74,6 +74,21 @@ class Position:
         # Selling more than is held has no cost to set against it.
         self.realised += proceeds - cost
 
+    def _take_back_staking(self, quantity: float) -> None:
+        """Remove staking units, oldest first. They cost nothing, so no loss is realised."""
+        remaining = quantity
+        for lot in [lot for lot in self.lots if lot.staking]:
+            if remaining <= _NO_QUANTITY:
+                break
+            taken = min(lot.quantity, remaining)
+            lot.quantity -= taken
+            remaining -= taken
+            if lot.quantity <= _NO_QUANTITY:
+                self.lots.remove(lot)
+        if remaining > _NO_QUANTITY:
+            # More than staking ever gave: the rest are bought units, lost.
+            self._sell(remaining, 0.0)
+
     def _add_cash(self, day: date, amount: float) -> None:
         self.cash_dates.append(day)
         self.cash_running.append((self.cash_running[-1] if self.cash_running else 0.0) + amount)
@@ -131,6 +146,9 @@ def apply(
     if kind is K.STAKING_REWARD:
         position.quantity += event.quantity
         position.lots.append(Lot(event.date, event.quantity, None, 0.0, 0.0, staking=True))
+    elif kind is K.STAKING_CORRECTION:
+        position.quantity -= event.quantity
+        position._take_back_staking(event.quantity)
     elif kind is K.SPLIT:
         position.quantity *= event.split_ratio
         for lot in position.lots:
