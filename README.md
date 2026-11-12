@@ -2,7 +2,8 @@
 
 A personal portfolio tracker: stocks, ETFs, crypto and manually valued accounts, in one base
 currency. Python, Streamlit and a single SQLite file. Built to keep working for years with
-little upkeep; [PLAN.md](PLAN.md) records the design decisions.
+little upkeep; [PLAN.md](PLAN.md) records the design decisions. [AGENTS.md](AGENTS.md) holds working notes for
+AI agents (and anyone else changing the code).
 
 ## Quick start
 
