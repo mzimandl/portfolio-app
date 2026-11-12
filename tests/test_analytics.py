@@ -6,7 +6,8 @@ from decimal import Decimal as D
 import pytest
 
 from portfolio.core import repo
-from portfolio.core.analytics import checks, dividends, performance, timeseries
+from portfolio.core.analytics import checks, dividends, performance, taxes, timeseries
+from portfolio.core.analytics.allocation import allocation
 from portfolio.core.analytics.data import Series, load_data
 from portfolio.core.analytics.overview import lots, overview, sales, summarize
 from portfolio.core.models import FxRate, Instrument, Price, Transaction, Valuation
@@ -445,6 +446,35 @@ def test_twr_ignores_the_timing_of_new_money(book, two_buys):
     assert performance.twr(history, start=day(20)) is None
 
 
+def test_twr_counts_new_money_from_the_price_it_was_invested_at(book):
+    stock = book.instrument("X")
+    book.prices(stock, {day(1): 100, day(2): 100, day(3): 90, day(5): 99})
+    book.buy(stock, day(1), 1, 100)
+    book.buy(stock, day(3), 100, 90)  # far more money, at the day's low
+    history = timeseries.instrument_daily(book.load(), stock, day(5))
+
+    assert history[2].early_gain == pytest.approx(-10)  # the old unit, 100 -> 90
+    levels = dict(performance.growth(history))
+    assert levels[day(3)] == pytest.approx(0.9)  # not watered down by the purchase
+    assert performance.twr(history) == pytest.approx(99 / 100 - 1)  # the price, exactly
+
+    # A purchase away from the close: the old unit moves with the price, the new one
+    # earns from what was paid for it.
+    other = book.instrument("Y")
+    book.prices(other, {day(1): 100, day(3): 120})
+    book.buy(other, day(1), 1, 100)
+    book.buy(other, day(3), 1, 110)
+    history = timeseries.instrument_daily(book.load(), other, day(3))
+    assert performance.twr(history) == pytest.approx(110 / 100 * 240 / 220 - 1)
+
+    # Selling everything at a price: the whole move up to that price counts.
+    book.sell(other, day(4), 2, 150)
+    history = timeseries.instrument_daily(book.load(), other, day(5))
+    assert performance.twr(history) == pytest.approx(150 / 100 - 1)
+    both = timeseries.combine([history, timeseries.instrument_daily(book.load(), stock, day(5))])
+    assert both[2].early_gain == pytest.approx(-10 + 10)
+
+
 def test_twr_survives_selling_everything(book, two_buys):
     book.sell(two_buys, day(5), 2, 121)
     history = timeseries.instrument_daily(book.load(), two_buys, day(6))
@@ -821,3 +851,117 @@ def test_a_checked_finding_comes_back_only_when_it_changes(book):
 
     repo.unmark_finding_reviewed(book.conn, finding.identity)
     assert repo.list_reviewed_findings(book.conn) == set()
+
+
+def test_allocation_against_targets():
+    rows = allocation({"stock": 700, "etf": 200, "crypto": 100}, {"stock": 0.5, "etf": 0.5})
+    by_name = {row.name: row for row in rows}
+    assert by_name["stock"].share == pytest.approx(0.7)
+    assert by_name["stock"].to_target == pytest.approx(-200)
+    assert by_name["etf"].to_target == pytest.approx(300)
+    assert (by_name["crypto"].target, by_name["crypto"].to_target) == (0, -100)
+    assert sum(row.to_target for row in rows) == pytest.approx(0)
+    assert all(row.buy == 0 for row in rows)
+
+
+def test_new_money_goes_to_what_is_below_its_target():
+    targets = {"stock": 0.5, "etf": 0.3, "gold": 0.2}
+    values = {"stock": 700, "etf": 200, "gold": 100}
+    # After 200 more the targets are 600 / 360 / 240: etf is 160 short, gold 140.
+    buy = {row.name: row.buy for row in allocation(values, targets, 200)}
+    assert buy == pytest.approx({"stock": 0, "etf": 200 * 160 / 300, "gold": 200 * 140 / 300})
+    # Enough money to get everything on target exactly.
+    buy = {row.name: row.buy for row in allocation(values, targets, 1000)}
+    assert buy == pytest.approx({"stock": 300, "etf": 400, "gold": 300})
+    # Nothing held yet, or everything on target: by the targets.
+    assert {r.name: r.buy for r in allocation({}, targets, 100)} == pytest.approx(
+        {"stock": 50, "etf": 30, "gold": 20}
+    )
+    assert [r.share for r in allocation({}, targets)] == [None, None, None]
+
+
+def test_targets_are_stored_and_have_to_add_up(book):
+    repo.set_targets(book.conn, {"stock": D("60"), "crypto": D("40"), "savings": D("0")})
+    assert repo.list_targets(book.conn) == {"crypto": D("40"), "stock": D("60")}
+    with pytest.raises(ValueError, match="add up to 100"):
+        repo.set_targets(book.conn, {"stock": D("60")})
+    with pytest.raises(ValueError, match="negative"):
+        repo.set_targets(book.conn, {"stock": D("110"), "crypto": D("-10")})
+    assert repo.list_targets(book.conn) == {"crypto": D("40"), "stock": D("60")}
+    repo.set_targets(book.conn, {})
+    assert repo.list_targets(book.conn) == {}
+
+
+def test_tax_rules_count_the_holding_period_in_calendar_years():
+    rules = taxes.TaxRules(holding_years=3)
+    assert rules.exempt_from(date(2021, 5, 10)) == date(2024, 5, 11)
+    assert rules.exempt_from(date(2020, 2, 29)) == date(2023, 3, 1)
+    assert rules.group("crypto") == taxes.CRYPTO
+    assert rules.group("etf") == taxes.SECURITIES
+
+
+def tax_book(book):
+    stock = book.instrument("X")
+    coin = book.instrument("C", type="crypto")
+    save = book.instrument("SAVE", type="savings", valuation=V.MANUAL)
+    book.prices(stock, {date(2024, 12, 31): 300})
+    book.prices(coin, {date(2024, 3, 1): 50, date(2024, 12, 31): 60})
+    book.buy(stock, date(2021, 5, 10), 10, 100)
+    book.buy(stock, date(2023, 6, 1), 10, 200)
+    book.sell(stock, date(2024, 5, 10), 4, 250)  # exactly three years: not yet longer
+    book.sell(stock, date(2024, 5, 11), 8, 250)  # 6 old units and 2 new ones
+    book.tx(stock, date(2024, 7, 1), K.DIVIDEND, amount=85, currency="USD", fx_rate=20, tax=15)
+    book.buy(coin, date(2024, 1, 5), 100, 40)
+    book.tx(coin, date(2024, 3, 1), K.STAKING_REWARD, quantity=2)
+    book.tx(coin, date(2024, 3, 2), K.STAKING_CORRECTION, quantity=0.5)
+    book.sell(coin, date(2024, 6, 1), 10, 45)
+    book.tx(save, date(2024, 1, 1), K.DEPOSIT, amount=1000, currency="CZK", fx_rate=1)
+    book.tx(save, date(2024, 2, 1), K.WITHDRAWAL, amount=500, currency="CZK", fx_rate=1)
+    return book.load(), [stock, coin, save]
+
+
+def test_sales_for_tax_are_split_by_the_purchases_they_used(book):
+    data, ids = tax_book(book)
+    rules = taxes.TaxRules(holding_years=3, proceeds_limit=2500)
+    parts = taxes.sales(data, ids, 2024, rules)
+    assert [(p.date.day, p.ticker, p.acquired.year, p.quantity, p.long_held) for p in parts] == [
+        (10, "X", 2021, 4, False),
+        (11, "X", 2021, 6, True),
+        (11, "X", 2023, 2, False),
+        (1, "C", 2024, 10, False),
+    ]
+    assert [(p.proceeds, p.cost, p.profit) for p in parts[:3]] == [
+        (1000, 400, 600), (1500, 600, 900), (500, 400, 100),
+    ]  # fmt: skip
+    assert taxes.sales(data, ids, 2023, rules) == []
+
+    securities, crypto = taxes.summary(parts, rules)
+    assert (securities.group, securities.proceeds, securities.profit) == ("securities", 3000, 1600)
+    assert (securities.long_proceeds, securities.long_profit) == (1500, 900)
+    assert (securities.short_proceeds, securities.short_profit) == (1500, 700)
+    assert (securities.under_limit, securities.not_exempt) == (False, 700)
+    # The coins: 450 received, under the limit, so nothing is left to tax.
+    assert (crypto.proceeds, crypto.under_limit, crypto.not_exempt) == (450, True, 0)
+    assert taxes.years(data, ids) == [2024]
+
+
+def test_dividends_and_staking_for_tax(book):
+    data, ids = tax_book(book)
+    (dividend,) = taxes.dividends(data, ids, 2024)
+    assert (dividend.ticker, dividend.currency, dividend.payments) == ("X", "USD", 1)
+    assert (dividend.net, dividend.tax, dividend.gross) == (1700, 300, 2000)
+    (reward,) = taxes.staking(data, ids, 2024)
+    assert (reward.ticker, reward.quantity, reward.value) == ("C", 1.5, pytest.approx(75))
+    assert taxes.dividends(data, ids, 2023) == taxes.staking(data, ids, 2023) == []
+
+
+def test_what_could_be_sold_exempt_today(book):
+    stock = book.instrument("X")
+    book.prices(stock, {date(2024, 12, 31): 300})
+    book.buy(stock, date(2020, 5, 10), 10, 100)
+    book.buy(stock, date(2023, 6, 1), 5, 200)
+    book.buy(stock, date(2024, 6, 1), 1, 200)
+    (row,) = taxes.held(book.load(), [stock], date(2024, 12, 31), taxes.TaxRules())
+    assert (row.long_quantity, row.long_value, row.long_profit) == (10, 3000, 2000)
+    assert (row.short_quantity, row.short_value, row.short_profit) == (6, 1800, 600)
+    assert (row.next_exempt, row.next_quantity) == (date(2026, 6, 2), 5)

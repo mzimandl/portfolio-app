@@ -6,7 +6,10 @@ from datetime import date, timedelta
 
 from portfolio.core.analytics.data import PortfolioData
 from portfolio.core.analytics.positions import Position, apply, value_of
-from portfolio.core.models import TransactionKind
+from portfolio.core.models import TransactionKind, ValuationMethod
+
+_TRADES = (TransactionKind.BUY, TransactionKind.SELL)
+_NO_QUANTITY = 1e-12
 
 
 @dataclass(frozen=True, slots=True)
@@ -20,6 +23,10 @@ class DayPoint:
     taken_out: float  # sells, withdrawals and dividends received that day
     invested: float  # buys and deposits minus sells and withdrawals, so far
     income: float  # dividends minus fees, so far
+    # What the holding from the day before gained up to the day's first trade, valued at
+    # that trade's price. Lets a return count new money from the trade on, not from the
+    # previous close. Zero on days without a trade.
+    early_gain: float = 0.0
 
     @property
     def profit(self) -> float:
@@ -47,6 +54,7 @@ def instrument_daily(data: PortfolioData, instrument_id: int, end: date) -> list
         if event.kind is TransactionKind.SPLIT and event.date <= end:
             later_splits *= event.split_ratio
 
+    manual = instrument.valuation is ValuationMethod.MANUAL
     position = Position()
     points: list[DayPoint] = []
     previous_value = 0.0
@@ -54,9 +62,18 @@ def instrument_daily(data: PortfolioData, instrument_id: int, end: date) -> list
     day = events[0].date
     one_day = timedelta(days=1)
     while day <= end:
-        put_in = taken_out = 0.0
+        put_in = taken_out = early_gain = 0.0
+        first_today = index
         while index < len(events) and events[index].date == day:
             event = events[index]
+            if (
+                index == first_today
+                and event.kind in _TRADES
+                and event.price > 0
+                and position.quantity > _NO_QUANTITY
+                and not manual
+            ):
+                early_gain = position.quantity * event.price * event.rate - previous_value
             if event.kind is TransactionKind.SPLIT:
                 later_splits /= event.split_ratio
             added, removed = apply(position, event, instrument, data)
@@ -74,6 +91,7 @@ def instrument_daily(data: PortfolioData, instrument_id: int, end: date) -> list
                 taken_out=taken_out,
                 invested=position.invested - position.returned,
                 income=position.dividends - position.fees,
+                early_gain=early_gain,
             )
         )
         previous_value = value
@@ -89,8 +107,8 @@ def combine(series: Iterable[list[DayPoint]]) -> list[DayPoint]:
     start = min(points[0].date for points in series)
     end = max(points[-1].date for points in series)
     length = (end - start).days + 1
-    totals = [[0.0] * length for _ in range(5)]
-    value, put_in, taken_out, invested, income = totals
+    totals = [[0.0] * length for _ in range(6)]
+    value, put_in, taken_out, invested, income, early_gain = totals
     for points in series:
         offset = (points[0].date - start).days
         for i, point in enumerate(points, offset):
@@ -99,6 +117,7 @@ def combine(series: Iterable[list[DayPoint]]) -> list[DayPoint]:
             taken_out[i] += point.taken_out
             invested[i] += point.invested
             income[i] += point.income
+            early_gain[i] += point.early_gain
         # An instrument whose history ends early keeps its last state.
         last = points[-1]
         for i in range(offset + len(points), length):
@@ -107,7 +126,7 @@ def combine(series: Iterable[list[DayPoint]]) -> list[DayPoint]:
             income[i] += last.income
     return [
         DayPoint(start + timedelta(days=i), value[i], put_in[i], taken_out[i], invested[i],
-                 income[i])
+                 income[i], early_gain[i])
         for i in range(length)
     ]  # fmt: skip
 

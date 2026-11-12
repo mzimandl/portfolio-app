@@ -13,6 +13,7 @@ from portfolio.ui.pages import (
     performance,
     prices,
     settings,
+    taxes,
     transactions,
 )
 
@@ -32,6 +33,7 @@ def main() -> None:
             st.Page(performance.render, title="Performance", url_path="performance"),
             st.Page(charts.render, title="Charts", url_path="charts"),
             st.Page(dividends.render, title="Dividends", url_path="dividends"),
+            st.Page(taxes.render, title="Taxes", url_path="taxes"),
             st.Page(transactions.render, title="Transactions", url_path="transactions"),
             st.Page(prices.render, title="Prices", url_path="prices"),
             st.Page(checks.render, title="Checks", url_path="checks"),

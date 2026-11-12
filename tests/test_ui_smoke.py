@@ -265,6 +265,36 @@ def test_the_app_backs_up_the_database_before_using_it(database, tmp_path):
     assert [p.name for p in (tmp_path / "backups").iterdir()] == [f"p-{date.today()}.db"]
 
 
+def test_taxes_page(database):
+    at = clean(run_page("taxes"))
+    assert [s.value for s in at.subheader][:3] == [
+        "What you hold today", "Sales in 2024", "Dividends in 2024",
+    ]  # fmt: skip
+    assert list(at.dataframe[0].value["Ticker"]) == ["AAPL"]
+    assert list(at.dataframe[1].value["Ticker"]) == ["AAPL", "Total"]
+
+
+def test_target_allocation_is_set_in_settings_and_shown_on_the_overview(database):
+    assert "Against the target" not in [s.value for s in run_page("overview").subheader]
+    at = clean(run_page("settings"))
+    assert at.button(key="settings_targets_save").disabled is False  # all zero: no target
+    at.number_input(key="settings_target_stock").set_value(60).run()
+    assert at.button(key="settings_targets_save").disabled
+    at.number_input(key="settings_target_savings").set_value(40).run()
+    at.button(key="settings_targets_save").click().run()
+    clean(at)
+    database.rollback()
+    assert repo.list_targets(database) == {"savings": D("40"), "stock": D("60")}
+    database.rollback()
+
+    at = clean(run_page("overview"))
+    assert "Against the target" in [s.value for s in at.subheader]
+    at.number_input(key="overview_new_money").set_value(1000).run()
+    table = clean(at).dataframe[1].value
+    assert list(table["Type"]) == ["savings", "stock"]
+    assert list(table["Buy now"]) == [1000, 0]  # savings are far below their 40 %
+
+
 def test_prices_and_settings_pages(database):
     clean(run_page("prices"))
     at = clean(run_page("settings"))

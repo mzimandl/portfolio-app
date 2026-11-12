@@ -18,5 +18,10 @@ separate_types = ["savings"]
 # backup_dir = "backups"
 # backup_keep = 30        # 0 switches them off
 
+# Optional: the rules the Taxes page applies. Shown are the defaults.
+# tax_holding_years = 3          # a sale of units held longer than this is exempt
+# tax_proceeds_limit = 100000    # all sales of a year are exempt up to these proceeds
+# tax_crypto_types = ["crypto"]  # types for which the limit is counted apart
+
 # Optional: Yahoo symbol to compare portfolio performance against.
 # benchmark = "VWCE.DE"

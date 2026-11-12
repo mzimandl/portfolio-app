@@ -26,6 +26,16 @@ class Lot:
 
 
 @dataclass(frozen=True)
+class SalePart:
+    """The units of one sale that came from one purchase."""
+
+    acquired: date | None  # None: more was sold than was held
+    quantity: float
+    cost: float  # in base currency
+    staking: bool = False
+
+
+@dataclass(frozen=True)
 class Sale:
     """Units that left the position on one day, in base currency."""
 
@@ -34,6 +44,7 @@ class Sale:
     proceeds: float
     cost: float  # what the units had cost
     held_days: float  # how long they were held, averaged over the units
+    parts: tuple[SalePart, ...] = ()  # which purchases the units came from, oldest first
 
     @property
     def profit(self) -> float:
@@ -77,6 +88,7 @@ class Position:
         cost = 0.0
         unit_days = 0.0
         remaining = quantity
+        parts = []
         while remaining > _NO_QUANTITY and self.lots:
             lot = self.lots[0]
             age = (day - lot.date).days
@@ -84,11 +96,13 @@ class Position:
                 cost += lot.cost_base
                 unit_days += lot.quantity * age
                 remaining -= lot.quantity
+                parts.append(SalePart(lot.date, lot.quantity, lot.cost_base, lot.staking))
                 self.lots.pop(0)
                 continue
             share = remaining / lot.quantity
             cost += lot.cost_base * share
             unit_days += remaining * age
+            parts.append(SalePart(lot.date, remaining, lot.cost_base * share, lot.staking))
             lot.cost -= lot.cost * share
             lot.cost_base -= lot.cost_base * share
             lot.quantity -= remaining
@@ -97,7 +111,9 @@ class Position:
         self.realised += proceeds - cost
         covered = quantity - remaining
         held_days = unit_days / covered if covered > _NO_QUANTITY else 0.0
-        self.sales.append(Sale(day, quantity, proceeds, cost, held_days))
+        if remaining > _NO_QUANTITY:
+            parts.append(SalePart(None, remaining, 0.0))
+        self.sales.append(Sale(day, quantity, proceeds, cost, held_days, tuple(parts)))
 
     def _take_back_staking(self, day: date, quantity: float) -> None:
         """Remove staking units, oldest first. They cost nothing, so no loss is realised."""

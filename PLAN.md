@@ -161,7 +161,9 @@ Each phase ends with passing tests and a commit.
 
 Staking corrections (migration 4), benchmark with the same cash flows, list of sales, drawdown,
 allocation shares, monthly returns, purchases still held, the Dividends page, the Checks page with findings that
-can be marked as checked (migration 5), and automatic daily backups.
+can be marked as checked (migration 5), automatic daily backups, the Taxes page, target
+allocation (migration 6), and a time-weighted return that values the holding at the trade price
+before new money joins it.
 
 ## Details settled
 

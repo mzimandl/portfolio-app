@@ -27,6 +27,12 @@ class Config:
     # Dated copies of the database: where, and how many to keep (0 = make none).
     backup_dir: Path | None = None
     backup_keep: int = 30
+    # Rules the tax overview applies: how long a holding has to be held for its sale to be
+    # exempt, the yearly proceeds up to which sales are exempt, and which types are crypto
+    # (the limit counts for them apart from the securities).
+    tax_holding_years: int = 3
+    tax_proceeds_limit: int = 100_000
+    tax_crypto_types: tuple[str, ...] = ("crypto",)
 
 
 def resolve_config_path(path: str | Path | None = None) -> Path:
@@ -74,6 +80,16 @@ def load_config(path: str | Path | None = None) -> Config:
     ):
         raise ConfigError(f"'separate_types' in {config_path} must be a list of type names")
 
+    def whole_number(key: str, default: int) -> int:
+        value = data.get(key, default)
+        if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+            raise ConfigError(f"'{key}' in {config_path} must be a whole number, 0 or more")
+        return value
+
+    crypto_types = data.get("tax_crypto_types", ["crypto"])
+    if not isinstance(crypto_types, list) or not all(isinstance(n, str) for n in crypto_types):
+        raise ConfigError(f"'tax_crypto_types' in {config_path} must be a list of type names")
+
     backup_keep = data.get("backup_keep", 30)
     if isinstance(backup_keep, bool) or not isinstance(backup_keep, int) or backup_keep < 0:
         raise ConfigError(f"'backup_keep' in {config_path} must be a whole number, 0 or more")
@@ -92,4 +108,7 @@ def load_config(path: str | Path | None = None) -> Config:
         separate_types=tuple(name.strip() for name in separate_types),
         backup_dir=backup_dir,
         backup_keep=backup_keep,
+        tax_holding_years=whole_number("tax_holding_years", 3),
+        tax_proceeds_limit=whole_number("tax_proceeds_limit", 100_000),
+        tax_crypto_types=tuple(name.strip() for name in crypto_types),
     )

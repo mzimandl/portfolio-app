@@ -36,6 +36,9 @@ environment variable.
 | `benchmark` | Optional Yahoo symbol to compare returns against, e.g. `VWCE.DE`. |
 | `backup_dir` | Optional folder for the automatic backups. Default: `backups` next to the database. |
 | `backup_keep` | Optional number of automatic backups to keep. Default 30; 0 switches them off. |
+| `tax_holding_years` | Optional. How long units have to be held for their sale to count as exempt on the Taxes page. Default 3. |
+| `tax_proceeds_limit` | Optional. Yearly proceeds from sales up to which all of them count as exempt. Default 100000. |
+| `tax_crypto_types` | Optional. Instrument types for which that limit is counted apart from the securities. Default `["crypto"]`. |
 | `separate_types` | Optional list of instrument types reported apart from the investments, e.g. `["savings"]`. They get their own totals on the Overview and are left out of the default view of returns and charts. |
 
 ## Using it
@@ -45,15 +48,16 @@ happens in **Transactions**.
 
 | Page | Shows |
 |---|---|
-| Overview | What you hold now, what it cost, and the profit split into price, exchange rate and staking. Below it, every sale and what it realised, and the purchases still held with their age. |
+| Overview | What you hold now, what it cost, and the profit split into price, exchange rate and staking. With a target allocation set, how far each type is from it and how to split new money. Below, every sale and what it realised, and the purchases still held with their age. |
 | Performance | Returns for the portfolio, a type or one instrument; the deepest drop; by year and by month; each instrument's part of the profit; against the benchmark; new money per year or month. |
 | Charts | Value, money invested, profit and the drop from the high, day by day. |
 | Dividends | Received per year and instrument, yield on cost and on value, and what the price data says was due. |
+| Taxes | What you hold split by the holding period; a year's sales by the purchases they used, with what is left after the exemptions; dividends and staking of the year. |
 | Transactions | The ledger: filter, add, edit, delete. A second tab holds manual valuations. |
 | Prices | Stored prices and exchange rates. |
 | Checks | Things that look wrong or out of date: old prices, trade prices and exchange rates far from the market, leftovers, dividends not recorded. It changes none of your records. A finding you looked at can be marked as checked; it stays hidden until the record behind it changes. |
 | Import / export | Backup downloads and CSV import of transactions. |
-| Settings | Instruments, currencies, instrument types. |
+| Settings | Instruments, currencies, instrument types, target allocation. |
 
 ### Transaction kinds
 
@@ -101,10 +105,20 @@ split into price and exchange rate are the same whatever you paid with.
 | Realised profit | On units sold: what you got for them minus what they had cost. Units from staking cost nothing; units lost (sold at price 0) realise their cost as a loss. |
 | Profit | Unrealised + realised, which equals value + sold − bought. |
 | Net profit | Profit + dividends − fees. |
-| Return (time-weighted) | How the investments did, regardless of when money was added. Not annualised. |
+| Return (time-weighted) | How the investments did, regardless of when money was added. Not annualised. On the day of a trade the holding is first valued at the trade's price, so new money earns only from the price it was invested at. |
 | Yearly return on your money | XIRR: the yearly rate earned given when each payment was made. |
 | Deepest drop | The largest fall of the time-weighted return from a high. Measured on the return, so new money does not hide it. |
 | Share | An instrument's, type's or currency's part of the value of all investments. |
+| To be on target | Target share × value of all investments − value of the type. |
+| Buy now | The new money split between the types that would still be below their target after it is added, in proportion to how far below. Nothing is sold. |
+
+**Taxes.** The Taxes page lists facts and applies two rules from the config file: a sale of
+units held longer than `tax_holding_years` is exempt, and all sales of a year are exempt when
+their proceeds do not exceed `tax_proceeds_limit`, counted apart for securities and crypto.
+"Profit not exempt" is the profit on units held shorter in a year over the limit; fees are not
+deducted. The same rules are applied to every year, also to years when the law was different.
+Amounts use the exchange rates you entered, which may not be the ones a tax office expects.
+It is an overview to work from, not tax advice.
 
 **Benchmark.** With `benchmark` set, Performance compares in two ways. Its return is that of
 holding it for the whole period with dividends reinvested, comparable with the time-weighted
@@ -193,7 +207,7 @@ src/portfolio/
     migrations/         numbered SQL files, applied in order on start
     models.py           records and the rules for each transaction kind
     repo.py             reading and writing records
-    analytics/          positions, overview, daily history, returns, dividends, checks
+    analytics/          positions, overview, daily history, returns, dividends, checks, allocation, taxes
     providers/          sources of prices; yahoo.py is the only one
     updater.py          downloading new prices and rates
     csv_io.py           CSV export and import
@@ -207,7 +221,7 @@ tests/
 the price updates do not depend on it.
 
 **Changing the database layout.** Add the next numbered file to `core/migrations/`
-(`0006_….sql`). It runs once, in a transaction, the next time the app or a script starts.
+(`0007_….sql`). It runs once, in a transaction, the next time the app or a script starts.
 Never edit a migration that has already run on your database.
 
 **Numbers.** What you type (quantities, prices, amounts, rates) is stored as exact decimal

@@ -63,7 +63,7 @@ src/portfolio/core/
   config.py        config.toml: db, base_currency, locale, benchmark, separate_types
   db.py            connect(), migrate()
   backup.py        daily_backup(): dated copy before the day's first use
-  migrations/      0001 … 0005, applied in order by PRAGMA user_version
+  migrations/      0001 … 0006, applied in order by PRAGMA user_version
   models.py        records; which fields each transaction kind requires or allows
   repo.py          all SQL. Functions never commit: the caller wraps them in `with conn:`
   analytics/
@@ -74,6 +74,8 @@ src/portfolio/core/
     performance.py twr, xirr, yearly, monthly, drawdown, benchmark (holding_return, same_money)
     dividends.py   recorded dividends and those the price data reports
     checks.py      data-quality findings
+    allocation.py  values against target shares; how to split new money
+    taxes.py       sales by holding period, dividends and staking per year
   providers/       base.py is the interface, yahoo.py the only implementation
   updater.py       incremental download of prices and rates; split detection; benchmark
   csv_io.py        export of every table, import of transactions
@@ -81,7 +83,7 @@ src/portfolio/ui/
   app.py           navigation; each page module has a render() function
   shell.py         sidebar (freshness, Update prices) and split notices
   common.py        config, connection, cached portfolio(), scope picker, formatting helpers
-  pages/           overview, performance, charts, dividends, transactions, prices, checks,
+  pages/           overview, performance, charts, dividends, taxes, transactions, prices, checks,
                    data (Import / export), settings
 tests/             one file per core module, plus test_ui_smoke.py
 ```
@@ -119,9 +121,15 @@ tests/             one file per core module, plus test_ui_smoke.py
 - A `staking_correction` takes units back from staking lots first and realises no loss.
 - Returns: a fee counts as money put in, a dividend as money taken out, so returns include
   dividends and are after fees. `DayPoint.put_in` / `taken_out` already contain them.
-- Time-weighted return: money put in counts from the start of its day, money taken out until
-  the end of it. On a day with a large purchase the day's price move is therefore diluted.
-  Known and accepted; drawdown and monthly returns inherit it.
+- Time-weighted return: on the day of a trade the holding from the day before is first valued
+  at the price of that day's first trade (`DayPoint.early_gain`), then the money put in joins
+  it; money taken out counts until the end of its day. See `performance._day_growth`. Exact
+  for purchases and for selling everything; a partial sale away from the close leaves a
+  small error for the rest of that day.
+- The Taxes page states facts and applies two configurable rules (`TaxRules`). Do not build
+  more tax law into it without the user asking; tax rules change and differ by year.
+- `Sale.parts` says which purchases a sale took its units from; taxes and the sales table
+  both rely on FIFO there.
 - Manual instruments (savings, pension): value = last entered valuation + deposits −
   withdrawals on that day or later. A deposit on the valuation's own day is added on top.
 - Types listed in `separate_types` (the user has `["savings"]`) get their own totals on the
@@ -173,5 +181,6 @@ tests/             one file per core module, plus test_ui_smoke.py
 Everything planned is built: the eight phases in PLAN.md, then staking corrections, benchmark
 with the same cash flows, sales and purchases-held tables, drawdown, allocation shares,
 monthly returns, the Dividends and Checks pages, consistent numbers for trades paid in
-another currency, automatic daily backups and marking findings as checked. The Checks page lists the records in the user's data that still look wrong;
+another currency, automatic daily backups, marking findings as checked, a tax overview, target allocation and
+a more exact time-weighted return on trade days. The Checks page lists the records in the user's data that still look wrong;
 they are the user's to verify against statements, not something to fix unasked.

@@ -83,6 +83,29 @@ def delete_instrument_type(conn: sqlite3.Connection, name: str) -> None:
     conn.execute("DELETE FROM instrument_types WHERE name = ?", (name,))
 
 
+# --- target allocation ----------------------------------------------------------------------
+
+
+def list_targets(conn: sqlite3.Connection) -> dict[str, Decimal]:
+    """Target share of each instrument type, in percent."""
+    rows = conn.execute("SELECT type, share FROM target_allocation ORDER BY type")
+    return {row[0]: _dec_from_db(row[1]) for row in rows}
+
+
+def set_targets(conn: sqlite3.Connection, targets: dict[str, Decimal]) -> None:
+    """Replace all targets. Zero shares are left out; an empty dict removes the targets."""
+    kept = {name: share for name, share in targets.items() if share}
+    if any(share < 0 for share in kept.values()):
+        raise ValueError("A target share cannot be negative")
+    if kept and sum(kept.values()) != 100:
+        raise ValueError(f"The target shares must add up to 100, not {sum(kept.values()):f}")
+    conn.execute("DELETE FROM target_allocation")
+    conn.executemany(
+        "INSERT INTO target_allocation (type, share) VALUES (?, ?)",
+        [(name, _dec_to_db(share)) for name, share in sorted(kept.items())],
+    )
+
+
 # --- instruments ----------------------------------------------------------------------------
 
 _INSTRUMENT_COLUMNS = (

@@ -26,13 +26,33 @@ def _value_before(days: Sequence[DayPoint], start: date | None) -> float:
     return previous[-1].value if previous else 0.0
 
 
+def _day_growth(previous: float, point: DayPoint) -> float:
+    """Growth factor of one day, given the value at the end of the day before.
+
+    The holding is first valued at the price of the day's first trade (``early_gain``), then
+    the money put in joins it. Money taken out counts until the end of its day. So a
+    purchase earns only from its own price on, and does not water down what the older units
+    did before it.
+    """
+    factor = 1.0
+    before = previous
+    if point.early_gain and previous > _TINY and previous + point.early_gain > _TINY:
+        before = previous + point.early_gain
+        factor = before / previous
+    base = before + point.put_in
+    if base > _TINY:
+        factor *= (point.value + point.taken_out) / base
+    return factor
+
+
 def twr(
     days: Sequence[DayPoint], start: date | None = None, end: date | None = None
 ) -> float | None:
     """Time-weighted return of the period, not annualised (0.10 means +10 %).
 
     It measures how the investments performed regardless of when money was added or removed.
-    Money put in counts from the start of its day, money taken out until the end of its day.
+    Money put in counts from the price it was invested at, money taken out until the end of
+    its day (see ``_day_growth``).
     """
     window = _window(days, start, end)
     if not window:
@@ -40,9 +60,7 @@ def twr(
     growth = 1.0
     previous = _value_before(days, window[0].date)
     for point in window:
-        base = previous + point.put_in
-        if base > _TINY:
-            growth *= (point.value + point.taken_out) / base
+        growth *= _day_growth(previous, point)
         previous = point.value
     return growth - 1.0
 
@@ -59,9 +77,7 @@ def growth(
     level = 1.0
     previous = _value_before(days, window[0].date)
     for point in window:
-        base = previous + point.put_in
-        if base > _TINY:
-            level *= (point.value + point.taken_out) / base
+        level *= _day_growth(previous, point)
         previous = point.value
         points.append((point.date, level))
     return points

@@ -5,6 +5,8 @@ from dataclasses import asdict
 import pandas as pd
 import streamlit as st
 
+from portfolio.core import repo
+from portfolio.core.analytics.allocation import allocation
 from portfolio.core.analytics.overview import OverviewRow, lots, overview, sales, summarize
 from portfolio.ui import common
 
@@ -161,6 +163,54 @@ def _groups(rows: list[OverviewRow], field: str, whole: float) -> list[dict]:
     ]
 
 
+def _against_target(rows: list[OverviewRow], base: str) -> None:
+    with common.connection() as conn:
+        targets = {name: float(share) / 100 for name, share in repo.list_targets(conn).items()}
+    if not targets:
+        return
+    st.subheader("Against the target")
+    values: dict[str, float] = {}
+    for row in rows:
+        values[row.type] = values.get(row.type, 0.0) + (row.value or 0.0)
+    new_money = st.number_input(
+        f"New money to invest ({base})", min_value=0, value=0, step=1000, key="overview_new_money"
+    )
+    table = [
+        {
+            "Type": row.name,
+            "Value": round(row.value),
+            "Share": row.share,
+            "Target": row.target,
+            "Difference": None if row.share is None else row.share - row.target,
+            "To be on target": round(row.to_target),
+            "Buy now": round(row.buy) if new_money else None,
+        }
+        for row in allocation(values, targets, new_money)
+    ]
+    st.dataframe(
+        table,
+        column_config={
+            "Value": _money("Value"),
+            "Share": st.column_config.NumberColumn(format="percent"),
+            "Target": st.column_config.NumberColumn(format="percent", help="Set in Settings."),
+            "Difference": st.column_config.NumberColumn(
+                format="percent", help="Share minus target, in percentage points."
+            ),
+            "To be on target": _money(
+                "To be on target",
+                "What to buy to reach the target share at today's value; negative means "
+                "there is that much too many.",
+            ),
+            "Buy now": _money(
+                "Buy now",
+                "How to split the new money: it goes to the types that would still be below "
+                "their target, in proportion to how far below. Nothing is sold.",
+            ),
+        },
+        hide_index=True,
+    )
+
+
 def _lots(loaded: common.Loaded, include_inactive: bool) -> None:
     held = [
         lot
@@ -242,6 +292,7 @@ def render() -> None:
             column_order=_TYPE_COLUMNS,
             hide_index=True,
         )
+        _against_target(investments, base)
         st.subheader("By currency")
         st.caption("The currency each instrument is quoted in.")
         st.dataframe(

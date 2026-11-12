@@ -106,6 +106,10 @@ def export_all(conn: sqlite3.Connection) -> dict[str, str]:
                 )
             ),
         ),
+        "target_allocation.csv": _csv(
+            ["type", "share"],
+            ((name, repo.decimal_text(share)) for name, share in repo.list_targets(conn).items()),
+        ),
         "reviewed_findings.csv": _csv(
             ["check", "ticker", "date", "key", "reviewed_on"],
             (

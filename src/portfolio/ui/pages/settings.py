@@ -2,11 +2,13 @@
 
 import sqlite3
 from dataclasses import replace
+from decimal import Decimal
 
 import streamlit as st
 
 from portfolio.core import repo
 from portfolio.core.models import Instrument, ValuationMethod
+from portfolio.core.updater import BENCHMARK_TYPE
 from portfolio.ui import common
 
 _NEW = "New instrument"
@@ -35,6 +37,46 @@ def render() -> None:
                          repo.add_currency, repo.delete_currency, upper=True)  # fmt: skip
             _simple_list(conn, "Instrument types", "Name, e.g. etf", repo.list_instrument_types,
                          repo.add_instrument_type, repo.delete_instrument_type)  # fmt: skip
+        _targets(conn)
+
+
+def _targets(conn: sqlite3.Connection) -> None:
+    types = [
+        name
+        for name in repo.list_instrument_types(conn)
+        if name != BENCHMARK_TYPE and not common.is_separate(name)
+    ]
+    if not types:
+        return
+    st.subheader("Target allocation")
+    st.caption(
+        "The share of your investments each type should have, in percent. The Overview then "
+        "shows how far you are from it and where new money should go. Leave everything at 0 "
+        "for no target."
+    )
+    current = repo.list_targets(conn)
+    cells = st.columns(max(len(types), 4))
+    shares = {
+        name: Decimal(
+            cells[i].number_input(
+                name,
+                min_value=0,
+                max_value=100,
+                value=int(current.get(name, 0)),
+                step=5,
+                key=f"settings_target_{name}",
+            )
+        )
+        for i, name in enumerate(types)
+    }
+    total = sum(shares.values())
+    valid = total in (0, 100)
+    save, note = st.columns([1, 5], vertical_alignment="center")
+    note.caption(f"Together {total} %." + ("" if valid else " They have to add up to 100."))
+    if save.button("Save targets", disabled=not valid, key="settings_targets_save"):
+        with conn:
+            repo.set_targets(conn, shares)
+        _done("Target allocation saved." if total else "Target allocation removed.")
 
 
 def _done(message: str) -> None:
