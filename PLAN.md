@@ -3,7 +3,7 @@
 **Status: all eight phases are finished.** This file is kept as the record of what was decided
 and why; [README.md](README.md) describes how to use and maintain the app.
 
-Rewrite of `../portfolio-app` (Sanic + Polars + React) as a Python + Streamlit app.
+Rewrite of the old app (Sanic + Polars + React, now the `legacy` branch) as a Python + Streamlit app.
 Goal: a personal portfolio tracker that stays reliable and easy to maintain for many years.
 
 ## Decisions

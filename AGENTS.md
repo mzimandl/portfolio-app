@@ -52,7 +52,8 @@ or better through `portfolio.core.repo` and `load_data`.
   then print the affected totals before and after. Net profit should usually stay the same
   when a record is only re-classified.
 - A change of schema is a migration, never a manual edit (see below).
-- The old app is in `../portfolio-app` (Sanic, Polars, React) and its database is the user's
+- The old app is the `legacy` branch of this repository, checked out locally in
+  `../portfolio-app` (Sanic, Polars, React), and its database is the user's
   cloud-synced original. Do not modify either. `core/legacy_import.py` and the
   `scripts/*legacy*` files exist only for that one-off import.
 
