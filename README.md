@@ -62,6 +62,7 @@ happens in **Transactions**.
 | Checks | Things that look wrong or out of date: old prices, trade prices and exchange rates far from the market, leftovers, dividends not recorded. It changes none of your records. A finding you looked at can be marked as checked; it stays hidden until the record behind it changes. |
 | Import / export | Backup downloads and CSV import of transactions. |
 | Settings | Instruments, currencies, instrument types, target allocation. |
+| Glossary | What the numbers mean and how to read them, with a search. |
 
 ### Transaction kinds
 

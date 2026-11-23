@@ -10,6 +10,7 @@ from portfolio.ui.pages import (
     data,
     dividends,
     fundamentals,
+    glossary,
     overview,
     performance,
     prices,
@@ -41,6 +42,7 @@ def main() -> None:
             st.Page(checks.render, title="Checks", url_path="checks"),
             st.Page(data.render, title="Import / export", url_path="data"),
             st.Page(settings.render, title="Settings", url_path="settings"),
+            st.Page(glossary.render, title="Glossary", url_path="glossary"),
         ]
     )
     shell.sidebar()

@@ -332,6 +332,21 @@ def test_fundamentals_page(database):
     assert "Reported results" in [s.value for s in at.subheader]
 
 
+def test_glossary_page_and_its_search(database):
+    from portfolio.ui.pages import glossary
+
+    at = clean(run_page("glossary"))
+    assert [s.value for s in at.subheader] == list(glossary.SECTIONS)
+    at.text_input(key="glossary_q").set_value("debt").run()
+    names = [m.value for m in clean(at).markdown if m.value.startswith("**")]
+    assert names == ["**EV/EBITDA**"]
+    at.text_input(key="glossary_q").set_value("nonsense words").run()
+    assert "Nothing found" in clean(at).info[0].value
+    for terms in glossary.SECTIONS.values():
+        for term in terms:
+            assert term.name and term.meaning.endswith(".")
+
+
 def test_prices_and_settings_pages(database):
     clean(run_page("prices"))
     at = clean(run_page("settings"))

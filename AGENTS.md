@@ -87,7 +87,7 @@ src/portfolio/ui/
   shell.py         sidebar (freshness, Update prices) and split notices
   common.py        config, connection, cached portfolio(), scope picker, formatting helpers
   pages/           overview, performance, charts, dividends, fundamentals, taxes, transactions,
-                   prices, checks,
+                   prices, checks, glossary,
                    data (Import / export), settings
 tests/             one file per core module, plus test_ui_smoke.py
 ```
@@ -117,6 +117,10 @@ tests/             one file per core module, plus test_ui_smoke.py
 - No WAL mode: the database must stay a single file because it may live in a synced folder.
 
 ## Conventions the numbers rely on
+
+A new number shown to the user gets an entry in `ui/pages/glossary.py` as well as in the
+README table of definitions.
+
 
 - Sales use up the oldest units first (FIFO). Staking units cost nothing.
 - A `sell` at price 0 means units really lost; it realises their cost as a loss.
