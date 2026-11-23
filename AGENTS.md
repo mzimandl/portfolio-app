@@ -64,7 +64,7 @@ src/portfolio/core/
   config.py        config.toml: db, base_currency, locale, benchmark, separate_types
   db.py            connect(), migrate()
   backup.py        daily_backup(): dated copy before the day's first use
-  migrations/      0001 … 0007, applied in order by PRAGMA user_version
+  migrations/      0001 … 0008, applied in order by PRAGMA user_version
   models.py        records; which fields each transaction kind requires or allows
   repo.py          all SQL. Functions never commit: the caller wraps them in `with conn:`
   analytics/
@@ -78,7 +78,8 @@ src/portfolio/core/
     allocation.py  values against target shares; how to split new money
     taxes.py       sales by holding period, dividends and staking per year
     fundamentals.py P/E, P/B, P/S and dividend yield per day from reported results
-  providers/       base.py is the interface, yahoo.py the only implementation
+  providers/       base.py is the interface; yahoo.py prices, rates and company data;
+                   sec.py company results of US companies from SEC EDGAR (urllib only)
   updater.py       incremental download of prices and rates; split detection; benchmark
   csv_io.py        export of every table, import of transactions
 src/portfolio/ui/
@@ -156,6 +157,10 @@ tests/             one file per core module, plus test_ui_smoke.py
   the net-income fallback in `analytics/fundamentals.py` handle the known cases; the page
   flags a P/E more than 30 % off Yahoo's. Compare with Yahoo's figures on real data before
   changing those rules. An empty `fundamentals` row means "asked today, nothing there".
+- SEC EDGAR needs a contact in the User-Agent (it answers 403 without one). It comes only
+  from `sec_user_agent` in the user's config; never put the user's e-mail in code, tests,
+  commands or docs. Results are stored per `source` (`yahoo`, `sec`) and `preferred()`
+  uses the SEC's when an instrument has any.
 - Test anything that writes market data on a copy of the database (a config in the
   scratchpad pointing at a copied file), not on the user's `portfolio.db`.
 
@@ -195,5 +200,5 @@ Everything planned is built: the eight phases in PLAN.md, then staking correctio
 with the same cash flows, sales and purchases-held tables, drawdown, allocation shares,
 monthly returns, the Dividends and Checks pages, consistent numbers for trades paid in
 another currency, automatic daily backups, marking findings as checked, a tax overview, target allocation and
-a more exact time-weighted return on trade days, and the Fundamentals page. The Checks page lists the records in the user's data that still look wrong;
+a more exact time-weighted return on trade days, the Fundamentals page, and SEC EDGAR results for US companies. The Checks page lists the records in the user's data that still look wrong;
 they are the user's to verify against statements, not something to fix unasked.

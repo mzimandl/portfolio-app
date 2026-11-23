@@ -9,7 +9,12 @@ from portfolio.core import repo
 from portfolio.core.analytics import checks, dividends, performance, taxes, timeseries
 from portfolio.core.analytics.allocation import allocation
 from portfolio.core.analytics.data import Series, load_data
-from portfolio.core.analytics.fundamentals import daily_ratios, share_units, summarize_ratios
+from portfolio.core.analytics.fundamentals import (
+    daily_ratios,
+    preferred,
+    share_units,
+    summarize_ratios,
+)
 from portfolio.core.analytics.overview import lots, overview, sales, summarize
 from portfolio.core.models import (
     FxRate,
@@ -1087,3 +1092,11 @@ def test_a_receipt_for_a_quarter_of_a_share(book):
     )
     assert share_units(data, receipt, rows, [Snapshot(receipt, date(2024, 6, 3))]) == 1
     assert share_units(data, receipt, [], snapshots) == 1
+
+
+def test_sec_results_are_preferred_when_there_are_any():
+    yahoo = Statement(1, "annual", date(2023, 12, 31), "USD", eps=1)
+    sec = Statement(1, "annual", date(2010, 12, 31), "USD", eps=2, source="sec")
+    assert preferred([yahoo, sec]) == [sec]
+    assert preferred([yahoo]) == [yahoo]
+    assert preferred([]) == []

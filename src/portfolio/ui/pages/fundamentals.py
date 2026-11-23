@@ -9,6 +9,7 @@ from portfolio.core import repo
 from portfolio.core.analytics.fundamentals import (
     RatioPoint,
     daily_ratios,
+    preferred,
     share_units,
     summarize_ratios,
 )
@@ -33,6 +34,12 @@ def _held(loaded: common.Loaded) -> list[int]:
     ]
 
 
+def _source(statements: list[Statement]) -> str | None:
+    if not statements:
+        return None
+    return "SEC" if statements[0].source == "sec" else "Yahoo"
+
+
 def _latest(snapshots: list[Snapshot]) -> Snapshot | None:
     filled = [s for s in snapshots if not s.empty]
     return filled[-1] if filled else None
@@ -48,6 +55,7 @@ def render() -> None:
     by_id_statements: dict[int, list[Statement]] = {}
     for s in statements:
         by_id_statements.setdefault(s.instrument_id, []).append(s)
+    by_id_statements = {i: preferred(rows) for i, rows in by_id_statements.items()}
     by_id_snapshots: dict[int, list[Snapshot]] = {}
     for s in snapshots:
         by_id_snapshots.setdefault(s.instrument_id, []).append(s)
@@ -65,7 +73,8 @@ def render() -> None:
         "Ratios worked out for every day from the reported results and the price of that "
         "day, and the ones Yahoo reports, saved on every day you update prices. Results count "
         "from the end of their period; earnings and revenue are those of the last twelve "
-        "months. Yahoo keeps results of about the last five years."
+        "months. Yahoo keeps results of about the last five years; with SEC EDGAR set up in "
+        "the config file, US companies reach back to about 2009."
     )
 
     histories = {}
@@ -95,6 +104,7 @@ def render() -> None:
                 "EV/EBITDA": latest.ev_to_ebitda if latest else None,
                 "P/E by Yahoo": latest.trailing_pe if latest else None,
                 "Since": summary.since,
+                "Results from": _source(by_id_statements.get(i, [])),
             }
         )
     st.dataframe(
@@ -217,7 +227,11 @@ def _results(statements: list[Statement], quoted_in: str) -> None:
         return
     currency = statements[-1].currency
     st.subheader("Reported results")
-    note = f"In {currency}, as the company reports them."
+    note = f"In {currency}, as the company reports them" + (
+        " in its SEC filings; per-share numbers converted to today's share units."
+        if statements[-1].source == "sec"
+        else ", from Yahoo."
+    )
     if currency != quoted_in:
         note += f" The share is priced in {quoted_in}; ratios convert at the day's rate."
     st.caption(note)

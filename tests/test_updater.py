@@ -395,3 +395,72 @@ def test_cross_rates_through_a_third_currency():
         Bar(day(4), pytest.approx(0.0008 * 25)),  # day 1 has no EUR rate yet
         Bar(day(5), pytest.approx(0.0009 * 24)),
     ]
+
+
+class FakeSec:
+    def __init__(self, results):
+        self.results = results  # ticker -> statements
+        self.asked: list[tuple[str, list]] = []
+
+    def statements(self, ticker, splits=()):
+        self.asked.append((ticker, list(splits)))
+        return self.results.get(ticker, [])
+
+
+def us_company(provider, revenue=100.0):
+    provider.ratio_data["AAPL"] = Ratios(trailing_pe=30.0)
+    provider.statement_data["AAPL"] = (
+        "USD", [Statement("annual", date(2023, 9, 30), revenue=revenue, eps=6.0)]
+    )  # fmt: skip
+
+
+def test_sec_results_of_a_us_company_are_saved_beside_yahoos(conn, provider, portfolio):
+    us_company(provider)
+    repo.save_prices(conn, [Price(portfolio["AAPL"], date(2020, 8, 31), 500.0, split=4.0)])
+    conn.commit()
+    sec = FakeSec({"AAPL": [
+        Statement("annual", date(2013, 9, 30), revenue=17.0, eps=1.0),
+        Statement("annual", date(2023, 9, 30), revenue=102.0, eps=6.1),
+        Statement("quarterly", date(2023, 12, 30), revenue=30.0, eps=2.1),
+    ]})  # fmt: skip
+    result = run(conn, provider, sec=sec)
+    assert result.ok and result.sec == ["AAPL"]
+    assert sec.asked == [("AAPL", [(date(2020, 8, 31), 4.0)])]  # with the splits known
+    rows = repo.list_statements(conn, portfolio["AAPL"])
+    assert [(s.source, s.period_end.year) for s in rows] == [
+        ("sec", 2013), ("sec", 2023), ("yahoo", 2023), ("sec", 2023),
+    ]  # fmt: skip
+    # Next day: the newest SEC result is less than 150 days old, nothing is asked.
+    update_market_data(conn, provider, "CZK", sec=sec, today=date(2024, 3, 11))
+    assert len(sec.asked) == 1
+
+
+def test_sec_is_only_asked_about_companies_reporting_in_usd(conn, provider, portfolio):
+    provider.ratio_data["AAPL"] = Ratios(trailing_pe=30.0)
+    provider.statement_data["AAPL"] = ("DKK", [Statement("annual", date(2023, 12, 31), eps=9.0)])
+    provider.bars["DKK/CZK"] = [Bar(day(1), 3.3)]
+    sec = FakeSec({})
+    assert run(conn, provider, sec=sec).ok
+    assert sec.asked == []
+    # ...unless the config names a ticker; "" leaves a company out.
+    sec_named = FakeSec({})
+    update_market_data(
+        conn, provider, "CZK", sec=sec_named, sec_tickers={"AAPL": "AAPL2"},
+        today=date(2024, 3, 11),
+    )  # fmt: skip
+    assert [ticker for ticker, _ in sec_named.asked] == ["AAPL2"]
+    us_company(provider)
+    sec_off = FakeSec({})
+    update_market_data(
+        conn, provider, "CZK", sec=sec_off, sec_tickers={"AAPL": ""}, today=date(2024, 3, 12)
+    )
+    assert sec_off.asked == []
+
+
+def test_sec_results_of_another_company_are_refused(conn, provider, portfolio):
+    us_company(provider, revenue=100.0)
+    sec = FakeSec({"AAPL": [Statement("annual", date(2023, 9, 30), revenue=5.0)]})
+    result = run(conn, provider, sec=sec)
+    assert "do not match" in result.errors["SEC AAPL"]
+    assert [s.source for s in repo.list_statements(conn)] == ["yahoo"]
+    assert result.fundamentals == ["AAPL"]  # Yahoo's part is kept

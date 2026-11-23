@@ -107,11 +107,11 @@ def export_all(conn: sqlite3.Connection) -> dict[str, str]:
             ),
         ),
         "statements.csv": _csv(
-            ["ticker", "period", "period_end", "currency", "revenue", "net_income", "eps",
-             "equity", "shares"],
+            ["ticker", "source", "period", "period_end", "currency", "revenue", "net_income",
+             "eps", "equity", "shares"],
             (
-                (tickers[s.instrument_id], s.period, s.period_end.isoformat(), s.currency,
-                 s.revenue, s.net_income, s.eps, s.equity, s.shares)
+                (tickers[s.instrument_id], s.source, s.period, s.period_end.isoformat(),
+                 s.currency, s.revenue, s.net_income, s.eps, s.equity, s.shares)
                 for s in repo.list_statements(conn)
             ),
         ),

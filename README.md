@@ -40,6 +40,8 @@ environment variable.
 | `tax_holding_years` | Optional. How long units have to be held for their sale to count as exempt on the Taxes page. Default 3. |
 | `tax_proceeds_limit` | Optional. Yearly proceeds from sales up to which all of them count as exempt. Default 100000. |
 | `tax_crypto_types` | Optional. Instrument types for which that limit is counted apart from the securities. Default `["crypto"]`. |
+| `sec_user_agent` | Optional. Turns on results from SEC EDGAR for US companies. The SEC requires a name and an e-mail here, e.g. `"Jan Novak jan@example.org"`; it is sent only to sec.gov. |
+| `sec_tickers` | Optional table: the SEC ticker of an instrument whose own ticker differs, e.g. `"BRYN.DE" = "BRK-B"`; `""` leaves an instrument out. |
 | `separate_types` | Optional list of instrument types reported apart from the investments, e.g. `["savings"]`. They get their own totals on the Overview and are left out of the default view of returns and charts. |
 
 ## Using it
@@ -154,7 +156,16 @@ From the results the Fundamentals page works out the ratios for every past day: 
 revenue of the last twelve months (four quarters when Yahoo has them all, otherwise the last
 year), equity and shares of the newest period, each counted from the end of its period.
 Yahoo keeps only about five years of results, so the history is that long; the ratios Yahoo
-reports are saved from the first update on. Depositary receipts and other share classes are
+reports are saved from the first update on.
+
+**SEC EDGAR.** With `sec_user_agent` set, the results of US companies also come from their
+SEC filings, which reach back to about 2009, and the page uses those instead of Yahoo's. A
+company is tried when Yahoo says it reports in USD, under its symbol without the exchange
+suffix (`PEP.DE` → `PEP`); `sec_tickers` names it where that does not work (`BRYN.DE` →
+`BRK-B`, `SNWF.VI` → `SNOW`). SEC results whose yearly revenue does not match Yahoo's are
+refused, so a wrong guess shows up as an error, not as wrong numbers. Per-share numbers
+filed before a split are converted with the splits in the price data. A fourth quarter that
+is only in the annual report is the year minus the other three quarters. Depositary receipts and other share classes are
 counted with the ratio between traded units and reported shares that Yahoo's market value
 implies. Where the worked-out P/E differs from Yahoo's by more than 30 %, the page says so:
 Yahoo's results are sometimes incomplete or in other units.
@@ -239,7 +250,7 @@ tests/
 the price updates do not depend on it.
 
 **Changing the database layout.** Add the next numbered file to `core/migrations/`
-(`0008_….sql`). It runs once, in a transaction, the next time the app or a script starts.
+(`0009_….sql`). It runs once, in a transaction, the next time the app or a script starts.
 Never edit a migration that has already run on your database.
 
 **Numbers.** What you type (quantities, prices, amounts, rates) is stored as exact decimal

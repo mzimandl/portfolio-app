@@ -164,7 +164,8 @@ allocation shares, monthly returns, purchases still held, the Dividends page, th
 can be marked as checked (migration 5), automatic daily backups, the Taxes page, target
 allocation (migration 6), and a time-weighted return that values the holding at the trade price
 before new money joins it. Then company data (migration 7): valuation ratios saved once a day
-and P/E, P/B, P/S worked out per day from about five years of reported results.
+and P/E, P/B, P/S worked out per day from about five years of reported results; for US
+companies, results from SEC EDGAR back to about 2009 (migration 8).
 
 ## Details settled
 

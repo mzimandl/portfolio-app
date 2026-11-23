@@ -151,3 +151,33 @@ def test_migration_4_turns_negative_staking_sells_into_corrections(tmp_path):
     indexes = {row[1] for row in connection.execute("PRAGMA index_list(transactions)")}
     assert {"transactions_instrument_date", "transactions_date"} <= indexes
     assert connection.execute("PRAGMA foreign_key_check").fetchall() == []
+
+
+def test_migration_8_keeps_yahoo_results_and_adds_a_source(tmp_path):
+    from importlib import resources
+
+    source = resources.files("portfolio.core") / "migrations"
+    for entry in source.iterdir():
+        if entry.name[:4] in ("0001", "0002", "0003", "0004", "0005", "0006", "0007"):
+            (tmp_path / entry.name).write_text(entry.read_text())
+    connection = db.connect(":memory:")
+    assert db.migrate(connection, tmp_path) == 7
+    connection.executescript(
+        """
+        INSERT INTO currencies VALUES ('USD');
+        INSERT INTO instrument_types VALUES ('stock');
+        INSERT INTO instruments (ticker, type, currency, valuation)
+            VALUES ('X', 'stock', 'USD', 'yahoo');
+        INSERT INTO statements (instrument_id, period, period_end, currency, eps)
+            VALUES (1, 'annual', '2023-12-31', 'USD', 2.5);
+        """
+    )
+    connection.commit()
+    assert db.migrate(connection) >= 8
+    row = connection.execute("SELECT source, period_end, eps FROM statements").fetchone()
+    assert tuple(row) == ("yahoo", "2023-12-31", 2.5)
+    connection.execute(
+        "INSERT INTO statements (instrument_id, source, period, period_end, currency, eps) "
+        "VALUES (1, 'sec', 'annual', '2023-12-31', 'USD', 2.4)"
+    )
+    assert connection.execute("SELECT count(*) FROM statements").fetchone()[0] == 2

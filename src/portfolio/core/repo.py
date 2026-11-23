@@ -462,10 +462,10 @@ _SNAPSHOT_FIELDS = (
 def save_statements(conn: sqlite3.Connection, statements: Iterable[Statement]) -> None:
     """Add periods; a period already stored is replaced (sources revise their numbers)."""
     conn.executemany(
-        "INSERT OR REPLACE INTO statements (instrument_id, period, period_end, currency, "
-        + ", ".join(_STATEMENT_FIELDS) + ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT OR REPLACE INTO statements (instrument_id, source, period, period_end, currency, "
+        + ", ".join(_STATEMENT_FIELDS) + ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         [
-            (s.instrument_id, s.period, s.period_end.isoformat(), s.currency,
+            (s.instrument_id, s.source, s.period, s.period_end.isoformat(), s.currency,
              *(getattr(s, name) for name in _STATEMENT_FIELDS))
             for s in statements
         ],
@@ -477,7 +477,7 @@ def list_statements(conn: sqlite3.Connection, instrument_id: int | None = None) 
     where, params = ("WHERE instrument_id = ?", (instrument_id,)) if instrument_id else ("", ())
     rows = conn.execute(
         "SELECT instrument_id, period, period_end, currency, " + ", ".join(_STATEMENT_FIELDS)
-        + f" FROM statements {where} ORDER BY instrument_id, period_end, period",
+        + f", source FROM statements {where} ORDER BY instrument_id, period_end, period, source",
         params,
     )  # fmt: skip
     return [Statement(row[0], row[1], date.fromisoformat(row[2]), row[3], *row[4:]) for row in rows]

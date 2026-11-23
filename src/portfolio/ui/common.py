@@ -13,6 +13,7 @@ from portfolio.core.analytics.data import PortfolioData, load_data
 from portfolio.core.analytics.timeseries import DayPoint, all_daily, combine
 from portfolio.core.config import Config, load_config
 from portfolio.core.providers.base import MarketDataProvider
+from portfolio.core.providers.sec import SecProvider
 from portfolio.core.providers.yahoo import YahooProvider
 from portfolio.ui import formatting
 
@@ -52,6 +53,12 @@ def connection() -> Iterator[sqlite3.Connection]:
 
 def provider() -> MarketDataProvider:
     return YahooProvider()
+
+
+def sec_provider() -> SecProvider | None:
+    """SEC EDGAR, only with a contact set in the config file (the SEC requires one)."""
+    agent = config().sec_user_agent
+    return SecProvider(agent) if agent else None
 
 
 @dataclass(frozen=True)

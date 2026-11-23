@@ -9,12 +9,16 @@ from portfolio.core.analytics.data import PortfolioData, load_data
 from portfolio.core.analytics.positions import position_at
 from portfolio.core.models import FxRate, Instrument, Price, Snapshot, Statement, ValuationMethod
 from portfolio.core.providers.base import Bar, MarketDataProvider, ProviderError
+from portfolio.core.providers.base import Statement as Reported
+from portfolio.core.providers.sec import SecProvider
 
 BENCHMARK_TYPE = "benchmark"
 _LEAD_IN = timedelta(days=7)  # so the first transaction day has a price even after a holiday
 _NO_QUANTITY = 1e-12
 # Company results are fetched again once the newest stored period is older than this.
 _STATEMENTS_DUE = timedelta(days=100)
+# The same for SEC filings, which come later: a 10-K up to 90 days after the year ends.
+_SEC_DUE = timedelta(days=150)
 
 
 @dataclass
@@ -23,6 +27,7 @@ class UpdateResult:
     errors: dict[str, str] = field(default_factory=dict)  # what -> why it failed
     new_splits: list[str] = field(default_factory=list)  # tickers whose history was reloaded
     fundamentals: list[str] = field(default_factory=list)  # tickers whose ratios were saved
+    sec: list[str] = field(default_factory=list)  # tickers whose SEC results were saved
 
     @property
     def ok(self) -> bool:
@@ -59,6 +64,8 @@ def update_market_data(
     benchmark: str | None = None,
     full: bool = False,
     fundamentals: bool = True,
+    sec: SecProvider | None = None,
+    sec_tickers: dict[str, str] | None = None,
     today: date | None = None,
 ) -> UpdateResult:
     """Fetch what is new since the last update. Saves after every instrument and currency,
@@ -66,7 +73,9 @@ def update_market_data(
 
     ``full`` downloads every history again from the first transaction on. ``fundamentals``
     also saves today's valuation ratios of the shares held (once a day) and their reported
-    results when new ones are due.
+    results when new ones are due. With ``sec`` the results of US companies also come from
+    SEC EDGAR, which reaches back much further; ``sec_tickers`` names their ticker there
+    where it differs from the instrument's.
     """
     today = today or date.today()
     result = UpdateResult()
@@ -107,12 +116,23 @@ def update_market_data(
         for instrument in sorted(data.instruments.values(), key=lambda i: i.ticker):
             if instrument.id == benchmark_id or not _needs_prices(data, instrument, today):
                 continue
+            if _asked_today(conn, instrument.id, today):
+                continue
             try:
                 if _update_fundamentals(conn, provider, instrument, today):
                     result.fundamentals.append(instrument.ticker)
             except (ProviderError, sqlite3.Error) as e:
                 conn.rollback()
                 result.errors[f"fundamentals {instrument.ticker}"] = str(e)
+                continue
+            if sec is None:
+                continue
+            try:
+                if _update_sec(conn, sec, instrument, sec_tickers or {}, today):
+                    result.sec.append(instrument.ticker)
+            except (ProviderError, sqlite3.Error) as e:
+                conn.rollback()
+                result.errors[f"SEC {instrument.ticker}"] = str(e)
 
     for currency in sorted(
         (_currencies_in_use(data, benchmark_id) | _reporting_currencies(conn)) - {base_currency}
@@ -137,14 +157,8 @@ def update_market_data(
 def _update_fundamentals(
     conn: sqlite3.Connection, provider: MarketDataProvider, instrument: Instrument, today: date
 ) -> bool:
-    """Today's ratios, at most once a day, and the reported results when new ones are due.
-    Returns whether there were ratios (False for funds and coins)."""
-    asked_today = conn.execute(
-        "SELECT 1 FROM fundamentals WHERE instrument_id = ? AND date = ?",
-        (instrument.id, today.isoformat()),
-    ).fetchone()
-    if asked_today:
-        return False
+    """Today's ratios and the reported results when new ones are due. Returns whether there
+    were ratios (False for funds and coins)."""
     symbol = instrument.yahoo_symbol or instrument.ticker
     ratios = provider.ratios(symbol)
     if ratios is None:
@@ -152,7 +166,8 @@ def _update_fundamentals(
             repo.save_snapshot(conn, Snapshot(instrument.id, today))
         return False
     newest = conn.execute(
-        "SELECT max(period_end) FROM statements WHERE instrument_id = ?", (instrument.id,)
+        "SELECT max(period_end) FROM statements WHERE instrument_id = ? AND source = 'yahoo'",
+        (instrument.id,),
     ).fetchone()[0]
     due = newest is None or date.fromisoformat(newest) < today - _STATEMENTS_DUE
     currency, found = provider.statements(symbol) if due else (None, [])
@@ -175,6 +190,104 @@ def _update_fundamentals(
                      ratios.market_cap),
         )  # fmt: skip
     return True
+
+
+def _asked_today(conn: sqlite3.Connection, instrument_id: int, today: date) -> bool:
+    """Company data is asked for at most once a day; a saved snapshot marks it."""
+    return bool(
+        conn.execute(
+            "SELECT 1 FROM fundamentals WHERE instrument_id = ? AND date = ?",
+            (instrument_id, today.isoformat()),
+        ).fetchone()
+    )
+
+
+def _update_sec(
+    conn: sqlite3.Connection,
+    sec: SecProvider,
+    instrument: Instrument,
+    overrides: dict[str, str],
+    today: date,
+) -> bool:
+    """SEC results of a US company, when new ones are due. Returns whether any were saved."""
+    ticker = _sec_ticker(conn, instrument, overrides)
+    if not ticker:
+        return False
+    newest = conn.execute(
+        "SELECT max(period_end) FROM statements WHERE instrument_id = ? AND source = 'sec'",
+        (instrument.id,),
+    ).fetchone()[0]
+    if newest is not None and date.fromisoformat(newest) >= today - _SEC_DUE:
+        return False
+    splits = [
+        (date.fromisoformat(row[0]), row[1])
+        for row in conn.execute(
+            "SELECT date, split FROM prices WHERE instrument_id = ? AND split != 0",
+            (instrument.id,),
+        )
+    ]
+    found = sec.statements(ticker, splits)
+    if not found:
+        return False
+    _check_against_yahoo(conn, instrument, ticker, found)
+    with conn:
+        if "USD" not in repo.list_currencies(conn):
+            repo.add_currency(conn, "USD")
+        repo.save_statements(
+            conn,
+            [
+                Statement(instrument.id, s.period, s.period_end, "USD", s.revenue, s.net_income,
+                          s.eps, s.equity, s.shares, source="sec")
+                for s in found
+            ],
+        )  # fmt: skip
+    return True
+
+
+def _sec_ticker(
+    conn: sqlite3.Connection, instrument: Instrument, overrides: dict[str, str]
+) -> str | None:
+    """The ticker to ask the SEC for, or None. Without a setting in the config file only
+    companies Yahoo says report in USD are tried, under their symbol without the exchange
+    suffix (PEP.DE -> PEP)."""
+    if instrument.ticker in overrides:
+        return overrides[instrument.ticker] or None
+    reported_in = {
+        row[0]
+        for row in conn.execute(
+            "SELECT DISTINCT currency FROM statements WHERE instrument_id = ? AND source = 'yahoo'",
+            (instrument.id,),
+        )
+    }
+    if reported_in != {"USD"}:
+        return None
+    symbol = instrument.yahoo_symbol or instrument.ticker
+    return symbol.split(".")[0].upper()
+
+
+def _check_against_yahoo(
+    conn: sqlite3.Connection, instrument: Instrument, ticker: str, found: list[Reported]
+) -> None:
+    """Refuse SEC results that are plainly another company's: the yearly revenue must be
+    within 10 % of Yahoo's for some year both have."""
+    yahoo = {
+        date.fromisoformat(row[0]): row[1]
+        for row in conn.execute(
+            "SELECT period_end, revenue FROM statements WHERE instrument_id = ? "
+            "AND source = 'yahoo' AND period = 'annual' AND revenue > 0",
+            (instrument.id,),
+        )
+    }
+    pairs = [
+        (s.revenue, yahoo[s.period_end])
+        for s in found
+        if s.period == "annual" and s.revenue and s.period_end in yahoo
+    ]
+    if pairs and not any(0.9 <= ours / theirs <= 1.1 for ours, theirs in pairs):
+        raise ProviderError(
+            f"the SEC's results for {ticker} do not match Yahoo's for {instrument.ticker}; "
+            'name the right ticker in sec_tickers, or "" to leave it out'
+        )
 
 
 def _reporting_currencies(conn: sqlite3.Connection) -> set[str]:

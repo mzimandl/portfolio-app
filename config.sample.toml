@@ -23,5 +23,12 @@ separate_types = ["savings"]
 # tax_proceeds_limit = 100000    # all sales of a year are exempt up to these proceeds
 # tax_crypto_types = ["crypto"]  # types for which the limit is counted apart
 
+# Optional: results of US companies from SEC EDGAR, reaching back to about 2009. The SEC
+# requires a name and an e-mail in every request; it is sent only to sec.gov.
+# sec_user_agent = "Your Name you@example.org"
+# [sec_tickers]          # only where the SEC ticker differs from the instrument's
+# "BRYN.DE" = "BRK-B"
+# "CSG.AS" = ""          # "" leaves an instrument out
+
 # Optional: Yahoo symbol to compare portfolio performance against.
 # benchmark = "VWCE.DE"

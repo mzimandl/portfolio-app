@@ -41,6 +41,19 @@ def test_backups_go_next_to_the_database_unless_told_otherwise(tmp_path):
             load_config(write(tmp_path, VALID + f"backup_keep = {bad}\n"))
 
 
+def test_sec_settings(tmp_path):
+    config = load_config(write(tmp_path, VALID))
+    assert (config.sec_user_agent, config.sec_tickers) == (None, {})
+    config = load_config(
+        write(tmp_path, VALID + 'sec_user_agent = "Name name@example.org"\n'
+              '[sec_tickers]\n"BRYN.DE" = "brk-b"\n"CSG.AS" = ""\n')
+    )  # fmt: skip
+    assert config.sec_user_agent == "Name name@example.org"
+    assert config.sec_tickers == {"BRYN.DE": "BRK-B", "CSG.AS": ""}
+    with pytest.raises(ConfigError, match="sec_tickers"):
+        load_config(write(tmp_path, VALID + "sec_tickers = 5\n"))
+
+
 def test_benchmark_is_optional(tmp_path):
     config = load_config(write(tmp_path, VALID + 'benchmark = "VWCE.DE"\n'))
     assert config.benchmark == "VWCE.DE"

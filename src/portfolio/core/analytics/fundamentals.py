@@ -40,6 +40,13 @@ class RatioPoint:
     dividend_yield: float | None  # dividends of the last 12 months / price
 
 
+def preferred(statements: Sequence[Statement]) -> list[Statement]:
+    """One source per company: the SEC's when there are any (they reach back much further
+    and are what the company filed), otherwise Yahoo's."""
+    sec = [s for s in statements if s.source == "sec"]
+    return sec or [s for s in statements if s.source != "sec"]
+
+
 def _value(s: Statement, field: str, shares: float | None) -> float | None:
     """A field of one period; EPS missing is net income / shares where both are known."""
     value = getattr(s, field)

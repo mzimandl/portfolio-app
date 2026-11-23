@@ -162,6 +162,7 @@ class Statement:
     eps: float | None = None  # diluted, in today's share units
     equity: float | None = None
     shares: float | None = None
+    source: str = "yahoo"  # or "sec"
 
 
 @dataclass(frozen=True)

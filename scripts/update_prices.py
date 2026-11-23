@@ -7,6 +7,7 @@ from pathlib import Path
 
 from portfolio.core import backup, db, repo
 from portfolio.core.config import load_config
+from portfolio.core.providers.sec import SecProvider
 from portfolio.core.providers.yahoo import YahooProvider
 from portfolio.core.updater import update_market_data
 
@@ -31,12 +32,16 @@ def main() -> int:
         benchmark=config.benchmark,
         full=args.full,
         fundamentals=not args.no_fundamentals,
+        sec=SecProvider(config.sec_user_agent) if config.sec_user_agent else None,
+        sec_tickers=config.sec_tickers,
     )
 
     days = sum(result.updated.values())
     print(f"Updated {len(result.updated)} series, {days} days saved.")
     if result.fundamentals:
         print(f"Valuation ratios saved for {len(result.fundamentals)} shares.")
+    if result.sec:
+        print(f"SEC results saved for {', '.join(result.sec)}.")
     for ticker in result.new_splits:
         print(f"  New split for {ticker}: its whole price history was downloaded again.")
     for what, why in result.errors.items():

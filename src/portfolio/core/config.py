@@ -33,6 +33,11 @@ class Config:
     tax_holding_years: int = 3
     tax_proceeds_limit: int = 100_000
     tax_crypto_types: tuple[str, ...] = ("crypto",)
+    # SEC EDGAR, for longer results of US companies: the User-Agent the SEC asks for (a name
+    # and an e-mail; without it the SEC is not asked), and tickers to use there when they
+    # differ from the instrument's ("BRYN.DE" -> "BRK-B"; "" means do not ask the SEC).
+    sec_user_agent: str | None = None
+    sec_tickers: dict[str, str] | None = None
 
 
 def resolve_config_path(path: str | Path | None = None) -> Path:
@@ -90,6 +95,14 @@ def load_config(path: str | Path | None = None) -> Config:
     if not isinstance(crypto_types, list) or not all(isinstance(n, str) for n in crypto_types):
         raise ConfigError(f"'tax_crypto_types' in {config_path} must be a list of type names")
 
+    sec_tickers = data.get("sec_tickers", {})
+    if not isinstance(sec_tickers, dict) or not all(
+        isinstance(k, str) and isinstance(v, str) for k, v in sec_tickers.items()
+    ):
+        raise ConfigError(
+            f"'sec_tickers' in {config_path} must be a table of ticker = \"SEC ticker\""
+        )
+
     backup_keep = data.get("backup_keep", 30)
     if isinstance(backup_keep, bool) or not isinstance(backup_keep, int) or backup_keep < 0:
         raise ConfigError(f"'backup_keep' in {config_path} must be a whole number, 0 or more")
@@ -111,4 +124,6 @@ def load_config(path: str | Path | None = None) -> Config:
         tax_holding_years=whole_number("tax_holding_years", 3),
         tax_proceeds_limit=whole_number("tax_proceeds_limit", 100_000),
         tax_crypto_types=tuple(name.strip() for name in crypto_types),
+        sec_user_agent=text("sec_user_agent", required=False),
+        sec_tickers={k.strip(): v.strip().upper() for k, v in sec_tickers.items()},
     )

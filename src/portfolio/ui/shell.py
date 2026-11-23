@@ -20,7 +20,12 @@ def sidebar() -> None:
         if st.button("Update prices", width="stretch"):
             with st.spinner("Downloading prices, exchange rates and company data…"):
                 st.session_state["update_result"] = update_market_data(
-                    conn, common.provider(), cfg.base_currency, benchmark=cfg.benchmark
+                    conn,
+                    common.provider(),
+                    cfg.base_currency,
+                    benchmark=cfg.benchmark,
+                    sec=common.sec_provider(),
+                    sec_tickers=cfg.sec_tickers,
                 )
             st.rerun()
         result = st.session_state.get("update_result")
@@ -33,6 +38,7 @@ def sidebar() -> None:
                     if result.fundamentals
                     else ""
                 )
+                + (f" SEC results for {len(result.sec)}." if result.sec else "")
             )
             for ticker in result.new_splits:
                 st.info(f"New split for {ticker}: its price history was downloaded again.")
