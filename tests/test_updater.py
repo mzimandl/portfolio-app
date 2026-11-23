@@ -493,3 +493,11 @@ def test_a_split_reloads_the_older_prices_too(conn, provider, portfolio):
     result = run(conn, provider, fundamentals=False)
     assert result.new_splits == ["AAPL"]
     assert [p.close for p in repo.list_prices(conn, aapl)] == [100.0, 100.0, 104.0]
+
+
+def test_yfinance_does_not_print_its_own_failures():
+    import logging
+
+    import portfolio.core.providers.yahoo  # noqa: F401
+
+    assert logging.getLogger("yfinance").getEffectiveLevel() == logging.CRITICAL

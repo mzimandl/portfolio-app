@@ -4,11 +4,17 @@ Yahoo has no official API and ``yfinance`` breaks from time to time. Everything 
 it is in this file, so that is the only place to fix or replace.
 """
 
+import logging
 import math
 import re
 from datetime import date
 
 from portfolio.core.providers.base import Bar, ProviderError, Ratios, Statement
+
+# yfinance logs every failed lookup itself (for example "HTTP Error 404 ... KRWCZK=X" when a
+# pair is not listed and the rate is then worked out through EUR). Failures that matter are
+# raised as ProviderError and reported by the app, so its own messages are only noise.
+logging.getLogger("yfinance").setLevel(logging.CRITICAL)
 
 # Pairs Yahoo lists under a different symbol than the usual "EURCZK=X".
 _FX_SYMBOLS = {("USD", "CZK"): "CZK=X"}
