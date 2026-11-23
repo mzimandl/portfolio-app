@@ -1097,6 +1097,12 @@ def test_a_receipt_for_a_quarter_of_a_share(book):
 def test_sec_results_are_preferred_when_there_are_any():
     yahoo = Statement(1, "annual", date(2023, 12, 31), "USD", eps=1)
     sec = Statement(1, "annual", date(2010, 12, 31), "USD", eps=2, source="sec")
-    assert preferred([yahoo, sec]) == [sec]
+    old_sec = Statement(1, "annual", date(2010, 12, 31), "USD", revenue=5, source="sec")
+    recent_sec = Statement(1, "annual", date(2023, 12, 31), "USD", eps=2, source="sec")
+    assert preferred([yahoo, old_sec, recent_sec]) == [old_sec, recent_sec]
     assert preferred([yahoo]) == [yahoo]
     assert preferred([]) == []
+    # No per-share basis at the SEC (several share classes), or none recent: Yahoo's.
+    assert preferred([yahoo, old_sec]) == [yahoo]
+    assert preferred([yahoo, sec]) == [yahoo]
+    assert preferred([old_sec]) == [old_sec]

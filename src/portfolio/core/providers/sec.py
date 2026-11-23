@@ -45,6 +45,12 @@ _INSTANTS = {
     ),
     "shares": ("CommonStockSharesOutstanding",),
 }
+# When the shares outstanding at the period end are not tagged: the cover page's count
+# (dei, a few weeks after the period end), then the average over the period.
+_AVERAGE_SHARES = (
+    "WeightedAverageNumberOfDilutedSharesOutstanding",
+    "WeightedAverageNumberOfSharesOutstandingBasic",
+)
 _UNITS = {"eps": "USD/shares", "shares": "shares"}  # everything else is in USD
 _ANNUAL_DAYS = (350, 380)
 _QUARTER_DAYS = (80, 100)
@@ -131,6 +137,31 @@ def statements_from_facts(
                 for kind in ("annual", "quarterly"):
                     if (kind, _day(end)) in periods:
                         periods[(kind, _day(end))].setdefault(field, adjusted(field, row))
+
+    # Shares from the cover page of the filing that reported the period.
+    period_of_filing: dict[str, date] = {}
+    for concept in gaap.values():
+        for rows in concept.get("units", {}).values():
+            for row in rows:
+                if "accn" in row and "start" in row and "end" in row:
+                    end = _day(row["end"])
+                    if end > period_of_filing.get(row["accn"], date.min):
+                        period_of_filing[row["accn"]] = end
+    cover = facts.get("facts", {}).get("dei", {}).get("EntityCommonStockSharesOutstanding", {})
+    for row in cover.get("units", {}).get("shares", []):
+        end = period_of_filing.get(row.get("accn", ""))
+        if end is None or "val" not in row or "filed" not in row:
+            continue
+        for kind in ("annual", "quarterly"):
+            if (kind, end) in periods:
+                periods[(kind, end)].setdefault("shares", adjusted("shares", row))
+    for _, rows in values("shares", _AVERAGE_SHARES):
+        for (start, end), row in rows.items():
+            if start is None:
+                continue
+            for kind in ("annual", "quarterly"):
+                if (kind, _day(end)) in periods:
+                    periods[(kind, _day(end))].setdefault("shares", adjusted("shares", row))
 
     return [
         Statement(kind, end, **fields)

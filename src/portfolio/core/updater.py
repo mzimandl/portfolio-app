@@ -125,14 +125,23 @@ def update_market_data(
                 conn.rollback()
                 result.errors[f"fundamentals {instrument.ticker}"] = str(e)
                 continue
-            if sec is None:
-                continue
+            if sec is not None:
+                try:
+                    if _update_sec(conn, sec, instrument, sec_tickers or {}, today):
+                        result.sec.append(instrument.ticker)
+                except (ProviderError, sqlite3.Error) as e:
+                    conn.rollback()
+                    result.errors[f"SEC {instrument.ticker}"] = str(e)
             try:
-                if _update_sec(conn, sec, instrument, sec_tickers or {}, today):
-                    result.sec.append(instrument.ticker)
+                saved = _backfill_prices(conn, provider, instrument)
             except (ProviderError, sqlite3.Error) as e:
                 conn.rollback()
-                result.errors[f"SEC {instrument.ticker}"] = str(e)
+                result.errors[f"older prices {instrument.ticker}"] = str(e)
+            else:
+                if saved:
+                    result.updated[instrument.ticker] = (
+                        result.updated.get(instrument.ticker, 0) + saved
+                    )
 
     for currency in sorted(
         (_currencies_in_use(data, benchmark_id) | _reporting_currencies(conn)) - {base_currency}
@@ -190,6 +199,34 @@ def _update_fundamentals(
                      ratios.market_cap),
         )  # fmt: skip
     return True
+
+
+_BEFORE_RESULTS = timedelta(days=365)  # a year of prices before the first result: dividends
+_GAP = timedelta(days=30)
+
+
+def _backfill_prices(
+    conn: sqlite3.Connection, provider: MarketDataProvider, instrument: Instrument
+) -> int:
+    """Prices from a year before the oldest stored result up to the first stored price, so
+    ratios can be worked out for all of it. Returns the number of days saved."""
+    oldest = conn.execute(
+        "SELECT min(period_end) FROM statements WHERE instrument_id = ?", (instrument.id,)
+    ).fetchone()[0]
+    first = conn.execute(
+        "SELECT min(date) FROM prices WHERE instrument_id = ?", (instrument.id,)
+    ).fetchone()[0]
+    if oldest is None or first is None:
+        return 0
+    start, first = date.fromisoformat(oldest) - _BEFORE_RESULTS, date.fromisoformat(first)
+    if first - start <= _GAP:
+        return 0
+    # Asked again each day for a company listed later than its first result: one request.
+    bars = [b for b in provider.prices(instrument.yahoo_symbol or instrument.ticker, start)
+            if b.date < first]  # fmt: skip
+    with conn:
+        repo.save_prices(conn, [_price(instrument.id, bar) for bar in bars])
+    return len(bars)
 
 
 def _asked_today(conn: sqlite3.Connection, instrument_id: int, today: date) -> bool:
@@ -320,13 +357,15 @@ def _update_prices(
     symbol = instrument.yahoo_symbol or instrument.ticker
     stored = data.prices.get(instrument.id)
     from_start = full or not stored
+    # Prices from before the first transaction may be stored for the company data.
+    earliest = min(history_start, stored.dates[0]) if stored else history_start
     # The last stored day is fetched again: it may have been saved before the market closed.
-    bars = provider.prices(symbol, history_start if from_start else stored.dates[-1])
+    bars = provider.prices(symbol, earliest if from_start else stored.dates[-1])
 
     reloaded = False
     if not from_start and _has_new_split(conn, instrument.id, bars):
         # Prices already stored are in the share units from before the split.
-        bars = provider.prices(symbol, history_start)
+        bars = provider.prices(symbol, earliest)
         reloaded = True
     with conn:
         repo.save_prices(conn, [_price(instrument.id, bar) for bar in bars])

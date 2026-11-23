@@ -163,8 +163,16 @@ SEC filings, which reach back to about 2009, and the page uses those instead of 
 company is tried when Yahoo says it reports in USD, under its symbol without the exchange
 suffix (`PEP.DE` → `PEP`); `sec_tickers` names it where that does not work (`BRYN.DE` →
 `BRK-B`, `SNWF.VI` → `SNOW`). SEC results whose yearly revenue does not match Yahoo's are
-refused, so a wrong guess shows up as an error, not as wrong numbers. Per-share numbers
-filed before a split are converted with the splits in the price data. A fourth quarter that
+refused, so a wrong guess shows up as an error, not as wrong numbers. Companies with several
+share classes (Berkshire Hathaway) tag no share count; for them the page keeps Yahoo's
+results, and `"" ` in `sec_tickers` saves the download. Per-share numbers
+filed before a split are converted with the splits in the price data. Shares outstanding
+come from the balance sheet, else from the filing's cover page, else the average over the
+period.
+
+**Older prices.** Ratios need a price for each day, so prices are also downloaded from a
+year before the oldest stored result, even from before you bought the share. They are used
+only for the ratios; a split reloads them with the rest. A fourth quarter that
 is only in the annual report is the year minus the other three quarters. Depositary receipts and other share classes are
 counted with the ratio between traded units and reported shares that Yahoo's market value
 implies. Where the worked-out P/E differs from Yahoo's by more than 30 %, the page says so:

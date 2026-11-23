@@ -88,3 +88,25 @@ def test_the_fourth_quarter_is_the_year_minus_three_quarters():
 def test_nothing_for_companies_without_us_gaap_facts():
     assert statements_from_facts({}) == []
     assert statements_from_facts({"facts": {"ifrs-full": {"Revenue": {}}}}) == []
+
+
+def test_shares_from_the_cover_page_or_the_average_over_the_period():
+    document = facts(
+        NetIncomeLoss=("USD", [
+            {**fact("2022-01-01", "2022-12-31", 50.0, "2023-02-01"), "accn": "A"},
+            {**fact("2023-01-01", "2023-12-31", 60.0, "2024-02-01"), "accn": "B"},
+        ]),
+        WeightedAverageNumberOfDilutedSharesOutstanding=("shares", [
+            fact("2022-01-01", "2022-12-31", 9.0, "2023-02-01"),
+            fact("2023-01-01", "2023-12-31", 11.0, "2024-02-01"),
+        ]),
+    )  # fmt: skip
+    document["facts"]["dei"] = {
+        "EntityCommonStockSharesOutstanding": {
+            "units": {"shares": [{"end": "2024-01-20", "val": 12.0, "filed": "2024-02-01",
+                                  "accn": "B"}]}
+        }
+    }  # fmt: skip
+    first, second = statements_from_facts(document)
+    assert first.shares == 9.0  # the average, nothing better
+    assert second.shares == 12.0  # the count on the cover of the filing for that year

@@ -160,7 +160,10 @@ tests/             one file per core module, plus test_ui_smoke.py
 - SEC EDGAR needs a contact in the User-Agent (it answers 403 without one). It comes only
   from `sec_user_agent` in the user's config; never put the user's e-mail in code, tests,
   commands or docs. Results are stored per `source` (`yahoo`, `sec`) and `preferred()`
-  uses the SEC's when an instrument has any.
+  uses the SEC's when they have a recent per-share basis (EPS or shares), else Yahoo's.
+- Prices can be stored from before the first transaction (`_backfill_prices`, for the
+  ratios). Code that walks prices must not assume they start at the first trade; the
+  split reload starts at the oldest stored price.
 - Test anything that writes market data on a copy of the database (a config in the
   scratchpad pointing at a copied file), not on the user's `portfolio.db`.
 

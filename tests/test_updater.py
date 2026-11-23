@@ -464,3 +464,32 @@ def test_sec_results_of_another_company_are_refused(conn, provider, portfolio):
     assert "do not match" in result.errors["SEC AAPL"]
     assert [s.source for s in repo.list_statements(conn)] == ["yahoo"]
     assert result.fundamentals == ["AAPL"]  # Yahoo's part is kept
+
+
+def test_older_prices_are_fetched_for_the_years_of_results(conn, provider, portfolio):
+    provider.bars["AAPL"] = [
+        Bar(date(2019, 12, 2), 50.0), Bar(date(2022, 1, 3), 80.0), Bar(day(4), 104.0)
+    ]  # fmt: skip
+    provider.ratio_data["AAPL"] = Ratios(trailing_pe=30.0)
+    provider.statement_data["AAPL"] = (
+        "USD", [Statement("annual", date(2020, 12, 31), revenue=100.0, eps=3.0)]
+    )  # fmt: skip
+    result = run(conn, provider)
+    assert result.ok
+    dates = [p.date for p in repo.list_prices(conn, portfolio["AAPL"])]
+    # From a year before the first result; the 2019 day is older than that.
+    assert dates == [date(2022, 1, 3), day(4)]
+    assert ("AAPL", date(2020, 1, 1)) in provider.calls  # 365 days before, 2020 is a leap year
+    assert result.updated["AAPL"] == 2  # one day as usual, one older
+
+
+def test_a_split_reloads_the_older_prices_too(conn, provider, portfolio):
+    aapl = portfolio["AAPL"]
+    repo.save_prices(conn, [Price(aapl, date(2022, 1, 3), 400.0), Price(aapl, day(1), 400.0)])
+    conn.commit()
+    provider.bars["AAPL"] = [
+        Bar(date(2022, 1, 3), 100.0), Bar(day(1), 100.0), Bar(day(4), 104.0, split=4.0)
+    ]  # fmt: skip
+    result = run(conn, provider, fundamentals=False)
+    assert result.new_splits == ["AAPL"]
+    assert [p.close for p in repo.list_prices(conn, aapl)] == [100.0, 100.0, 104.0]
