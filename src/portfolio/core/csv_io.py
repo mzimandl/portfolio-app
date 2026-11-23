@@ -106,6 +106,24 @@ def export_all(conn: sqlite3.Connection) -> dict[str, str]:
                 )
             ),
         ),
+        "statements.csv": _csv(
+            ["ticker", "period", "period_end", "currency", "revenue", "net_income", "eps",
+             "equity", "shares"],
+            (
+                (tickers[s.instrument_id], s.period, s.period_end.isoformat(), s.currency,
+                 s.revenue, s.net_income, s.eps, s.equity, s.shares)
+                for s in repo.list_statements(conn)
+            ),
+        ),
+        "fundamentals.csv": _csv(
+            ["ticker", "date", "trailing_pe", "forward_pe", "price_to_book", "price_to_sales",
+             "ev_to_ebitda", "market_cap"],
+            (
+                (tickers[s.instrument_id], s.date.isoformat(), s.trailing_pe, s.forward_pe,
+                 s.price_to_book, s.price_to_sales, s.ev_to_ebitda, s.market_cap)
+                for s in repo.list_snapshots(conn)
+            ),
+        ),
         "target_allocation.csv": _csv(
             ["type", "share"],
             ((name, repo.decimal_text(share)) for name, share in repo.list_targets(conn).items()),

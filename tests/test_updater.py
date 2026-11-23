@@ -9,8 +9,14 @@ from portfolio.core.analytics.data import load_data
 from portfolio.core.models import FxRate, Instrument, Price, Transaction
 from portfolio.core.models import TransactionKind as K
 from portfolio.core.models import ValuationMethod as V
-from portfolio.core.providers.base import Bar, ProviderError
-from portfolio.core.providers.yahoo import bars_from_frame, fx_symbol
+from portfolio.core.providers.base import Bar, ProviderError, Ratios, Statement
+from portfolio.core.providers.yahoo import (
+    bars_from_frame,
+    cross_rates,
+    fx_symbol,
+    ratios_from_info,
+    statements_from_frames,
+)
 from portfolio.core.updater import ensure_benchmark, update_market_data
 
 TODAY = date(2024, 3, 10)
@@ -28,6 +34,8 @@ class FakeProvider:
         self.failing: set[str] = set()
         self.currencies: dict[str, str] = {}
         self.calls: list[tuple[str, date]] = []
+        self.ratio_data: dict[str, Ratios] = {}
+        self.statement_data: dict[str, tuple[str, list[Statement]]] = {}
 
     def _serve(self, key: str, start: date) -> list[Bar]:
         self.calls.append((key, start))
@@ -45,6 +53,16 @@ class FakeProvider:
         if symbol not in self.currencies:
             raise ProviderError(f"unknown symbol {symbol}")
         return self.currencies[symbol]
+
+    def ratios(self, symbol):
+        self.calls.append((f"ratios {symbol}", None))
+        if f"ratios {symbol}" in self.failing:
+            raise ProviderError(f"no ratios for {symbol}")
+        return self.ratio_data.get(symbol)
+
+    def statements(self, symbol):
+        self.calls.append((f"statements {symbol}", None))
+        return self.statement_data.get(symbol, (None, []))
 
     def asked(self, key: str) -> list[date]:
         return [start for asked_key, start in self.calls if asked_key == key]
@@ -119,7 +137,8 @@ def test_first_update_downloads_from_a_week_before_the_first_transaction(conn, p
     assert provider.asked("BTC-EUR") == [date(2024, 2, 27)]  # uses the Yahoo symbol
     assert provider.asked("USD/CZK") == [date(2024, 2, 23)]  # from the portfolio's first day
     asked_for = {key for key, _ in provider.calls}
-    assert asked_for == {"AAPL", "BTC-EUR", "USD/CZK", "EUR/CZK"}  # nothing for the others
+    # Nothing for the others; ratios only for what is held and priced by Yahoo.
+    assert asked_for == {"AAPL", "BTC-EUR", "USD/CZK", "EUR/CZK", "ratios AAPL", "ratios BTC-EUR"}
     first, second = repo.list_prices(conn, portfolio["AAPL"])
     assert (first.close, first.open, first.high, first.low) == (100.0, 99.0, 101.0, 98.0)
     assert second.close == 104.0
@@ -284,3 +303,95 @@ def test_bars_from_a_yfinance_table():
     rates = pd.DataFrame({"Close": [23.1]}, index=pd.to_datetime(["2024-03-04"]))
     assert bars_from_frame(rates) == [Bar(date(2024, 3, 4), 23.1)]
     assert bars_from_frame(pd.DataFrame()) == []
+
+
+def test_company_data_once_a_day_and_results_when_due(conn, provider, portfolio):
+    provider.ratio_data["AAPL"] = Ratios(trailing_pe=30.0, price_to_book=40.0, market_cap=3e12)
+    provider.statement_data["AAPL"] = (
+        "USD",
+        [
+            Statement("annual", date(2023, 9, 30), revenue=383e9, eps=6.13, shares=15.5e9),
+            Statement("quarterly", date(2023, 12, 30), revenue=120e9, eps=2.18),
+        ],
+    )
+    result = run(conn, provider)
+    assert result.ok and result.fundamentals == ["AAPL"]
+    (snapshot,) = repo.list_snapshots(conn, portfolio["AAPL"])
+    assert (snapshot.date, snapshot.trailing_pe, snapshot.market_cap) == (TODAY, 30.0, 3e12)
+    annual, quarter = repo.list_statements(conn, portfolio["AAPL"])
+    assert (annual.period, annual.currency, annual.eps, annual.shares) == (
+        "annual", "USD", 6.13, 15.5e9,
+    )  # fmt: skip
+    assert (quarter.period, quarter.eps, quarter.equity) == ("quarterly", 2.18, None)
+    # BTC is a coin: asked once, remembered as empty.
+    (coin,) = repo.list_snapshots(conn, portfolio["BTC"])
+    assert coin.empty
+
+    run(conn, provider)  # the same day again: nothing asked
+    assert len(provider.asked("ratios AAPL")) == 1
+    assert len(provider.asked("ratios BTC-EUR")) == 1
+
+    # Next day: new ratios, but the newest result is recent, so no results are fetched.
+    update_market_data(conn, provider, "CZK", today=date(2024, 3, 11))
+    assert len(provider.asked("ratios AAPL")) == 2
+    assert len(provider.asked("statements AAPL")) == 1
+    assert len(repo.list_snapshots(conn, portfolio["AAPL"])) == 2
+    # Once the newest result is more than 100 days old, results are fetched again.
+    update_market_data(conn, provider, "CZK", today=date(2024, 4, 9))
+    assert len(provider.asked("statements AAPL")) == 2
+
+    assert not run(conn, provider, fundamentals=False).fundamentals
+
+
+def test_reporting_currency_is_added_and_its_rates_downloaded(conn, provider, portfolio):
+    provider.ratio_data["AAPL"] = Ratios(trailing_pe=30.0)
+    provider.statement_data["AAPL"] = ("DKK", [Statement("annual", date(2023, 12, 31), eps=9.0)])
+    provider.bars["DKK/CZK"] = [Bar(day(1), 3.3)]
+    result = run(conn, provider)
+    assert result.ok
+    assert "DKK" in repo.list_currencies(conn)
+    assert result.updated["DKK/CZK"] == 1
+    assert repo.list_statements(conn)[0].currency == "DKK"
+
+
+def test_failing_company_data_is_reported_and_the_rest_still_updates(conn, provider, portfolio):
+    provider.failing.add("ratios AAPL")
+    provider.bars["AAPL"] = [Bar(day(4), 104.0)]
+    result = run(conn, provider)
+    assert "no ratios for AAPL" in result.errors["fundamentals AAPL"]
+    assert result.updated["AAPL"] == 1
+    assert repo.list_snapshots(conn, portfolio["AAPL"]) == []  # asked again next time
+
+
+def test_ratios_and_statements_from_yfinance_tables():
+    assert ratios_from_info({"quoteType": "ETF", "trailingPE": 20}) is None
+    ratios = ratios_from_info({"quoteType": "EQUITY", "trailingPE": 20.5, "forwardPE": "x"})
+    assert (ratios.trailing_pe, ratios.forward_pe, ratios.market_cap) == (20.5, None, None)
+
+    ends = pd.to_datetime(["2025-12-31", "2024-12-31", "2023-12-31"])
+    income = pd.DataFrame(
+        [[100.0, 90.0, float("nan")], [2.5, 2.0, float("nan")], [10.0, 9.0, float("nan")]],
+        index=["Total Revenue", "Diluted EPS", "Net Income"],
+        columns=ends,
+    )
+    balance = pd.DataFrame(
+        [[50.0, 45.0, 40.0], [4.0, 4.0, 4.1]],
+        index=["Common Stock Equity", "Ordinary Shares Number"],
+        columns=ends,
+    )
+    found = statements_from_frames("annual", income, balance)
+    assert [s.period_end.year for s in found] == [2023, 2024, 2025]
+    oldest, _, newest = found
+    assert (oldest.revenue, oldest.eps, oldest.equity, oldest.shares) == (None, None, 40.0, 4.1)
+    assert (newest.revenue, newest.net_income, newest.eps) == (100.0, 10.0, 2.5)
+    assert (newest.equity, newest.period) == (50.0, "annual")
+    assert statements_from_frames("annual", pd.DataFrame(), None) == []
+
+
+def test_cross_rates_through_a_third_currency():
+    krw_eur = [Bar(day(1), 0.0007), Bar(day(4), 0.0008), Bar(day(5), 0.0009)]
+    eur_czk = [Bar(day(2), 25.0), Bar(day(5), 24.0)]
+    assert cross_rates(krw_eur, eur_czk) == [
+        Bar(day(4), pytest.approx(0.0008 * 25)),  # day 1 has no EUR rate yet
+        Bar(day(5), pytest.approx(0.0009 * 24)),
+    ]

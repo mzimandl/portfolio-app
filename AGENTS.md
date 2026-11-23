@@ -64,7 +64,7 @@ src/portfolio/core/
   config.py        config.toml: db, base_currency, locale, benchmark, separate_types
   db.py            connect(), migrate()
   backup.py        daily_backup(): dated copy before the day's first use
-  migrations/      0001 … 0006, applied in order by PRAGMA user_version
+  migrations/      0001 … 0007, applied in order by PRAGMA user_version
   models.py        records; which fields each transaction kind requires or allows
   repo.py          all SQL. Functions never commit: the caller wraps them in `with conn:`
   analytics/
@@ -77,6 +77,7 @@ src/portfolio/core/
     checks.py      data-quality findings
     allocation.py  values against target shares; how to split new money
     taxes.py       sales by holding period, dividends and staking per year
+    fundamentals.py P/E, P/B, P/S and dividend yield per day from reported results
   providers/       base.py is the interface, yahoo.py the only implementation
   updater.py       incremental download of prices and rates; split detection; benchmark
   csv_io.py        export of every table, import of transactions
@@ -84,7 +85,8 @@ src/portfolio/ui/
   app.py           navigation; each page module has a render() function
   shell.py         sidebar (freshness, Update prices) and split notices
   common.py        config, connection, cached portfolio(), scope picker, formatting helpers
-  pages/           overview, performance, charts, dividends, taxes, transactions, prices, checks,
+  pages/           overview, performance, charts, dividends, fundamentals, taxes, transactions,
+                   prices, checks,
                    data (Import / export), settings
 tests/             one file per core module, plus test_ui_smoke.py
 ```
@@ -147,6 +149,16 @@ tests/             one file per core module, plus test_ui_smoke.py
 - In tests, a read through the fixture connection leaves a transaction open and blocks the
   page's writes ("database is locked"): call `database.rollback()` after reading.
 
+- Company data (`statements`, `fundamentals` tables) comes from `provider.ratios` and
+  `provider.statements`. Yahoo's per-share numbers are already in today's share units (it
+  restates them after splits), but its EPS and share counts can be per another share class
+  or per underlying share of a receipt, and quarters are often missing. `share_units` and
+  the net-income fallback in `analytics/fundamentals.py` handle the known cases; the page
+  flags a P/E more than 30 % off Yahoo's. Compare with Yahoo's figures on real data before
+  changing those rules. An empty `fundamentals` row means "asked today, nothing there".
+- Test anything that writes market data on a copy of the database (a config in the
+  scratchpad pointing at a copied file), not on the user's `portfolio.db`.
+
 ## Streamlit traps already hit
 
 - **`st.cache_resource` / `st.cache_data` do not hash arguments whose name starts with an
@@ -177,11 +189,11 @@ tests/             one file per core module, plus test_ui_smoke.py
   body. Update README (use, definitions) and PLAN (decisions) in the same commit.
 - `# fmt: skip` is used where a hand-laid-out list or call reads better than the formatter's.
 
-## State of things (2026-11-12)
+## State of things (2026-11-23)
 
 Everything planned is built: the eight phases in PLAN.md, then staking corrections, benchmark
 with the same cash flows, sales and purchases-held tables, drawdown, allocation shares,
 monthly returns, the Dividends and Checks pages, consistent numbers for trades paid in
 another currency, automatic daily backups, marking findings as checked, a tax overview, target allocation and
-a more exact time-weighted return on trade days. The Checks page lists the records in the user's data that still look wrong;
+a more exact time-weighted return on trade days, and the Fundamentals page. The Checks page lists the records in the user's data that still look wrong;
 they are the user's to verify against statements, not something to fix unasked.

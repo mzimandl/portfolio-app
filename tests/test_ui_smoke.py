@@ -10,10 +10,19 @@ from streamlit.testing.v1 import AppTest
 
 from portfolio.core import db, repo
 from portfolio.core.config import CONFIG_ENV_VAR
-from portfolio.core.models import FxRate, Instrument, Price, Transaction, Valuation
+from portfolio.core.models import (
+    FxRate,
+    Instrument,
+    Price,
+    Snapshot,
+    Statement,
+    Transaction,
+    Valuation,
+)
 from portfolio.core.models import TransactionKind as K
 from portfolio.core.models import ValuationMethod as V
-from portfolio.core.providers.base import Bar, ProviderError
+from portfolio.core.providers.base import Bar, ProviderError, Ratios
+from portfolio.core.providers.base import Statement as PStatement
 from portfolio.ui import common
 
 ROOT = Path(__file__).parent.parent
@@ -149,12 +158,19 @@ def test_update_button_downloads_and_reports(database, monkeypatch):
         def currency(self, symbol):
             return "USD"
 
+        def ratios(self, symbol):
+            return Ratios(trailing_pe=25.0) if symbol == "AAPL" else None
+
+        def statements(self, symbol):
+            return "USD", [PStatement("annual", date(2023, 12, 31), eps=6.0)]
+
     monkeypatch.setattr(common, "provider", Provider)
     at = run_shell()
     at.sidebar.button[0].click().run()
 
     assert not at.exception
     assert "2 series updated" in at.sidebar.success[0].value
+    assert "Company data for 1 shares" in at.sidebar.success[0].value
     assert "SPY is unavailable" in at.sidebar.error[0].value
     assert "2024-06-04" in at.sidebar.caption[0].value
     database.rollback()
@@ -293,6 +309,27 @@ def test_target_allocation_is_set_in_settings_and_shown_on_the_overview(database
     table = clean(at).dataframe[1].value
     assert list(table["Type"]) == ["savings", "stock"]
     assert list(table["Buy now"]) == [1000, 0]  # savings are far below their 40 %
+
+
+def test_fundamentals_page(database):
+    assert "No company data" in clean(run_page("fundamentals")).info[0].value
+    repo.save_statements(
+        database,
+        [
+            Statement(1, "annual", date(2023, 12, 31), "USD", revenue=60, eps=6.0, equity=20,
+                      shares=1),
+        ],
+    )  # fmt: skip
+    repo.save_snapshot(database, Snapshot(1, date(2024, 6, 3), trailing_pe=24.0))
+    database.commit()
+    at = clean(run_page("fundamentals"))
+    (row,) = at.dataframe[0].value.to_dict("records")
+    assert row["Ticker"] == "AAPL"
+    assert row["P/E"] == pytest.approx(150 / 6)
+    assert row["P/B"] == pytest.approx(150 / 20)
+    assert row["P/E by Yahoo"] == 24.0
+    assert "Price / earnings" in [s.value for s in at.subheader]
+    assert "Reported results" in [s.value for s in at.subheader]
 
 
 def test_prices_and_settings_pages(database):

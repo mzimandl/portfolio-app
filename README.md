@@ -55,6 +55,7 @@ happens in **Transactions**.
 | Dividends | Received per year and instrument, yield on cost and on value, and what the price data says was due. |
 | Taxes | What you hold split by the holding period; a year's sales by the purchases they used, with what is left after the exemptions; dividends and staking of the year. |
 | Transactions | The ledger: filter, add, edit, delete. A second tab holds manual valuations. |
+| Fundamentals | P/E, P/B, P/S and dividend yield of the shares you hold: today, their typical level, and day by day over the past years; the ratios Yahoo reports; the companies' reported results. |
 | Prices | Stored prices and exchange rates. |
 | Checks | Things that look wrong or out of date: old prices, trade prices and exchange rates far from the market, leftovers, dividends not recorded. It changes none of your records. A finding you looked at can be marked as checked; it stays hidden until the record behind it changes. |
 | Import / export | Backup downloads and CSV import of transactions. |
@@ -143,6 +144,21 @@ It downloads what is new since the last update for every active instrument you h
 currency in use. `--full` downloads all histories again. A ticker that fails is reported and
 the rest still updates.
 
+**Company data.** The same button saves, once a day, the valuation ratios Yahoo reports for
+each share you hold (funds and coins have none), and fetches the companies' reported results
+when the newest stored ones are more than 100 days old. `--no-fundamentals` skips both. A
+company reporting in another currency adds that currency to the list, so its exchange rate is
+downloaded too; a pair Yahoo does not list (KRW/CZK) is worked out through EUR or USD.
+
+From the results the Fundamentals page works out the ratios for every past day: earnings and
+revenue of the last twelve months (four quarters when Yahoo has them all, otherwise the last
+year), equity and shares of the newest period, each counted from the end of its period.
+Yahoo keeps only about five years of results, so the history is that long; the ratios Yahoo
+reports are saved from the first update on. Depositary receipts and other share classes are
+counted with the ratio between traded units and reported shares that Yahoo's market value
+implies. Where the worked-out P/E differs from Yahoo's by more than 30 %, the page says so:
+Yahoo's results are sometimes incomplete or in other units.
+
 **Splits.** When Yahoo reports a split, a notice appears on every page. Choose *Add split* if
 your recorded quantities are from before the split, or *Dismiss* if you already rewrote them.
 Until you decide, that instrument's value is wrong.
@@ -155,7 +171,7 @@ uv lock --upgrade-package yfinance
 ```
 
 If that does not help, everything that touches Yahoo is in
-`src/portfolio/core/providers/yahoo.py`. Another source is a class with the three methods
+`src/portfolio/core/providers/yahoo.py`. Another source is a class with the methods
 described in `src/portfolio/core/providers/base.py`, returned from `provider()` in
 `src/portfolio/ui/common.py` and used in `scripts/update_prices.py`.
 
@@ -208,7 +224,8 @@ src/portfolio/
     migrations/         numbered SQL files, applied in order on start
     models.py           records and the rules for each transaction kind
     repo.py             reading and writing records
-    analytics/          positions, overview, daily history, returns, dividends, checks, allocation, taxes
+    analytics/          positions, overview, daily history, returns, dividends, checks, allocation, taxes,
+                        fundamentals
     providers/          sources of prices; yahoo.py is the only one
     updater.py          downloading new prices and rates
     csv_io.py           CSV export and import
@@ -222,7 +239,7 @@ tests/
 the price updates do not depend on it.
 
 **Changing the database layout.** Add the next numbered file to `core/migrations/`
-(`0007_….sql`). It runs once, in a transaction, the next time the app or a script starts.
+(`0008_….sql`). It runs once, in a transaction, the next time the app or a script starts.
 Never edit a migration that has already run on your database.
 
 **Numbers.** What you type (quantities, prices, amounts, rates) is stored as exact decimal

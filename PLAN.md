@@ -163,7 +163,8 @@ Staking corrections (migration 4), benchmark with the same cash flows, list of s
 allocation shares, monthly returns, purchases still held, the Dividends page, the Checks page with findings that
 can be marked as checked (migration 5), automatic daily backups, the Taxes page, target
 allocation (migration 6), and a time-weighted return that values the holding at the trade price
-before new money joins it.
+before new money joins it. Then company data (migration 7): valuation ratios saved once a day
+and P/E, P/B, P/S worked out per day from about five years of reported results.
 
 ## Details settled
 

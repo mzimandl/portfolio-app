@@ -7,12 +7,14 @@ from datetime import date, timedelta
 from portfolio.core import repo
 from portfolio.core.analytics.data import PortfolioData, load_data
 from portfolio.core.analytics.positions import position_at
-from portfolio.core.models import FxRate, Instrument, Price, ValuationMethod
+from portfolio.core.models import FxRate, Instrument, Price, Snapshot, Statement, ValuationMethod
 from portfolio.core.providers.base import Bar, MarketDataProvider, ProviderError
 
 BENCHMARK_TYPE = "benchmark"
 _LEAD_IN = timedelta(days=7)  # so the first transaction day has a price even after a holiday
 _NO_QUANTITY = 1e-12
+# Company results are fetched again once the newest stored period is older than this.
+_STATEMENTS_DUE = timedelta(days=100)
 
 
 @dataclass
@@ -20,6 +22,7 @@ class UpdateResult:
     updated: dict[str, int] = field(default_factory=dict)  # what -> number of days saved
     errors: dict[str, str] = field(default_factory=dict)  # what -> why it failed
     new_splits: list[str] = field(default_factory=list)  # tickers whose history was reloaded
+    fundamentals: list[str] = field(default_factory=list)  # tickers whose ratios were saved
 
     @property
     def ok(self) -> bool:
@@ -55,12 +58,15 @@ def update_market_data(
     *,
     benchmark: str | None = None,
     full: bool = False,
+    fundamentals: bool = True,
     today: date | None = None,
 ) -> UpdateResult:
     """Fetch what is new since the last update. Saves after every instrument and currency,
     so one failure does not lose the rest.
 
-    ``full`` downloads every history again from the first transaction on.
+    ``full`` downloads every history again from the first transaction on. ``fundamentals``
+    also saves today's valuation ratios of the shares held (once a day) and their reported
+    results when new ones are due.
     """
     today = today or date.today()
     result = UpdateResult()
@@ -97,7 +103,20 @@ def update_market_data(
         if reloaded:
             result.new_splits.append(instrument.ticker)
 
-    for currency in sorted(_currencies_in_use(data, benchmark_id) - {base_currency}):
+    if fundamentals:
+        for instrument in sorted(data.instruments.values(), key=lambda i: i.ticker):
+            if instrument.id == benchmark_id or not _needs_prices(data, instrument, today):
+                continue
+            try:
+                if _update_fundamentals(conn, provider, instrument, today):
+                    result.fundamentals.append(instrument.ticker)
+            except (ProviderError, sqlite3.Error) as e:
+                conn.rollback()
+                result.errors[f"fundamentals {instrument.ticker}"] = str(e)
+
+    for currency in sorted(
+        (_currencies_in_use(data, benchmark_id) | _reporting_currencies(conn)) - {base_currency}
+    ):
         label = f"{currency}/{base_currency}"
         series = data.fx.get(currency)
         start = portfolio_start if full or not series else series.dates[-1]
@@ -113,6 +132,58 @@ def update_market_data(
             continue
         result.updated[label] = len(bars)
     return result
+
+
+def _update_fundamentals(
+    conn: sqlite3.Connection, provider: MarketDataProvider, instrument: Instrument, today: date
+) -> bool:
+    """Today's ratios, at most once a day, and the reported results when new ones are due.
+    Returns whether there were ratios (False for funds and coins)."""
+    asked_today = conn.execute(
+        "SELECT 1 FROM fundamentals WHERE instrument_id = ? AND date = ?",
+        (instrument.id, today.isoformat()),
+    ).fetchone()
+    if asked_today:
+        return False
+    symbol = instrument.yahoo_symbol or instrument.ticker
+    ratios = provider.ratios(symbol)
+    if ratios is None:
+        with conn:  # remembered as "asked today, nothing there"
+            repo.save_snapshot(conn, Snapshot(instrument.id, today))
+        return False
+    newest = conn.execute(
+        "SELECT max(period_end) FROM statements WHERE instrument_id = ?", (instrument.id,)
+    ).fetchone()[0]
+    due = newest is None or date.fromisoformat(newest) < today - _STATEMENTS_DUE
+    currency, found = provider.statements(symbol) if due else (None, [])
+    with conn:
+        if found:
+            if currency not in repo.list_currencies(conn):
+                repo.add_currency(conn, currency)
+            repo.save_statements(
+                conn,
+                [
+                    Statement(instrument.id, s.period, s.period_end, currency, s.revenue,
+                              s.net_income, s.eps, s.equity, s.shares)
+                    for s in found
+                ],
+            )  # fmt: skip
+        repo.save_snapshot(
+            conn,
+            Snapshot(instrument.id, today, ratios.trailing_pe, ratios.forward_pe,
+                     ratios.price_to_book, ratios.price_to_sales, ratios.ev_to_ebitda,
+                     ratios.market_cap),
+        )  # fmt: skip
+    return True
+
+
+def _reporting_currencies(conn: sqlite3.Connection) -> set[str]:
+    """Currencies companies held report in: their results are converted with these rates."""
+    rows = conn.execute(
+        "SELECT DISTINCT s.currency FROM statements AS s "
+        "JOIN instruments AS i ON i.id = s.instrument_id WHERE i.active = 1"
+    )
+    return {row[0] for row in rows}
 
 
 def _needs_prices(data: PortfolioData, instrument: Instrument, today: date) -> bool:

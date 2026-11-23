@@ -147,3 +147,40 @@ class FxRate:
     from_currency: str
     to_currency: str
     close: float
+
+
+@dataclass(frozen=True)
+class Statement:
+    """A reported period of a company, in its reporting ``currency``."""
+
+    instrument_id: int
+    period: str  # "annual" or "quarterly"
+    period_end: date
+    currency: str
+    revenue: float | None = None
+    net_income: float | None = None
+    eps: float | None = None  # diluted, in today's share units
+    equity: float | None = None
+    shares: float | None = None
+
+
+@dataclass(frozen=True)
+class Snapshot:
+    """Valuation ratios as the price source reported them on ``date``."""
+
+    instrument_id: int
+    date: date
+    trailing_pe: float | None = None
+    forward_pe: float | None = None
+    price_to_book: float | None = None
+    price_to_sales: float | None = None
+    ev_to_ebitda: float | None = None
+    market_cap: float | None = None  # in the instrument's currency
+
+    @property
+    def empty(self) -> bool:
+        return all(
+            getattr(self, name) is None
+            for name in ("trailing_pe", "forward_pe", "price_to_book", "price_to_sales",
+                         "ev_to_ebitda", "market_cap")
+        )  # fmt: skip

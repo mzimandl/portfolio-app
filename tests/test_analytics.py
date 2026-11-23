@@ -9,8 +9,17 @@ from portfolio.core import repo
 from portfolio.core.analytics import checks, dividends, performance, taxes, timeseries
 from portfolio.core.analytics.allocation import allocation
 from portfolio.core.analytics.data import Series, load_data
+from portfolio.core.analytics.fundamentals import daily_ratios, share_units, summarize_ratios
 from portfolio.core.analytics.overview import lots, overview, sales, summarize
-from portfolio.core.models import FxRate, Instrument, Price, Transaction, Valuation
+from portfolio.core.models import (
+    FxRate,
+    Instrument,
+    Price,
+    Snapshot,
+    Statement,
+    Transaction,
+    Valuation,
+)
 from portfolio.core.models import TransactionKind as K
 from portfolio.core.models import ValuationMethod as V
 
@@ -965,3 +974,116 @@ def test_what_could_be_sold_exempt_today(book):
     assert (row.long_quantity, row.long_value, row.long_profit) == (10, 3000, 2000)
     assert (row.short_quantity, row.short_value, row.short_profit) == (6, 1800, 600)
     assert (row.next_exempt, row.next_quantity) == (date(2026, 6, 2), 5)
+
+
+def test_ratios_from_the_last_twelve_months_of_results(book):
+    stock = book.instrument("X")
+    book.prices(stock, {date(2024, 3, 1): 100, date(2024, 5, 15): 120, date(2024, 8, 15): 90})
+    rows = [
+        Statement(stock, "annual", date(2023, 12, 31), "CZK", revenue=400, eps=4, equity=200,
+                  shares=10),
+        # The four quarters up to June 2024 are newer than the year 2023.
+        Statement(stock, "quarterly", date(2023, 9, 30), "CZK", revenue=100, eps=1),
+        Statement(stock, "quarterly", date(2023, 12, 31), "CZK", revenue=100, eps=1),
+        Statement(stock, "quarterly", date(2024, 3, 31), "CZK", revenue=100, eps=1.5),
+        Statement(stock, "quarterly", date(2024, 6, 30), "CZK", revenue=150, eps=2.5,
+                  equity=300, shares=10),
+    ]  # fmt: skip
+    march, may, august = daily_ratios(book.load(), stock, rows)
+
+    # March: the quarters known are only three, so the year 2023 counts.
+    assert (march.pe, march.pb, march.ps) == pytest.approx((100 / 4, 100 / 20, 100 / 40))
+    # May: Q2 2023 is missing, so four quarters would span too long: still the year.
+    assert may.pe == pytest.approx(120 / 4)
+    # August: Q3 2023 to Q2 2024 add up to EPS 6 and revenue 450; equity 300 on 10 shares.
+    assert (august.pe, august.pb, august.ps) == pytest.approx((90 / 6, 90 / 30, 90 / 45))
+    assert august.dividend_yield is None  # less than a year of prices
+
+
+def test_ratios_convert_results_in_another_currency_and_skip_losses(book):
+    stock = book.instrument("NOVO", "EUR")
+    book.fx("EUR", {date(2023, 1, 2): 25})
+    book.fx("PLN", {date(2023, 1, 2): 5})  # 1 PLN = 0.2 EUR
+    repo.save_prices(
+        book.conn,
+        [
+            Price(stock, date(2023, 1, 2), close=10),
+            Price(stock, date(2023, 6, 1), close=10, dividend=0.3),
+            Price(stock, date(2024, 1, 2), close=12, dividend=0.2),
+        ],
+    )
+    rows = [
+        Statement(stock, "annual", date(2022, 12, 31), "PLN", eps=-1, equity=50, shares=10),
+        Statement(stock, "annual", date(2023, 12, 31), "PLN", eps=5, revenue=300, shares=10),
+    ]
+    first, _, last = daily_ratios(book.load(), stock, rows)
+    assert first.pe is None  # a loss gives no P/E
+    assert first.pb == pytest.approx(10 / (5 * 0.2))
+    assert last.pe == pytest.approx(12 / (5 * 0.2))
+    assert last.ps == pytest.approx(12 / (30 * 0.2))
+    assert last.pb == pytest.approx(12 / (5 * 0.2))  # the newest equity, from 2022
+    assert last.dividend_yield == pytest.approx(0.5 / 12)
+
+    # Without a rate for the reporting currency nothing can be worked out.
+    other = book.instrument("OTHER", "EUR")
+    book.prices(other, {date(2024, 1, 2): 12})
+    (point,) = daily_ratios(
+        book.load(), other, [Statement(other, "annual", date(2023, 12, 31), "SEK", eps=5)]
+    )
+    assert (point.pe, point.pb, point.ps) == (None, None, None)
+
+
+def test_old_results_stop_counting_and_the_summary(book):
+    stock = book.instrument("X")
+    book.prices(stock, {date(2024, 1, 2): 100, date(2024, 6, 1): 80, date(2025, 9, 1): 90})
+    rows = [Statement(stock, "annual", date(2023, 12, 31), "CZK", eps=5)]
+    points = daily_ratios(book.load(), stock, rows)
+    assert [p.pe for p in points] == [pytest.approx(20), pytest.approx(16), None]
+    assert daily_ratios(book.load(), stock, rows, start=date(2024, 3, 1), end=date(2024, 12, 31))[
+        0
+    ].date == date(2024, 6, 1)
+
+    summary = summarize_ratios(points)
+    assert (summary.pe, summary.pe_median, summary.since) == (
+        None,
+        pytest.approx(18),
+        points[0].date,
+    )
+    assert summarize_ratios([]).pe is None
+
+
+def test_missing_quarterly_eps_comes_from_net_income(book):
+    stock = book.instrument("X")
+    book.prices(stock, {date(2024, 8, 1): 100})
+    quarters = [
+        Statement(stock, "quarterly", date(2023, 9, 30), "CZK", eps=1, shares=10),
+        Statement(stock, "quarterly", date(2023, 12, 31), "CZK", net_income=20, shares=10),
+        Statement(stock, "quarterly", date(2024, 3, 31), "CZK", eps=1),
+        Statement(stock, "quarterly", date(2024, 6, 30), "CZK", net_income=10),
+    ]
+    (point,) = daily_ratios(book.load(), stock, quarters)
+    assert point.pe == pytest.approx(100 / (1 + 2 + 1 + 1))
+
+
+def test_a_receipt_for_a_quarter_of_a_share(book):
+    receipt = book.instrument("ADR", "USD")
+    book.fx("USD", {date(2024, 1, 2): 20})
+    book.prices(receipt, {date(2024, 6, 3): 25})
+    # 100 shares reported; 400 receipts trade, each a quarter of a share.
+    rows = [
+        Statement(receipt, "annual", date(2023, 12, 31), "USD", net_income=200, eps=2,
+                  equity=1000, revenue=4000, shares=100),
+    ]  # fmt: skip
+    snapshots = [Snapshot(receipt, date(2024, 6, 3), market_cap=25 * 400)]
+    data = book.load()
+    units = share_units(data, receipt, rows, snapshots)
+    assert units == pytest.approx(4)
+    (point,) = daily_ratios(data, receipt, rows, units=units)
+    assert (point.pe, point.pb, point.ps) == pytest.approx((25 / 0.5, 25 / 2.5, 25 / 10))
+    # A market value about matching the shares means one unit is one share.
+    assert (
+        share_units(data, receipt, rows, [Snapshot(receipt, date(2024, 6, 3), market_cap=2600)])
+        == 1
+    )
+    assert share_units(data, receipt, rows, [Snapshot(receipt, date(2024, 6, 3))]) == 1
+    assert share_units(data, receipt, [], snapshots) == 1

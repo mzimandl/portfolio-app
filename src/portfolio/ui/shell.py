@@ -18,7 +18,7 @@ def sidebar() -> None:
             f"Prices up to **{last_price or 'never'}**  \nRates up to **{last_fx or 'never'}**"
         )
         if st.button("Update prices", width="stretch"):
-            with st.spinner("Downloading prices and exchange rates…"):
+            with st.spinner("Downloading prices, exchange rates and company data…"):
                 st.session_state["update_result"] = update_market_data(
                     conn, common.provider(), cfg.base_currency, benchmark=cfg.benchmark
                 )
@@ -26,7 +26,14 @@ def sidebar() -> None:
         result = st.session_state.get("update_result")
         if result is not None:
             days = sum(result.updated.values())
-            st.success(f"{len(result.updated)} series updated, {days} days saved.")
+            st.success(
+                f"{len(result.updated)} series updated, {days} days saved."
+                + (
+                    f" Company data for {len(result.fundamentals)} shares."
+                    if result.fundamentals
+                    else ""
+                )
+            )
             for ticker in result.new_splits:
                 st.info(f"New split for {ticker}: its price history was downloaded again.")
             for what, why in result.errors.items():

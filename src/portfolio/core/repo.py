@@ -13,6 +13,8 @@ from portfolio.core.models import (
     FxRate,
     Instrument,
     Price,
+    Snapshot,
+    Statement,
     Transaction,
     TransactionKind,
     Valuation,
@@ -447,6 +449,59 @@ def unmark_finding_reviewed(conn: sqlite3.Connection, finding: FindingKey) -> No
         "WHERE check_name = ? AND instrument_id = ? AND date = ? AND key = ?",
         (check, instrument_id, day.isoformat() if day else "", key),
     )
+
+
+# --- company results and valuation ratios ---------------------------------------------------
+
+_STATEMENT_FIELDS = ("revenue", "net_income", "eps", "equity", "shares")
+_SNAPSHOT_FIELDS = (
+    "trailing_pe", "forward_pe", "price_to_book", "price_to_sales", "ev_to_ebitda", "market_cap",
+)  # fmt: skip
+
+
+def save_statements(conn: sqlite3.Connection, statements: Iterable[Statement]) -> None:
+    """Add periods; a period already stored is replaced (sources revise their numbers)."""
+    conn.executemany(
+        "INSERT OR REPLACE INTO statements (instrument_id, period, period_end, currency, "
+        + ", ".join(_STATEMENT_FIELDS) + ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        [
+            (s.instrument_id, s.period, s.period_end.isoformat(), s.currency,
+             *(getattr(s, name) for name in _STATEMENT_FIELDS))
+            for s in statements
+        ],
+    )  # fmt: skip
+
+
+def list_statements(conn: sqlite3.Connection, instrument_id: int | None = None) -> list[Statement]:
+    """Oldest period end first."""
+    where, params = ("WHERE instrument_id = ?", (instrument_id,)) if instrument_id else ("", ())
+    rows = conn.execute(
+        "SELECT instrument_id, period, period_end, currency, " + ", ".join(_STATEMENT_FIELDS)
+        + f" FROM statements {where} ORDER BY instrument_id, period_end, period",
+        params,
+    )  # fmt: skip
+    return [Statement(row[0], row[1], date.fromisoformat(row[2]), row[3], *row[4:]) for row in rows]
+
+
+def save_snapshot(conn: sqlite3.Connection, snapshot: Snapshot) -> None:
+    """One per instrument and day; a second one on the same day replaces the first."""
+    conn.execute(
+        "INSERT OR REPLACE INTO fundamentals (instrument_id, date, "
+        + ", ".join(_SNAPSHOT_FIELDS) + ") VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        (snapshot.instrument_id, snapshot.date.isoformat(),
+         *(getattr(snapshot, name) for name in _SNAPSHOT_FIELDS)),
+    )  # fmt: skip
+
+
+def list_snapshots(conn: sqlite3.Connection, instrument_id: int | None = None) -> list[Snapshot]:
+    """Oldest first."""
+    where, params = ("WHERE instrument_id = ?", (instrument_id,)) if instrument_id else ("", ())
+    rows = conn.execute(
+        "SELECT instrument_id, date, " + ", ".join(_SNAPSHOT_FIELDS)
+        + f" FROM fundamentals {where} ORDER BY instrument_id, date",
+        params,
+    )  # fmt: skip
+    return [Snapshot(row[0], date.fromisoformat(row[1]), *row[2:]) for row in rows]
 
 
 # --- FX rates -------------------------------------------------------------------------------

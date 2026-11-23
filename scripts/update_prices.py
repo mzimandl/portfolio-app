@@ -15,6 +15,9 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", type=Path, help="config file")
     parser.add_argument("--full", action="store_true", help="download every history again")
+    parser.add_argument(
+        "--no-fundamentals", action="store_true", help="skip valuation ratios and results"
+    )
     args = parser.parse_args()
 
     config = load_config(args.config)
@@ -22,11 +25,18 @@ def main() -> int:
     conn = db.connect(config.db_path)
     db.migrate(conn)
     result = update_market_data(
-        conn, YahooProvider(), config.base_currency, benchmark=config.benchmark, full=args.full
+        conn,
+        YahooProvider(),
+        config.base_currency,
+        benchmark=config.benchmark,
+        full=args.full,
+        fundamentals=not args.no_fundamentals,
     )
 
     days = sum(result.updated.values())
     print(f"Updated {len(result.updated)} series, {days} days saved.")
+    if result.fundamentals:
+        print(f"Valuation ratios saved for {len(result.fundamentals)} shares.")
     for ticker in result.new_splits:
         print(f"  New split for {ticker}: its whole price history was downloaded again.")
     for what, why in result.errors.items():
