@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal as D
 
 import pandas as pd
@@ -6,12 +6,13 @@ import pytest
 
 from portfolio.core import repo
 from portfolio.core.analytics.data import load_data
-from portfolio.core.models import FxRate, Instrument, Price, Transaction
+from portfolio.core.models import FxRate, Instrument, Price, Profile, Transaction
 from portfolio.core.models import TransactionKind as K
 from portfolio.core.models import ValuationMethod as V
-from portfolio.core.providers.base import Bar, ProviderError, Ratios, Statement
+from portfolio.core.providers.base import Bar, Company, ProviderError, Ratios, Statement
 from portfolio.core.providers.yahoo import (
     bars_from_frame,
+    company_from_info,
     cross_rates,
     fx_symbol,
     ratios_from_info,
@@ -36,6 +37,7 @@ class FakeProvider:
         self.calls: list[tuple[str, date]] = []
         self.ratio_data: dict[str, Ratios] = {}
         self.statement_data: dict[str, tuple[str, list[Statement]]] = {}
+        self.company_data: dict[str, Company] = {}
 
     def _serve(self, key: str, start: date) -> list[Bar]:
         self.calls.append((key, start))
@@ -63,6 +65,10 @@ class FakeProvider:
     def statements(self, symbol):
         self.calls.append((f"statements {symbol}", None))
         return self.statement_data.get(symbol, (None, []))
+
+    def company(self, symbol):
+        self.calls.append((f"company {symbol}", None))
+        return self.company_data.get(symbol)
 
     def asked(self, key: str) -> list[date]:
         return [start for asked_key, start in self.calls if asked_key == key]
@@ -138,7 +144,10 @@ def test_first_update_downloads_from_a_week_before_the_first_transaction(conn, p
     assert provider.asked("USD/CZK") == [date(2024, 2, 23)]  # from the portfolio's first day
     asked_for = {key for key, _ in provider.calls}
     # Nothing for the others; ratios only for what is held and priced by Yahoo.
-    assert asked_for == {"AAPL", "BTC-EUR", "USD/CZK", "EUR/CZK", "ratios AAPL", "ratios BTC-EUR"}
+    assert asked_for == {
+        "AAPL", "BTC-EUR", "USD/CZK", "EUR/CZK", "ratios AAPL", "ratios BTC-EUR",
+        "company AAPL", "company BTC-EUR",
+    }  # fmt: skip
     first, second = repo.list_prices(conn, portfolio["AAPL"])
     assert (first.close, first.open, first.high, first.low) == (100.0, 99.0, 101.0, 98.0)
     assert second.close == 104.0
@@ -367,6 +376,11 @@ def test_ratios_and_statements_from_yfinance_tables():
     assert ratios_from_info({"quoteType": "ETF", "trailingPE": 20}) is None
     ratios = ratios_from_info({"quoteType": "EQUITY", "trailingPE": 20.5, "forwardPE": "x"})
     assert (ratios.trailing_pe, ratios.forward_pe, ratios.market_cap) == (20.5, None, None)
+    assert company_from_info(
+        {"quoteType": "EQUITY", "sector": "Utilities", "country": "Czech Republic"}
+    ) == Company("Utilities", "Czech Republic")
+    assert company_from_info({"quoteType": "ETF", "sector": "x"}) is None
+    assert company_from_info({"quoteType": "EQUITY", "sector": ""}) is None
 
     ends = pd.to_datetime(["2025-12-31", "2024-12-31", "2023-12-31"])
     income = pd.DataFrame(
@@ -501,3 +515,76 @@ def test_yfinance_does_not_print_its_own_failures():
     import portfolio.core.providers.yahoo  # noqa: F401
 
     assert logging.getLogger("yfinance").getEffectiveLevel() == logging.CRITICAL
+
+
+class FakeOfficial:
+    def __init__(self):
+        self.years: list[int] = []
+        self.regions: list[str] = []
+        self.months = [(date(2023, 12, 1), 150.0), (date(2024, 1, 1), 151.0)]
+
+    def cnb_year(self, year):
+        self.years.append(year)
+        last = TODAY if year == TODAY.year else date(year, 12, 30)
+        return [("USD", date(year, 1, 2), 22.0), ("USD", last, 23.0)]
+
+    def hicp(self, region):
+        self.regions.append(region)
+        return self.months
+
+
+def test_cnb_rates_each_year_once_and_this_year_until_today(conn, provider, portfolio):
+    official = FakeOfficial()
+    # The portfolio starts in 2024; an older purchase makes 2023 needed too.
+    repo.add_transaction(
+        conn,
+        Transaction(date(2023, 5, 1), portfolio["AAPL"], K.BUY, quantity=D(1), price=D(90),
+                    currency="USD", fx_rate=D(22)),
+    )  # fmt: skip
+    conn.commit()
+    result = run(conn, provider, official=official)
+    assert official.years == [2023, 2024]
+    assert result.updated["ČNB rates 2023"] == 2
+    assert repo.list_official_rates(conn)["USD"][-1] == (TODAY, 23.0)
+    run(conn, provider, official=official)  # 2023 is complete, 2024 has today's rate
+    assert official.years == [2023, 2024]
+    update_market_data(conn, provider, "CZK", official=official, today=date(2024, 3, 11))
+    assert official.years == [2023, 2024, 2024]
+    # Not for another base currency.
+    update_market_data(conn, provider, "EUR", official=FakeOfficial(), today=TODAY)
+    assert official.years == [2023, 2024, 2024]
+
+
+def test_inflation_until_last_months_index_is_out(conn, provider, portfolio):
+    official = FakeOfficial()
+    result = run(conn, provider, official=official, inflation_region="CZ")
+    assert result.updated["inflation CZ"] == 2
+    assert repo.list_inflation(conn, "CZ")[-1] == (date(2024, 1, 1), 151.0)
+    run(conn, provider, official=official, inflation_region="CZ")  # February still missing
+    assert official.regions == ["CZ", "CZ"]
+    official.months = [*official.months, (date(2024, 2, 1), 152.0)]
+    run(conn, provider, official=official, inflation_region="CZ")
+    run(conn, provider, official=official, inflation_region="CZ")  # February is there now
+    assert official.regions == ["CZ", "CZ", "CZ"]
+
+
+def test_sector_and_country_from_the_source_unless_entered_by_hand(conn, provider, portfolio):
+    provider.company_data["AAPL"] = Company("Technology", "United States")
+    run(conn, provider)
+    profiles = repo.list_profiles(conn)
+    aapl = profiles[portfolio["AAPL"]]
+    assert (aapl.sector, aapl.country, aapl.fetched, aapl.manual) == (
+        "Technology", "United States", TODAY, False,
+    )  # fmt: skip
+    btc = profiles[portfolio["BTC"]]  # a coin: asked, nothing there
+    assert (btc.sector, btc.country) == (None, None)
+    assert portfolio["SOLD"] not in profiles  # not held
+
+    update_market_data(conn, provider, "CZK", today=TODAY + timedelta(days=100))
+    assert len(provider.asked("company AAPL")) == 1  # asked again only after half a year
+    with conn:
+        repo.save_profile(conn, Profile(portfolio["BTC"], "Crypto", "World", TODAY, manual=True))
+    update_market_data(conn, provider, "CZK", today=TODAY + timedelta(days=200))
+    assert len(provider.asked("company AAPL")) == 2
+    assert provider.asked("company BTC-EUR") == [None]  # entered by hand: kept
+    assert repo.list_profiles(conn)[portfolio["BTC"]].sector == "Crypto"

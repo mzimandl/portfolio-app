@@ -112,6 +112,22 @@ SECTIONS: dict[str, list[Term]] = {
             "Performance",
         ),
         Term(
+            "Inflation",
+            "How much consumer prices rose in the period, by Eurostat's harmonised index of "
+            "the country set in the config file (CZ by default).",
+            "The index comes out about two weeks after each month; until then prices count "
+            "as unchanged since the last month published, and the page says so.",
+            "Performance",
+        ),
+        Term(
+            "Return after inflation (real return)",
+            "What a return is worth in today's prices: (1 + return) / (1 + inflation) − 1. "
+            "10 % with 4 % inflation is 5.8 %.",
+            "This is what you can buy more than before. Close to zero: the money only kept "
+            "its value, which is common for savings accounts.",
+            "Performance",
+        ),
+        Term(
             "Benchmark return",
             "What holding the benchmark (an index fund, set in the config file) for the "
             "whole period would have returned, dividends reinvested.",
@@ -238,6 +254,14 @@ SECTIONS: dict[str, list[Term]] = {
             "Overview",
         ),
         Term(
+            "Sector, country",
+            "What a company does (Technology, Utilities, …) and where it is based, as Yahoo "
+            "says. The Overview adds up the value by both.",
+            "Funds and coins have none of their own and are shown by type in brackets; set "
+            "theirs in Settings. A world fund's own spread is not looked into.",
+            "Overview, Settings",
+        ),
+        Term(
             "Target, to be on target, buy now",
             "Target: the share you want a type to have (set in Settings). To be on target: "
             "what to buy (negative: how much too many). Buy now: how to split the new money "
@@ -267,6 +291,24 @@ SECTIONS: dict[str, list[Term]] = {
             "The profit on units held shorter, in a year over the limit.",
             "A starting point, not a tax return: fees are not deducted, the rates are the "
             "ones you entered, and the same rules are applied to every year.",
+            "Taxes",
+        ),
+    ],
+    "Exchange rates for taxes": [
+        Term(
+            "ČNB rate",
+            "The exchange rate the Czech National Bank publishes each working day. A Czech "
+            "tax return converts foreign money with it.",
+            "For a weekend or holiday the last rate published before it applies.",
+            "Taxes",
+        ),
+        Term(
+            "Unified rate (jednotný kurz)",
+            "One rate per currency for a whole year: the average of the ČNB rates valid on "
+            "the last day of each month, as the Financial Administration publishes it.",
+            "You use either the daily rates or the unified ones for the whole year. A "
+            "purchase from an earlier year counts at that year's unified rate. Known only "
+            "once the year is over.",
             "Taxes",
         ),
     ],

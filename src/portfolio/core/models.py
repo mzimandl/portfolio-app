@@ -185,3 +185,14 @@ class Snapshot:
             for name in ("trailing_pe", "forward_pe", "price_to_book", "price_to_sales",
                          "ev_to_ebitda", "market_cap")
         )  # fmt: skip
+
+
+@dataclass(frozen=True)
+class Profile:
+    """What a company does and where it is based. ``manual``: entered by hand, kept."""
+
+    instrument_id: int
+    sector: str | None
+    country: str | None
+    fetched: date
+    manual: bool = False

@@ -23,6 +23,8 @@ class Lot:
     cost: float
     cost_base: float  # what was really paid, in base currency
     staking: bool = False
+    paid: float = 0.0  # what was really paid for the remaining units, in `currency`
+    currency: str | None = None  # of the payment; None: base currency
 
 
 @dataclass(frozen=True)
@@ -33,6 +35,8 @@ class SalePart:
     quantity: float
     cost: float  # in base currency
     staking: bool = False
+    paid: float = 0.0  # what was paid for these units, in `currency`
+    currency: str | None = None  # of that payment; None: base currency
 
 
 @dataclass(frozen=True)
@@ -45,6 +49,8 @@ class Sale:
     cost: float  # what the units had cost
     held_days: float  # how long they were held, averaged over the units
     parts: tuple[SalePart, ...] = ()  # which purchases the units came from, oldest first
+    cash: float = 0.0  # what was received, in `currency`
+    currency: str | None = None  # of the payment received; None: base currency
 
     @property
     def profit(self) -> float:
@@ -83,7 +89,14 @@ class Position:
         """Units still held that were bought."""
         return sum(lot.quantity for lot in self.lots if not lot.staking)
 
-    def _sell(self, day: date, quantity: float, proceeds: float) -> None:
+    def _sell(
+        self,
+        day: date,
+        quantity: float,
+        proceeds: float,
+        cash: float = 0.0,
+        currency: str | None = None,
+    ) -> None:
         """Use up the oldest lots and book the difference to the realised profit."""
         cost = 0.0
         unit_days = 0.0
@@ -96,15 +109,22 @@ class Position:
                 cost += lot.cost_base
                 unit_days += lot.quantity * age
                 remaining -= lot.quantity
-                parts.append(SalePart(lot.date, lot.quantity, lot.cost_base, lot.staking))
+                parts.append(
+                    SalePart(lot.date, lot.quantity, lot.cost_base, lot.staking, lot.paid,
+                             lot.currency)
+                )  # fmt: skip
                 self.lots.pop(0)
                 continue
             share = remaining / lot.quantity
             cost += lot.cost_base * share
             unit_days += remaining * age
-            parts.append(SalePart(lot.date, remaining, lot.cost_base * share, lot.staking))
+            parts.append(
+                SalePart(lot.date, remaining, lot.cost_base * share, lot.staking,
+                         lot.paid * share, lot.currency)
+            )  # fmt: skip
             lot.cost -= lot.cost * share
             lot.cost_base -= lot.cost_base * share
+            lot.paid -= lot.paid * share
             lot.quantity -= remaining
             remaining = 0.0
         # Selling more than is held has no cost to set against it.
@@ -113,7 +133,9 @@ class Position:
         held_days = unit_days / covered if covered > _NO_QUANTITY else 0.0
         if remaining > _NO_QUANTITY:
             parts.append(SalePart(None, remaining, 0.0))
-        self.sales.append(Sale(day, quantity, proceeds, cost, held_days, tuple(parts)))
+        self.sales.append(
+            Sale(day, quantity, proceeds, cost, held_days, tuple(parts), cash, currency)
+        )
 
     def _take_back_staking(self, day: date, quantity: float) -> None:
         """Remove staking units, oldest first. They cost nothing, so no loss is realised."""
@@ -161,12 +183,14 @@ def apply(
         local = _to_instrument_currency(cash, base, event, instrument, data)
         if kind is K.BUY:
             position.quantity += event.quantity
-            position.lots.append(Lot(event.date, event.quantity, local, base))
+            position.lots.append(
+                Lot(event.date, event.quantity, local, base, paid=cash, currency=event.currency)
+            )
             position.invested += base
             position._add_cash(event.date, local)
             return base + event.fee, 0.0
         position.quantity -= event.quantity
-        position._sell(event.date, event.quantity, base)
+        position._sell(event.date, event.quantity, base, cash, event.currency)
         position.returned += base
         position._add_cash(event.date, -local)
         return event.fee, base

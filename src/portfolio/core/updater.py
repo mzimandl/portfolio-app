@@ -7,9 +7,18 @@ from datetime import date, timedelta
 from portfolio.core import repo
 from portfolio.core.analytics.data import PortfolioData, load_data
 from portfolio.core.analytics.positions import position_at
-from portfolio.core.models import FxRate, Instrument, Price, Snapshot, Statement, ValuationMethod
+from portfolio.core.models import (
+    FxRate,
+    Instrument,
+    Price,
+    Profile,
+    Snapshot,
+    Statement,
+    ValuationMethod,
+)
 from portfolio.core.providers.base import Bar, MarketDataProvider, ProviderError
 from portfolio.core.providers.base import Statement as Reported
+from portfolio.core.providers.official import OfficialProvider
 from portfolio.core.providers.sec import SecProvider
 
 BENCHMARK_TYPE = "benchmark"
@@ -19,6 +28,10 @@ _NO_QUANTITY = 1e-12
 _STATEMENTS_DUE = timedelta(days=100)
 # The same for SEC filings, which come later: a 10-K up to 90 days after the year ends.
 _SEC_DUE = timedelta(days=150)
+# Sector and country rarely change: asked again after this long.
+_PROFILE_DUE = timedelta(days=180)
+# The ČNB rates of a past year are complete once a day this late in December is stored.
+_LAST_DECEMBER_DAY = 20
 
 
 @dataclass
@@ -66,6 +79,8 @@ def update_market_data(
     fundamentals: bool = True,
     sec: SecProvider | None = None,
     sec_tickers: dict[str, str] | None = None,
+    official: OfficialProvider | None = None,
+    inflation_region: str | None = None,
     today: date | None = None,
 ) -> UpdateResult:
     """Fetch what is new since the last update. Saves after every instrument and currency,
@@ -75,7 +90,9 @@ def update_market_data(
     also saves today's valuation ratios of the shares held (once a day) and their reported
     results when new ones are due. With ``sec`` the results of US companies also come from
     SEC EDGAR, which reaches back much further; ``sec_tickers`` names their ticker there
-    where it differs from the instrument's.
+    where it differs from the instrument's. With ``official`` the exchange rates of the
+    Czech National Bank are saved too (when the base currency is CZK), and the consumer price
+    index of ``inflation_region`` from Eurostat.
     """
     today = today or date.today()
     result = UpdateResult()
@@ -116,6 +133,11 @@ def update_market_data(
         for instrument in sorted(data.instruments.values(), key=lambda i: i.ticker):
             if instrument.id == benchmark_id or not _needs_prices(data, instrument, today):
                 continue
+            try:
+                _update_profile(conn, provider, instrument, today)
+            except (ProviderError, sqlite3.Error) as e:
+                conn.rollback()
+                result.errors[f"sector and country {instrument.ticker}"] = str(e)
             if _asked_today(conn, instrument.id, today):
                 continue
             try:
@@ -160,7 +182,84 @@ def update_market_data(
             result.errors[label] = str(e)
             continue
         result.updated[label] = len(bars)
+
+    if official is not None:
+        if base_currency == "CZK":
+            _update_cnb(conn, official, min(first_dates).year, today, result)
+        if inflation_region:
+            _update_inflation(conn, official, inflation_region, today, result)
     return result
+
+
+def _update_cnb(
+    conn: sqlite3.Connection,
+    official: OfficialProvider,
+    first_year: int,
+    today: date,
+    result: UpdateResult,
+) -> None:
+    """The ČNB rates of every year since the first transaction. A past year is fetched once;
+    the current one on every update until today's rates are stored."""
+    stored = repo.official_rate_years(conn)
+    for year in range(first_year, today.year + 1):
+        last = stored.get(year)
+        if last is not None and (
+            last >= today or (year < today.year and last >= date(year, 12, _LAST_DECEMBER_DAY))
+        ):
+            continue
+        try:
+            rates = official.cnb_year(year)
+            with conn:
+                repo.save_official_rates(conn, rates)
+        except (ProviderError, sqlite3.Error) as e:
+            conn.rollback()
+            result.errors[f"ČNB rates {year}"] = str(e)
+            continue
+        result.updated[f"ČNB rates {year}"] = len({day for _, day, _ in rates})
+
+
+def _update_inflation(
+    conn: sqlite3.Connection,
+    official: OfficialProvider,
+    region: str,
+    today: date,
+    result: UpdateResult,
+) -> None:
+    """The whole monthly index again (it is small, and revised), until last month's is out."""
+    stored = repo.list_inflation(conn, region)
+    last_month = (today.replace(day=1) - timedelta(days=1)).replace(day=1)
+    if stored and stored[-1][0] >= last_month:
+        return
+    label = f"inflation {region}"
+    try:
+        months = official.hicp(region)
+        with conn:
+            repo.save_inflation(conn, region, months)
+    except (ProviderError, sqlite3.Error) as e:
+        conn.rollback()
+        result.errors[label] = str(e)
+        return
+    result.updated[label] = len(months) - len(stored)
+
+
+def _update_profile(
+    conn: sqlite3.Connection, provider: MarketDataProvider, instrument: Instrument, today: date
+) -> None:
+    """Sector and country from the source, unless entered by hand or asked recently."""
+    existing = repo.list_profiles(conn).get(instrument.id)
+    if existing is not None and (existing.manual or existing.fetched > today - _PROFILE_DUE):
+        return
+    company = provider.company(instrument.yahoo_symbol or instrument.ticker)
+    with conn:  # also saved when empty: "asked, nothing there"
+        repo.save_profile(
+            conn,
+            Profile(
+                instrument.id,
+                company.sector if company else None,
+                company.country if company else None,
+                today,
+            ),
+        )
 
 
 def _update_fundamentals(

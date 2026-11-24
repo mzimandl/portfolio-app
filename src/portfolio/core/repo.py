@@ -13,6 +13,7 @@ from portfolio.core.models import (
     FxRate,
     Instrument,
     Price,
+    Profile,
     Snapshot,
     Statement,
     Transaction,
@@ -570,3 +571,71 @@ def _require_id(record_id: int | None, what: str) -> None:
 def _require_found(cursor: sqlite3.Cursor, what: str, key: object) -> None:
     if cursor.rowcount == 0:
         raise NotFoundError(f"No {what} with id {key}")
+
+
+# --- official exchange rates, company profiles, inflation -----------------------------------
+
+
+def save_official_rates(conn: sqlite3.Connection, rates: Iterable[tuple[str, date, float]]) -> None:
+    """(currency, day, base currency per 1 unit); a day already stored is replaced."""
+    conn.executemany(
+        "INSERT OR REPLACE INTO official_rates (currency, date, rate) VALUES (?, ?, ?)",
+        [(currency, day.isoformat(), rate) for currency, day, rate in rates],
+    )
+
+
+def list_official_rates(conn: sqlite3.Connection) -> dict[str, list[tuple[date, float]]]:
+    """Per currency, oldest first."""
+    found: dict[str, list[tuple[date, float]]] = {}
+    for currency, day, rate in conn.execute(
+        "SELECT currency, date, rate FROM official_rates ORDER BY currency, date"
+    ):
+        found.setdefault(currency, []).append((date.fromisoformat(day), rate))
+    return found
+
+
+def official_rate_years(conn: sqlite3.Connection) -> dict[int, date]:
+    """The last day stored for each year."""
+    rows = conn.execute(
+        "SELECT substr(date, 1, 4), max(date) FROM official_rates GROUP BY substr(date, 1, 4)"
+    )
+    return {int(year): date.fromisoformat(last) for year, last in rows}
+
+
+def save_profile(conn: sqlite3.Connection, profile: Profile) -> None:
+    conn.execute(
+        "INSERT OR REPLACE INTO profiles (instrument_id, sector, country, fetched, manual) "
+        "VALUES (?, ?, ?, ?, ?)",
+        (profile.instrument_id, profile.sector, profile.country, profile.fetched.isoformat(),
+         int(profile.manual)),
+    )  # fmt: skip
+
+
+def delete_profile(conn: sqlite3.Connection, instrument_id: int) -> None:
+    conn.execute("DELETE FROM profiles WHERE instrument_id = ?", (instrument_id,))
+
+
+def list_profiles(conn: sqlite3.Connection) -> dict[int, Profile]:
+    rows = conn.execute("SELECT instrument_id, sector, country, fetched, manual FROM profiles")
+    return {
+        row[0]: Profile(row[0], row[1], row[2], date.fromisoformat(row[3]), bool(row[4]))
+        for row in rows
+    }
+
+
+def save_inflation(
+    conn: sqlite3.Connection, region: str, months: Iterable[tuple[date, float]]
+) -> None:
+    """Index values by month (the month's first day); a month already stored is replaced."""
+    conn.executemany(
+        "INSERT OR REPLACE INTO inflation (region, month, value) VALUES (?, ?, ?)",
+        [(region, month.isoformat(), value) for month, value in months],
+    )
+
+
+def list_inflation(conn: sqlite3.Connection, region: str) -> list[tuple[date, float]]:
+    """Oldest month first."""
+    rows = conn.execute(
+        "SELECT month, value FROM inflation WHERE region = ? ORDER BY month", (region,)
+    )
+    return [(date.fromisoformat(month), value) for month, value in rows]

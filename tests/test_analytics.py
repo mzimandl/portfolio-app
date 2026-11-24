@@ -969,6 +969,55 @@ def test_dividends_and_staking_for_tax(book):
     assert taxes.dividends(data, ids, 2023) == taxes.staking(data, ids, 2023) == []
 
 
+def test_unified_rate_is_the_average_of_the_month_ends(book):
+    # A rate of 20 + month on the last working day of each month of 2023; 31 December 2023
+    # is a Sunday, so the rate of Friday the 29th is the one valid that day.
+    points = [(date(2023, 1, 2), 20.0)] + [
+        (date(2023, m, 28) if m != 12 else date(2023, 12, 29), 20.0 + m) for m in range(1, 13)
+    ]
+    official = taxes.OfficialRates({"EUR": points}, today=date(2024, 3, 1))
+    # (21 + 22 + ... + 32) / 12 = 26.5
+    assert official.unified("EUR", 2023) == pytest.approx(26.5)
+    assert official.daily("EUR", date(2023, 12, 31)) == 32.0  # the Friday's
+    assert official.unified("EUR", 2024) is None  # not over yet
+    assert official.unified("USD", 2023) is None
+    assert (
+        taxes.OfficialRates({"EUR": points}, today=date(2023, 12, 31)).unified("EUR", 2023) is None
+    )
+
+
+def test_sales_and_dividends_for_tax_at_official_rates(book):
+    stock = book.instrument("X", currency="EUR")
+    local = book.instrument("L")  # paid in CZK: no rate needed
+    book.fx("EUR", {date(2023, 1, 2): 25})
+    book.buy(stock, date(2023, 3, 1), 10, 100, currency="EUR", fx_rate=25)
+    book.sell(stock, date(2024, 6, 3), 4, 150, currency="EUR", fx_rate=26)
+    book.tx(stock, date(2024, 7, 1), K.DIVIDEND, amount=17, currency="EUR", fx_rate=26, tax=3)
+    book.tx(local, date(2024, 8, 1), K.DIVIDEND, amount=10, currency="USD", fx_rate=22)
+    book.buy(local, date(2024, 1, 2), 1, 1000)
+    book.sell(local, date(2024, 2, 1), 1, 1200)
+    data, ids = book.load(), [stock, local]
+    official = taxes.OfficialRates(
+        {"EUR": [(date(2023, 3, 1), 24.0), (date(2024, 6, 3), 25.0)]}, today=date(2025, 1, 1)
+    )
+    rules = taxes.TaxRules()
+
+    recorded = taxes.sales(data, ids, 2024, rules)
+    assert [(p.proceeds, p.cost) for p in recorded] == [(1200, 1000), (15600, 10000)]
+    at_cnb = taxes.sales(data, ids, 2024, rules, official.by_day())
+    # Proceeds 4 x 150 = 600 EUR at 25; cost 4 x 100 = 400 EUR at 24 on the day of purchase.
+    assert [(p.proceeds, p.cost, p.estimated) for p in at_cnb] == [
+        (1200, 1000, False), (15000, 9600, False),
+    ]  # fmt: skip
+
+    eur, usd = sorted(taxes.dividends(data, ids, 2024, official.by_day()), key=lambda d: d.currency)
+    assert (eur.ticker, usd.ticker) == ("X", "L")
+    # 17 EUR received and 3 withheld at 25 (the rate of 3 June is still valid on 1 July).
+    assert (eur.net, eur.tax, eur.estimated) == (425, 75, False)
+    # ČNB has no USD here: the recorded 22 is used, and the row says so.
+    assert (usd.net, usd.estimated) == (220, True)
+
+
 def test_what_could_be_sold_exempt_today(book):
     stock = book.instrument("X")
     book.prices(stock, {date(2024, 12, 31): 300})
@@ -1106,3 +1155,31 @@ def test_sec_results_are_preferred_when_there_are_any():
     assert preferred([yahoo, old_sec]) == [yahoo]
     assert preferred([yahoo, sec]) == [yahoo]
     assert preferred([old_sec]) == [old_sec]
+
+
+def test_inflation_runs_from_last_months_index_to_this_months():
+    from portfolio.core.analytics.inflation import inflation, real, yearly
+
+    index = Series([(date(2023, 12, 1), 100.0)] + [(date(2024, m, 1), 100.0 + m) for m in
+                                                   range(1, 11)])  # fmt: skip
+    # The year 2024 starts at December 2023's value. Up to 31 October: 110 / 100.
+    found = inflation(index, date(2024, 1, 1), date(2024, 10, 31))
+    assert (found.change, found.complete) == (pytest.approx(0.10), True)
+    # Up to 24 November: October is the last month that has ended, and it is published.
+    assert inflation(index, date(2024, 1, 1), date(2024, 11, 24)).complete
+    # To the end of the year: November and December are not published yet.
+    late = inflation(index, date(2024, 1, 1), date(2024, 12, 31))
+    assert (late.change, late.complete, late.known_until) == (
+        pytest.approx(0.10), False, date(2024, 10, 1),
+    )  # fmt: skip
+    # From mid-March: the level at the end of February, 102.
+    assert inflation(index, date(2024, 3, 15), date(2024, 10, 31)).change == pytest.approx(
+        110 / 102 - 1
+    )
+    assert inflation(index, date(2023, 6, 1), date(2024, 1, 31)) is None  # before the index
+    assert inflation(Series(), date(2024, 1, 1), date(2024, 2, 1)) is None
+    # 10 % return with 4 % inflation: 1.10 / 1.04 - 1.
+    assert real(0.10, 0.04) == pytest.approx(0.0576923)
+    assert real(None, 0.04) is None
+    # 21 % over two years is 10 % a year.
+    assert yearly(0.21, date(2023, 1, 1), date(2024, 12, 31)) == pytest.approx(0.10, abs=1e-3)

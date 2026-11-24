@@ -6,6 +6,8 @@ import pandas as pd
 import streamlit as st
 
 from portfolio.core.analytics import performance
+from portfolio.core.analytics.inflation import inflation, real
+from portfolio.core.analytics.inflation import yearly as yearly_inflation
 from portfolio.ui import common
 
 _PERCENT = "percent"
@@ -72,6 +74,44 @@ def _drawdown(days, start: date, today: date) -> None:
         st.caption(
             f"The deepest drop ran from {result.peak} to {result.trough} "
             f"({(result.trough - result.peak).days} days); {after}."
+        )
+
+
+def _after_inflation(
+    loaded: common.Loaded, twr: float | None, yearly_rate: float | None, start: date
+) -> None:
+    region = common.config().inflation_region
+    if not region:
+        return
+    found = inflation(loaded.inflation, start, loaded.today)
+    if found is None:
+        if not loaded.inflation:
+            st.caption(f"No inflation figures for {region} yet. Use Update prices.")
+        return
+    cells = st.columns(3)
+    cells[0].metric(
+        "Return after inflation",
+        common.percent(real(twr, found.change)),
+        help="The time-weighted return in today's prices: what it bought more than at the start.",
+    )
+    cells[1].metric(
+        "Yearly return after inflation",
+        common.percent(
+            real(yearly_rate, yearly_inflation(found.change, start, loaded.today))
+            if yearly_rate is not None
+            else None
+        ),
+        help="The yearly return on your money minus the yearly inflation of the period.",
+    )
+    cells[2].metric(
+        f"Inflation ({region})",
+        common.percent(found.change),
+        help="How much consumer prices rose in the period (Eurostat's harmonised index).",
+    )
+    if not found.complete:
+        st.caption(
+            f"Inflation is published up to {found.known_until:%m/%Y}; prices are taken as "
+            "unchanged since then."
         )
 
 
@@ -149,6 +189,7 @@ def render() -> None:
         "The yearly return on your money (XIRR) takes the timing of your payments into "
         "account. Both include dividends and are after fees."
     )
+    _after_inflation(loaded, twr, yearly_rate, start)
     _drawdown(days, start, today)
     if benchmark_id is not None:
         _benchmark(data, benchmark_id, days, start, today)
@@ -158,6 +199,7 @@ def render() -> None:
     for row in performance.yearly(days):
         year_start = max(date(row.year, 1, 1), days[0].date)
         year_end = min(date(row.year, 12, 31), today)
+        prices_rose = inflation(loaded.inflation, year_start, year_end)
         year_rows.append(
             {
                 "Year": str(row.year),
@@ -167,6 +209,8 @@ def render() -> None:
                 "End value": round(row.end_value),
                 "Net profit": round(row.profit),
                 "Return": row.twr,
+                "Inflation": prices_rose.change if prices_rose else None,
+                "After inflation": real(row.twr, prices_rose.change if prices_rose else None),
                 "Benchmark": performance.holding_return(data, benchmark_id, year_start, year_end)
                 if benchmark_id is not None
                 else None,
@@ -175,9 +219,14 @@ def render() -> None:
     year_config = {
         name: st.column_config.NumberColumn(format="localized")
         for name in ("Start value", "Put in", "Taken out", "End value", "Net profit")
-    } | {name: st.column_config.NumberColumn(format=_PERCENT) for name in ("Return", "Benchmark")}
+    } | {
+        name: st.column_config.NumberColumn(format=_PERCENT)
+        for name in ("Return", "Inflation", "After inflation", "Benchmark")
+    }
     if benchmark_id is None:
         year_config["Benchmark"] = None
+    if not loaded.inflation:
+        year_config["Inflation"] = year_config["After inflation"] = None
     st.dataframe(year_rows, column_config=year_config, hide_index=True)
     _by_month(days)
 

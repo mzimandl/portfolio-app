@@ -42,6 +42,7 @@ environment variable.
 | `tax_crypto_types` | Optional. Instrument types for which that limit is counted apart from the securities. Default `["crypto"]`. |
 | `sec_user_agent` | Optional. Turns on results from SEC EDGAR for US companies. The SEC requires a name and an e-mail here, e.g. `"Jan Novak jan@example.org"`; it is sent only to sec.gov. |
 | `sec_tickers` | Optional table: the SEC ticker of an instrument whose own ticker differs, e.g. `"BRYN.DE" = "BRK-B"`; `""` leaves an instrument out. |
+| `inflation_region` | Optional. Eurostat's code of the country whose consumer prices measure inflation, e.g. `"CZ"`. Default: the one of the base currency (`CZK` → `CZ`, `EUR` → `EA`); `""` switches it off. |
 | `separate_types` | Optional list of instrument types reported apart from the investments, e.g. `["savings"]`. They get their own totals on the Overview and are left out of the default view of returns and charts. |
 
 ## Using it
@@ -113,7 +114,9 @@ split into price and exchange rate are the same whatever you paid with.
 | Return (time-weighted) | How the investments did, regardless of when money was added. Not annualised. On the day of a trade the holding is first valued at the trade's price, so new money earns only from the price it was invested at. |
 | Yearly return on your money | XIRR: the yearly rate earned given when each payment was made. |
 | Deepest drop | The largest fall of the time-weighted return from a high. Measured on the return, so new money does not hide it. |
-| Share | An instrument's, type's or currency's part of the value of all investments. |
+| Return after inflation | (1 + return) / (1 + inflation) − 1, for the time-weighted return and, with the inflation per year, for the yearly return on your money. |
+| Inflation | How much the consumer price index rose in the period. A month's index is taken as the level at its end, so a year runs from last December to this December. Months not yet published count as unchanged. |
+| Share | An instrument's, type's, currency's, sector's or country's part of the value of all investments. Funds and coins without a sector or country are grouped by their type. |
 | To be on target | Target share × value of all investments − value of the type. |
 | Buy now | The new money split between the types that would still be below their target after it is added, in proportion to how far below. Nothing is sold. |
 
@@ -122,8 +125,13 @@ units held longer than `tax_holding_years` is exempt, and all sales of a year ar
 their proceeds do not exceed `tax_proceeds_limit`, counted apart for securities and crypto.
 "Profit not exempt" is the profit on units held shorter in a year over the limit; fees are not
 deducted. The same rules are applied to every year, also to years when the law was different.
-Amounts use the exchange rates you entered, which may not be the ones a tax office expects.
-It is an overview to work from, not tax advice.
+With base currency CZK and the ČNB rates downloaded, the amounts are converted with the rates
+of the Czech National Bank: either the rate of each payment's day (the last one published on
+or before it), or the yearly unified rate, the average of the rates valid on the last day of
+each month, which is how the GFŘ sets it (2023: EUR 23.97, USD 22.14). Proceeds use the day
+or year of the sale, the cost the day or year of the purchase. A payment in a currency or
+year without a ČNB rate keeps the rate you entered and is pointed out. "As recorded" uses the
+rates you entered. It is an overview to work from, not tax advice.
 
 **Benchmark.** With `benchmark` set, Performance compares in two ways. Its return is that of
 holding it for the whole period with dividends reinvested, comparable with the time-weighted
@@ -178,6 +186,17 @@ is only in the annual report is the year minus the other three quarters. Deposit
 counted with the ratio between traded units and reported shares that Yahoo's market value
 implies. Where the worked-out P/E differs from Yahoo's by more than 30 %, the page says so:
 Yahoo's results are sometimes incomplete or in other units.
+
+**Sector and country.** For each share you hold, Yahoo's sector and country are saved and
+asked again after half a year. Funds and coins have none; enter your own in Settings
+(anything entered there is kept by updates). The Overview spreads the value by both.
+
+**ČNB rates and inflation.** With base currency CZK, the button also downloads the exchange
+rates of the Czech National Bank for every year since your first transaction (a past year
+once, the current year until today's rates are in) from cnb.cz, and the monthly harmonised
+index of consumer prices of `inflation_region` from Eurostat (again until last month's value
+is out). Both are official sources with stable formats and no key; the code reading them is
+`src/portfolio/core/providers/official.py`.
 
 **Splits.** When Yahoo reports a split, a notice appears on every page. Choose *Add split* if
 your recorded quantities are from before the split, or *Dismiss* if you already rewrote them.

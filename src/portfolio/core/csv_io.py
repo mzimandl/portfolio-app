@@ -124,6 +124,27 @@ def export_all(conn: sqlite3.Connection) -> dict[str, str]:
                 for s in repo.list_snapshots(conn)
             ),
         ),
+        "official_rates.csv": _csv(
+            ["currency", "date", "rate"],
+            (
+                (currency, day.isoformat(), rate)
+                for currency, rows in repo.list_official_rates(conn).items()
+                for day, rate in rows
+            ),
+        ),
+        "profiles.csv": _csv(
+            ["ticker", "sector", "country", "fetched", "manual"],
+            (
+                (tickers[p.instrument_id], p.sector, p.country, p.fetched.isoformat(),
+                 int(p.manual))
+                for p in sorted(repo.list_profiles(conn).values(),
+                                key=lambda p: tickers[p.instrument_id])
+            ),
+        ),
+        "inflation.csv": _csv(
+            ["region", "month", "value"],
+            conn.execute("SELECT region, month, value FROM inflation ORDER BY region, month"),
+        ),
         "target_allocation.csv": _csv(
             ["type", "share"],
             ((name, repo.decimal_text(share)) for name, share in repo.list_targets(conn).items()),

@@ -8,11 +8,13 @@ from datetime import date
 
 import streamlit as st
 
-from portfolio.core import backup, db
-from portfolio.core.analytics.data import PortfolioData, load_data
+from portfolio.core import backup, db, repo
+from portfolio.core.analytics.data import PortfolioData, Series, load_data
 from portfolio.core.analytics.timeseries import DayPoint, all_daily, combine
 from portfolio.core.config import Config, load_config
+from portfolio.core.models import Profile
 from portfolio.core.providers.base import MarketDataProvider
+from portfolio.core.providers.official import OfficialProvider
 from portfolio.core.providers.sec import SecProvider
 from portfolio.core.providers.yahoo import YahooProvider
 from portfolio.ui import formatting
@@ -55,6 +57,10 @@ def provider() -> MarketDataProvider:
     return YahooProvider()
 
 
+def official_provider() -> OfficialProvider:
+    return OfficialProvider()
+
+
 def sec_provider() -> SecProvider | None:
     """SEC EDGAR, only with a contact set in the config file (the SEC requires one)."""
     agent = config().sec_user_agent
@@ -66,17 +72,24 @@ class Loaded:
     data: PortfolioData
     daily: dict[int, list[DayPoint]]  # every instrument, inactive ones too
     today: date
+    inflation: Series  # consumer price index by month, of the configured region
+    profiles: dict[int, Profile]  # sector and country per instrument
+    official_rates: dict[str, list[tuple[date, float]]]  # ČNB rates per currency
 
 
 @st.cache_resource(max_entries=2, show_spinner=False)
-def _load(path: str, base_currency: str, today: date, token: tuple) -> Loaded:
+def _load(path: str, base_currency: str, region: str | None, today: date, token: tuple) -> Loaded:
     """``token`` changes with the database file, so a change there gives fresh data."""
     conn = db.connect(path)
     try:
         data = load_data(conn, base_currency)
+        index = Series(repo.list_inflation(conn, region) if region else [])
+        profiles = repo.list_profiles(conn)
+        rates = repo.list_official_rates(conn)
     finally:
         conn.close()
-    return Loaded(data, all_daily(data, today, include_inactive=True), today)
+    daily = all_daily(data, today, include_inactive=True)
+    return Loaded(data, daily, today, index, profiles, rates)
 
 
 def portfolio() -> Loaded:
@@ -87,7 +100,11 @@ def portfolio() -> Loaded:
     path = config().db_path
     _prepare()
     stat = path.stat()
-    return _load(str(path), config().base_currency, date.today(), (stat.st_mtime_ns, stat.st_size))
+    cfg = config()
+    return _load(
+        str(path), cfg.base_currency, cfg.inflation_region, date.today(),
+        (stat.st_mtime_ns, stat.st_size),
+    )  # fmt: skip
 
 
 # --- formatting with the configured locale and base currency ---------------------------------

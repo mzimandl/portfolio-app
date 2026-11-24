@@ -2,12 +2,13 @@
 
 import sqlite3
 from dataclasses import replace
+from datetime import date
 from decimal import Decimal
 
 import streamlit as st
 
 from portfolio.core import repo
-from portfolio.core.models import Instrument, ValuationMethod
+from portfolio.core.models import Instrument, Profile, ValuationMethod
 from portfolio.core.updater import BENCHMARK_TYPE
 from portfolio.ui import common
 
@@ -38,6 +39,65 @@ def render() -> None:
             _simple_list(conn, "Instrument types", "Name, e.g. etf", repo.list_instrument_types,
                          repo.add_instrument_type, repo.delete_instrument_type)  # fmt: skip
         _targets(conn)
+        _profiles(conn)
+
+
+def _profiles(conn: sqlite3.Connection) -> None:
+    instruments = [
+        i
+        for i in repo.list_instruments(conn)
+        if i.active
+        and i.valuation is ValuationMethod.YAHOO
+        and i.type != BENCHMARK_TYPE
+        and not common.is_separate(i.type)
+    ]
+    if not instruments:
+        return
+    st.subheader("Sector and country")
+    st.caption(
+        "Used for the spread on the Overview. Update prices fills them in from Yahoo for "
+        "shares; funds and coins have none, so give them your own (e.g. World, Crypto). "
+        "What you enter here is kept; clear both cells to let Yahoo fill them again."
+    )
+    stored = repo.list_profiles(conn)
+    rows = [
+        {
+            "Ticker": i.ticker,
+            "Sector": stored[i.id].sector if i.id in stored else None,
+            "Country": stored[i.id].country if i.id in stored else None,
+            "Entered by": (
+                ("hand" if stored[i.id].manual else "Yahoo") if i.id in stored else None
+            ),
+        }
+        for i in instruments
+    ]
+    edited = st.data_editor(
+        rows,
+        column_config={
+            "Ticker": st.column_config.TextColumn(disabled=True),
+            "Entered by": st.column_config.TextColumn(disabled=True),
+        },
+        hide_index=True,
+        key="settings_profiles",
+        height=min(38 * (len(rows) + 1) + 2, 420),
+    )
+    if not st.button("Save sector and country", key="settings_profiles_save"):
+        return
+    changed = 0
+    with conn:
+        for instrument, before, after in zip(instruments, rows, edited, strict=True):
+            sector = (after["Sector"] or "").strip() or None
+            country = (after["Country"] or "").strip() or None
+            if (sector, country) == (before["Sector"], before["Country"]):
+                continue
+            changed += 1
+            if sector is None and country is None:
+                repo.delete_profile(conn, instrument.id)
+            else:
+                repo.save_profile(
+                    conn, Profile(instrument.id, sector, country, date.today(), manual=True)
+                )
+    _done(f"Sector and country saved for {changed} instruments." if changed else "No changes.")
 
 
 def _targets(conn: sqlite3.Connection) -> None:

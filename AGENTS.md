@@ -61,10 +61,10 @@ or better through `portfolio.core.repo` and `load_data`.
 
 ```
 src/portfolio/core/
-  config.py        config.toml: db, base_currency, locale, benchmark, separate_types
+  config.py        config.toml: db, base_currency, locale, benchmark, separate_types, …
   db.py            connect(), migrate()
   backup.py        daily_backup(): dated copy before the day's first use
-  migrations/      0001 … 0008, applied in order by PRAGMA user_version
+  migrations/      0001 … 0009, applied in order by PRAGMA user_version
   models.py        records; which fields each transaction kind requires or allows
   repo.py          all SQL. Functions never commit: the caller wraps them in `with conn:`
   analytics/
@@ -76,10 +76,12 @@ src/portfolio/core/
     dividends.py   recorded dividends and those the price data reports
     checks.py      data-quality findings
     allocation.py  values against target shares; how to split new money
-    taxes.py       sales by holding period, dividends and staking per year
+    taxes.py       sales by holding period, dividends and staking per year; ČNB rates
+    inflation.py   price change over a period from a monthly index; real returns
     fundamentals.py P/E, P/B, P/S and dividend yield per day from reported results
   providers/       base.py is the interface; yahoo.py prices, rates and company data;
-                   sec.py company results of US companies from SEC EDGAR (urllib only)
+                   sec.py company results of US companies from SEC EDGAR (urllib only);
+                   official.py ČNB exchange rates and Eurostat's HICP (urllib only)
   updater.py       incremental download of prices and rates; split detection; benchmark
   csv_io.py        export of every table, import of transactions
 src/portfolio/ui/
@@ -168,6 +170,17 @@ README table of definitions.
 - Prices can be stored from before the first transaction (`_backfill_prices`, for the
   ratios). Code that walks prices must not assume they start at the first trade; the
   split reload starts at the oldest stored price.
+- Taxes can convert with ČNB rates (`taxes.OfficialRates`, a `Rates` function passed to
+  `sales`/`dividends`/`staking`). For that, `Lot`/`SalePart`/`Sale` also carry the amount
+  in the currency really paid (`paid`/`cash`, `currency`). A missing rate falls back to the
+  recorded one and sets `estimated`; it never makes a number disappear.
+- `profiles` rows with `manual = 1` were entered in Settings and are never overwritten.
+  An empty Yahoo row means "asked, nothing there" and is asked again after 180 days.
+- Inflation: a month's index is the level at the month's end (`analytics/inflation.py`).
+- Opening the app in a browser runs the backup and the migrations on the database its
+  config names. A preview started by the name "portfolio" opens the user's real
+  `config.toml`; for checks, start the app with `PORTFOLIO_CONFIG` pointing at a config in
+  the scratchpad and on another port than 8501.
 - Test anything that writes market data on a copy of the database (a config in the
   scratchpad pointing at a copied file), not on the user's `portfolio.db`.
 
@@ -201,11 +214,12 @@ README table of definitions.
   body. Update README (use, definitions) and PLAN (decisions) in the same commit.
 - `# fmt: skip` is used where a hand-laid-out list or call reads better than the formatter's.
 
-## State of things (2026-11-23)
+## State of things (2026-11-24)
 
 Everything planned is built: the eight phases in PLAN.md, then staking corrections, benchmark
 with the same cash flows, sales and purchases-held tables, drawdown, allocation shares,
 monthly returns, the Dividends and Checks pages, consistent numbers for trades paid in
 another currency, automatic daily backups, marking findings as checked, a tax overview, target allocation and
-a more exact time-weighted return on trade days, the Fundamentals page, and SEC EDGAR results for US companies. The Checks page lists the records in the user's data that still look wrong;
+a more exact time-weighted return on trade days, the Fundamentals page, SEC EDGAR results for US companies, ČNB rates on the Taxes page,
+sector and country spread, and returns after inflation. The Checks page lists the records in the user's data that still look wrong;
 they are the user's to verify against statements, not something to fix unasked.

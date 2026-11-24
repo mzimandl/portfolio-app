@@ -10,6 +10,9 @@ CONFIG_ENV_VAR = "PORTFOLIO_CONFIG"
 DEFAULT_CONFIG_NAME = "config.toml"
 
 _CURRENCY_RE = re.compile(r"^[A-Z]{3}$")
+# Eurostat regions whose consumer prices go with a base currency, unless the config says.
+_INFLATION_REGIONS = {"CZK": "CZ", "EUR": "EA", "PLN": "PL", "HUF": "HU", "DKK": "DK",
+                      "SEK": "SE", "RON": "RO", "BGN": "BG"}  # fmt: skip
 
 
 class ConfigError(Exception):
@@ -38,6 +41,9 @@ class Config:
     # differ from the instrument's ("BRYN.DE" -> "BRK-B"; "" means do not ask the SEC).
     sec_user_agent: str | None = None
     sec_tickers: dict[str, str] | None = None
+    # Eurostat's code of the region whose consumer prices measure inflation ("CZ"); None
+    # means none is downloaded. By default the one that goes with the base currency.
+    inflation_region: str | None = None
 
 
 def resolve_config_path(path: str | Path | None = None) -> Path:
@@ -113,6 +119,10 @@ def load_config(path: str | Path | None = None) -> Config:
         else db_path.parent / "backups"
     )
 
+    region = data.get("inflation_region", _INFLATION_REGIONS.get(base_currency, ""))
+    if not isinstance(region, str):
+        raise ConfigError(f"'inflation_region' in {config_path} must be a text such as \"CZ\"")
+
     return Config(
         db_path=db_path,
         base_currency=base_currency,
@@ -126,4 +136,5 @@ def load_config(path: str | Path | None = None) -> Config:
         tax_crypto_types=tuple(name.strip() for name in crypto_types),
         sec_user_agent=text("sec_user_agent", required=False),
         sec_tickers={k.strip(): v.strip().upper() for k, v in sec_tickers.items()},
+        inflation_region=region.strip().upper() or None,
     )

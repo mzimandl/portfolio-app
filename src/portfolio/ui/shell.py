@@ -26,6 +26,8 @@ def sidebar() -> None:
                     benchmark=cfg.benchmark,
                     sec=common.sec_provider(),
                     sec_tickers=cfg.sec_tickers,
+                    official=common.official_provider(),
+                    inflation_region=cfg.inflation_region,
                 )
             st.rerun()
         result = st.session_state.get("update_result")

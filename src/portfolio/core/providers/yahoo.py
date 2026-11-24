@@ -9,7 +9,7 @@ import math
 import re
 from datetime import date
 
-from portfolio.core.providers.base import Bar, ProviderError, Ratios, Statement
+from portfolio.core.providers.base import Bar, Company, ProviderError, Ratios, Statement
 
 # yfinance logs every failed lookup itself (for example "HTTP Error 404 ... KRWCZK=X" when a
 # pair is not listed and the rate is then worked out through EUR). Failures that matter are
@@ -125,7 +125,30 @@ def ratios_from_info(info: dict) -> Ratios | None:
     return Ratios(**{name: _number(info.get(key)) for name, key in _RATIO_KEYS.items()})
 
 
+def company_from_info(info: dict) -> Company | None:
+    """None for anything that is not a company, or a company Yahoo knows nothing about."""
+    if info.get("quoteType") != "EQUITY":
+        return None
+    sector, country = info.get("sector"), info.get("country")
+    if not sector and not country:
+        return None
+    return Company(sector or None, country or None)
+
+
 class YahooProvider:
+    def __init__(self) -> None:
+        self._infos: dict[str, dict] = {}  # one request per symbol for ratios and company
+
+    def _info(self, symbol: str) -> dict:
+        import yfinance  # noqa: PLC0415
+
+        if symbol not in self._infos:
+            try:
+                self._infos[symbol] = yfinance.Ticker(symbol).info or {}
+            except Exception as e:
+                raise ProviderError(f"Yahoo: {symbol}: {e}") from e
+        return self._infos[symbol]
+
     def _history(self, symbol: str, start: date) -> list[Bar]:
         import yfinance  # noqa: PLC0415  (slow import, only needed when updating)
 
@@ -181,20 +204,17 @@ class YahooProvider:
         return currency
 
     def ratios(self, symbol: str) -> Ratios | None:
-        import yfinance  # noqa: PLC0415
+        return ratios_from_info(self._info(symbol))
 
-        try:
-            info = yfinance.Ticker(symbol).info or {}
-        except Exception as e:
-            raise ProviderError(f"Yahoo: {symbol}: {e}") from e
-        return ratios_from_info(info)
+    def company(self, symbol: str) -> Company | None:
+        return company_from_info(self._info(symbol))
 
     def statements(self, symbol: str) -> tuple[str | None, list[Statement]]:
         import yfinance  # noqa: PLC0415
 
         try:
             ticker = yfinance.Ticker(symbol)
-            info = ticker.info or {}
+            info = self._info(symbol)
             currency = info.get("financialCurrency") or info.get("currency")
             found = statements_from_frames(
                 "annual", ticker.income_stmt, ticker.balance_sheet

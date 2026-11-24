@@ -19,6 +19,54 @@ def rules() -> taxes.TaxRules:
     return taxes.TaxRules(cfg.tax_holding_years, cfg.tax_proceeds_limit, cfg.tax_crypto_types)
 
 
+_RECORDED = "As recorded"
+_DAILY = "ČNB, rate of each day"
+_UNIFIED = "ČNB, unified rate of the year"
+
+
+def _rates(loaded: common.Loaded, year: int) -> tuple[taxes.Rates | None, str]:
+    """The exchange rates chosen for the year's figures, and how to describe them."""
+    official = taxes.OfficialRates(loaded.official_rates, loaded.today)
+    if loaded.data.base_currency != "CZK" or not official:
+        return None, "at the exchange rates you entered"
+    choice = st.radio(
+        "Exchange rates",
+        [_DAILY, _UNIFIED, _RECORDED],
+        horizontal=True,
+        key="taxes_rates",
+        help="A Czech tax return converts with the rates of the Czech National Bank: either "
+        "the rate of the day of each payment, or the unified rate of the year (the average "
+        "of the rates on the last day of each month) for all of them. Use one way for the "
+        "whole year.",
+    )
+    if choice == _DAILY:
+        return official.by_day(), "at the ČNB rate of the day of each payment"
+    if choice == _UNIFIED:
+        used = sorted({c for c in official.series if c in _currencies(loaded)} - {"CZK"})
+        known = {c: official.unified(c, year) for c in used}
+        shown = ", ".join(
+            f"{c} {common.number(rate, 3)}" for c, rate in known.items() if rate is not None
+        )
+        st.caption(
+            f"Unified rates {year}: {shown}."
+            if shown
+            else f"The unified rates of {year} are known once the year is over."
+        )
+        return (
+            official.by_year(),
+            "at the ČNB unified rate of the year of each payment (purchases in earlier years "
+            "at that year's)",
+        )
+    return None, "at the exchange rates you entered"
+
+
+def _currencies(loaded: common.Loaded) -> set[str]:
+    data = loaded.data
+    found = {i.currency for i in data.instruments.values()}
+    found |= {e.currency for events in data.events.values() for e in events if e.currency}
+    return found
+
+
 def render() -> None:
     st.title("Taxes")
     loaded = common.portfolio()
@@ -31,13 +79,13 @@ def render() -> None:
     ]
     limit = common.number(applied.proceeds_limit)
     st.caption(
-        f"Figures from your records in {data.base_currency}, at the exchange rates you "
-        "entered. Two rules are applied, both set in the config file: a sale of units held "
+        f"Figures from your records in {data.base_currency}. Two rules are applied, both "
+        "set in the config file: a sale of units held "
         f"longer than {applied.holding_years} years is exempt, and so are all sales of a year "
         f"whose proceeds do not exceed {limit}, counted apart for securities and for "
         f"{', '.join(applied.crypto_types) or 'crypto'}. Units are sold oldest first. This is "
         "an overview to work from, not tax advice: check the rules that apply to the year "
-        "and to you, and the exchange rates your tax office expects."
+        "and to you."
     )
     _held(data, ids, today, applied)
 
@@ -46,9 +94,11 @@ def render() -> None:
         st.info("No sales, dividends or staking recorded yet.")
         return
     year = st.selectbox("Year", available, key="taxes_year")
+    rates, described = _rates(loaded, year)
+    st.caption(f"Money below is converted {described}.")
 
     st.subheader(f"Sales in {year}")
-    parts = taxes.sales(data, ids, year, applied)
+    parts = taxes.sales(data, ids, year, applied, rates)
     if not parts:
         st.caption("Nothing was sold.")
     else:
@@ -108,9 +158,10 @@ def render() -> None:
             hide_index=True,
         )
         st.caption("One line for every purchase a sale took units from.")
+        _estimated(sum(part.estimated for part in parts), "lines")
 
     st.subheader(f"Dividends in {year}")
-    paid = taxes.dividends(data, ids, year)
+    paid = taxes.dividends(data, ids, year, rates)
     if not paid:
         st.caption("None recorded.")
     else:
@@ -141,8 +192,9 @@ def render() -> None:
             },
             hide_index=True,
         )
+        _estimated(sum(row.estimated for row in paid), "instruments")
 
-    rewards = taxes.staking(data, ids, year)
+    rewards = taxes.staking(data, ids, year, rates)
     if rewards:
         st.subheader(f"Staking in {year}")
         st.dataframe(
@@ -157,6 +209,14 @@ def render() -> None:
                 "Value when received": _money("Each reward at the closing price of its day."),
             },
             hide_index=True,
+        )
+
+
+def _estimated(count: int, what: str) -> None:
+    if count:
+        st.warning(
+            f"{count} {what} use the rate you entered: the chosen rates have none for that "
+            "currency or year (a unified rate is known only once its year is over)."
         )
 
 

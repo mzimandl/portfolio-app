@@ -99,3 +99,13 @@ def test_separate_types(tmp_path):
     for bad in ('"savings"', "[1]", '[""]'):
         with pytest.raises(ConfigError, match="separate_types"):
             load_config(write(tmp_path, VALID + f"separate_types = {bad}\n"))
+
+
+def test_inflation_region_goes_with_the_base_currency_unless_set(tmp_path):
+    assert load_config(write(tmp_path, VALID)).inflation_region == "CZ"
+    usd = VALID.replace('"CZK"', '"USD"')
+    assert load_config(write(tmp_path, usd)).inflation_region is None
+    assert load_config(write(tmp_path, usd + 'inflation_region = "de"\n')).inflation_region == "DE"
+    assert load_config(write(tmp_path, VALID + 'inflation_region = ""\n')).inflation_region is None
+    with pytest.raises(ConfigError, match="inflation_region"):
+        load_config(write(tmp_path, VALID + "inflation_region = 1\n"))

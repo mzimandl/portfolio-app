@@ -1,7 +1,8 @@
 """What the updater needs from a source of market data.
 
 To add a source, write a class with these methods; nothing else depends on it. A source
-without company data can return None from ``ratios`` and ``(None, [])`` from ``statements``.
+without company data can return None from ``ratios`` and ``company`` and ``(None, [])`` from
+``statements``.
 """
 
 from dataclasses import dataclass
@@ -53,6 +54,14 @@ class Statement:
     shares: float | None = None
 
 
+@dataclass(frozen=True, slots=True)
+class Company:
+    """What a company does and where it is based, in the source's words."""
+
+    sector: str | None = None
+    country: str | None = None
+
+
 class MarketDataProvider(Protocol):
     def prices(self, symbol: str, start: date) -> list[Bar]:
         """Daily bars from ``start`` to today, oldest first. Empty if there are none yet."""
@@ -72,4 +81,8 @@ class MarketDataProvider(Protocol):
 
     def statements(self, symbol: str) -> tuple[str | None, list[Statement]]:
         """The reporting currency and the reported periods, oldest first."""
+        ...
+
+    def company(self, symbol: str) -> Company | None:
+        """Sector and country; None when the symbol is not a company (a fund, a coin)."""
         ...

@@ -14,6 +14,7 @@ from portfolio.core.models import (
     FxRate,
     Instrument,
     Price,
+    Profile,
     Snapshot,
     Statement,
     Transaction,
@@ -164,12 +165,24 @@ def test_update_button_downloads_and_reports(database, monkeypatch):
         def statements(self, symbol):
             return "USD", [PStatement("annual", date(2023, 12, 31), eps=6.0)]
 
+        def company(self, symbol):
+            return None
+
+    class Official:
+        def cnb_year(self, year):
+            return [("USD", date(year, 1, 2), 23.0)]
+
+        def hicp(self, region):
+            return [(date(2024, 1, 1), 150.0)]
+
     monkeypatch.setattr(common, "provider", Provider)
+    monkeypatch.setattr(common, "official_provider", Official)
     at = run_shell()
     at.sidebar.button[0].click().run()
 
     assert not at.exception
-    assert "2 series updated" in at.sidebar.success[0].value
+    # AAPL, USD/CZK, the ČNB rates of 2023 to this year, the inflation index
+    assert f"{4 + date.today().year - 2023} series updated" in at.sidebar.success[0].value
     assert "Company data for 1 shares" in at.sidebar.success[0].value
     assert "SPY is unavailable" in at.sidebar.error[0].value
     assert "2024-06-04" in at.sidebar.caption[0].value
@@ -199,9 +212,10 @@ def test_overview_page(database):
     # 2 shares x 150 USD x 23 = 6900, plus savings 1040
     assert labels["Value"] == "7\u00a0940"
     assert labels["Dividends"] == "50"
-    assert len(at.dataframe) == 4  # by type, by currency, instruments, purchases held
-    assert list(at.dataframe[2].value["ticker"]) == ["AAPL", "SAVE"]
-    assert list(at.dataframe[2].value["share"]) == pytest.approx([6900 / 7940, 1040 / 7940])
+    # by type, by currency, sector and country, instruments, purchases held
+    assert len(at.dataframe) == 6
+    assert list(at.dataframe[4].value["ticker"]) == ["AAPL", "SAVE"]
+    assert list(at.dataframe[4].value["share"]) == pytest.approx([6900 / 7940, 1040 / 7940])
 
 
 def test_overview_follows_changes_made_outside_the_app(database):
@@ -288,6 +302,45 @@ def test_taxes_page(database):
     ]  # fmt: skip
     assert list(at.dataframe[0].value["Ticker"]) == ["AAPL"]
     assert list(at.dataframe[1].value["Ticker"]) == ["AAPL", "Total"]
+
+
+def test_taxes_page_offers_the_cnb_rates_once_they_are_downloaded(database):
+    assert not run_page("taxes").radio
+    with database:
+        repo.save_official_rates(database, [("USD", date(2023, 1, 2), 21.0)])
+    at = clean(run_page("taxes"))
+    assert at.radio(key="taxes_rates").value == "ČNB, rate of each day"
+    assert any("ČNB rate of the day" in c.value for c in at.caption)
+    at.radio(key="taxes_rates").set_value("ČNB, unified rate of the year").run()
+    clean(at)
+    assert any("Unified rates 2024" in c.value or "once the year is over" in c.value
+               for c in at.caption)  # fmt: skip
+
+
+def test_performance_after_inflation(database):
+    with database:
+        repo.save_inflation(database, "CZ", [(date(2022, 12, 1), 100.0), (date(2024, 5, 1), 110.0)])
+    at = clean(run_page("performance"))
+    labels = {m.label: m.value for m in at.metric}
+    # From the start of 2 January 2023 (December's 100) to today (May 2024's 110).
+    assert labels["Inflation (CZ)"] == "+10,0\u00a0%"
+    assert "Return after inflation" in labels
+    assert "Inflation" in at.dataframe[0].value.columns
+
+
+def test_sector_and_country_are_entered_in_settings_and_spread_on_the_overview(database):
+    at = clean(run_page("settings"))
+    assert "Sector and country" in [h.value for h in at.subheader]
+    at.button(key="settings_profiles_save").click().run()
+    assert "No changes" in clean(at).success[0].value
+    database.rollback()
+    with database:
+        repo.save_profile(database, Profile(1, "Technology", "United States", date(2024, 6, 1)))
+    at = clean(run_page("overview"))
+    by_sector = at.dataframe[2].value
+    assert list(by_sector["sector"]) == ["(savings)", "Technology"]  # no sector: by type
+    by_country = at.dataframe[3].value
+    assert list(by_country["country"]) == ["(savings)", "United States"]
 
 
 def test_target_allocation_is_set_in_settings_and_shown_on_the_overview(database):
@@ -486,7 +539,7 @@ def test_overview_keeps_separate_types_out_of_the_headline(savings_apart):
     assert by_label["Still deposited"][0] == "1\u00a0000"
     assert by_label["Profit"] == ("+40", "+4,0\u00a0%")
     assert [h.value for h in at.header] == ["Savings"]
-    by_type, by_currency, instruments, purchases, savings = at.dataframe
+    by_type, by_currency, by_sector, by_country, instruments, purchases, savings = at.dataframe
     assert list(purchases.value["Ticker"]) == ["AAPL"]
     assert list(by_type.value["type"]) == ["stock"]
     assert list(by_currency.value["currency"]) == ["USD"]
@@ -529,4 +582,4 @@ def test_overview_rows_are_tinted_by_profit_or_loss(database):
     assert "rgba(46, 160, 67" in html and "rgba(218, 54, 51" in html
     # The page still gets the plain numbers.
     at = clean(run_page("overview"))
-    assert list(at.dataframe[2].value["total_profit"]) == [2500, 40]
+    assert list(at.dataframe[4].value["total_profit"]) == [2500, 40]

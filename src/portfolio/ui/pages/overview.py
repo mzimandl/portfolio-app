@@ -20,6 +20,8 @@ _COLUMNS = {
     "name": "Name",
     "type": "Type",
     "currency": "Currency",
+    "sector": "Sector",
+    "country": "Country",
     "quantity": st.column_config.NumberColumn("Quantity", format="%.6g"),
     "last_price": _money("Last price"),
     "average_price": _money("Average buy price", "Of the bought units you still hold."),
@@ -152,9 +154,10 @@ def _with_share(row: dict, whole: float) -> dict:
     return row | {"share": value / whole if value is not None and whole > 0 else None}
 
 
-def _groups(rows: list[OverviewRow], field: str, whole: float) -> list[dict]:
-    """Sums per type or currency, with each group's share of the whole value."""
-    sums = summarize(rows, key=lambda row: getattr(row, field))
+def _groups(rows: list[OverviewRow], field: str, whole: float, key=None) -> list[dict]:
+    """Sums per type or currency (or what ``key`` gives), with each group's share of the
+    whole value."""
+    sums = summarize(rows, key=key or (lambda row: getattr(row, field)))
     return [
         _with_share(
             _rounded({field: name} | {k: v for k, v in group.items() if k != "missing"}), whole
@@ -208,6 +211,41 @@ def _against_target(rows: list[OverviewRow], base: str) -> None:
             ),
         },
         hide_index=True,
+    )
+
+
+def _spread(loaded: common.Loaded, rows: list[OverviewRow], whole: float) -> None:
+    """By currency, sector and country."""
+    profiles = {
+        loaded.data.instruments[i].ticker: profile for i, profile in loaded.profiles.items()
+    }
+
+    def label(field: str):
+        def of(row: OverviewRow) -> str:
+            profile = profiles.get(row.ticker)
+            return (getattr(profile, field) if profile else None) or f"({row.type})"
+
+        return of
+
+    st.subheader("Spread")
+    by_currency, by_sector, by_country = st.tabs(["By currency", "By sector", "By country"])
+    for tab, field, note in (
+        (by_currency, "currency", "The currency each instrument is quoted in."),
+        (by_sector, "sector", None),
+        (by_country, "country", "Where each company is based."),
+    ):
+        with tab:
+            if note:
+                st.caption(note)
+            st.dataframe(
+                _tinted(_groups(rows, field, whole, None if field == "currency" else label(field))),
+                column_config=_COLUMNS,
+                column_order=[field, *_TYPE_COLUMNS[1:]],
+                hide_index=True,
+            )
+    st.caption(
+        "Sector and country come from Yahoo for shares. Funds and coins have none of their "
+        "own and are listed by type in brackets; you can set theirs in Settings."
     )
 
 
@@ -293,14 +331,7 @@ def render() -> None:
             hide_index=True,
         )
         _against_target(investments, base)
-        st.subheader("By currency")
-        st.caption("The currency each instrument is quoted in.")
-        st.dataframe(
-            _tinted(_groups(investments, "currency", whole)),
-            column_config=_COLUMNS,
-            column_order=["currency", *_TYPE_COLUMNS[1:]],
-            hide_index=True,
-        )
+        _spread(loaded, investments, whole)
 
         st.subheader("Instruments")
         _table(investments, list(_COLUMNS))

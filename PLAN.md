@@ -165,7 +165,19 @@ can be marked as checked (migration 5), automatic daily backups, the Taxes page,
 allocation (migration 6), and a time-weighted return that values the holding at the trade price
 before new money joins it. Then company data (migration 7): valuation ratios saved once a day
 and P/E, P/B, P/S worked out per day from about five years of reported results; for US
-companies, results from SEC EDGAR back to about 2009 (migration 8).
+companies, results from SEC EDGAR back to about 2009 (migration 8). Then ČNB exchange rates
+for the Taxes page (daily or the yearly unified rate), sector and country of each share for
+the Overview, and Eurostat's consumer price index for returns after inflation (migration 9).
+
+- **Inflation source** — Eurostat's HICP (`prc_hicp_minr`) rather than the ČSÚ's CPI: one
+  request gives the whole series from 1996, while the ČSÚ splits it into datasets by period
+  (to 2017, 2018–2025, from 2026). The two differ by a few tenths of a percent a year.
+  Eurostat itself replaced `prc_hicp_midx` with `prc_hicp_minr` in 2026; the URL is in one
+  place.
+- **ČNB rates are stored for all currencies** the ČNB lists, so a currency added later has
+  its history without fetching the years again. A few hundred kB per year.
+- **Unified rate** is worked out from the stored daily rates, not typed in from the GFŘ's
+  instruction; it matches the published values (checked for 2022–2024).
 
 ## Details settled
 
