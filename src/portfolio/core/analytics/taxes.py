@@ -10,11 +10,12 @@ from datetime import date, timedelta
 
 from portfolio.core.analytics.data import PortfolioData, Series
 from portfolio.core.analytics.positions import position_at
+from portfolio.core.i18n import N_
 from portfolio.core.models import TransactionKind as K
 from portfolio.core.models import ValuationMethod
 
-SECURITIES = "securities"
-CRYPTO = "crypto"
+SECURITIES = N_("securities")
+CRYPTO = N_("crypto")
 
 
 @dataclass(frozen=True)

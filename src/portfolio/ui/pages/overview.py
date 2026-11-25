@@ -8,6 +8,7 @@ import streamlit as st
 from portfolio.core import repo
 from portfolio.core.analytics.allocation import allocation
 from portfolio.core.analytics.overview import OverviewRow, lots, overview, sales, summarize
+from portfolio.core.i18n import tr
 from portfolio.ui import common
 
 
@@ -15,35 +16,45 @@ def _money(label: str, help: str | None = None):
     return st.column_config.NumberColumn(label, format="localized", help=help)
 
 
-_COLUMNS = {
-    "ticker": "Ticker",
-    "name": "Name",
-    "type": "Type",
-    "currency": "Currency",
-    "sector": "Sector",
-    "country": "Country",
-    "quantity": st.column_config.NumberColumn("Quantity", format="%.6g"),
-    "last_price": _money("Last price"),
-    "average_price": _money("Average buy price", "Of the bought units you still hold."),
-    "value": _money("Value"),
-    "share": st.column_config.NumberColumn(
-        "Share", format="percent", help="Of the value of all investments."
-    ),
-    "cost_basis": _money(
-        "Cost", "What the units you still hold cost. Oldest units are sold first."
-    ),
-    "unrealised_profit": _money("Unrealised", "Value minus cost of what you still hold."),
-    "price_profit": _money("From price", "Part of the unrealised profit."),
-    "fx_profit": _money("From exchange rate", "Part of the unrealised profit."),
-    "rewards": _money("Staking rewards", "Staking units you still hold, at today's price."),
-    "realised_profit": _money("Realised", "On units sold: what you got minus what they cost."),
-    "total_profit": _money("Profit", "Unrealised plus realised."),
-    "dividends": _money("Dividends"),
-    "fees": _money("Fees"),
-    "net_profit": _money("Net profit", "Profit plus dividends minus fees."),
-    "invested": _money("Bought / deposited"),
-    "returned": _money("Sold / withdrawn"),
-}
+def _columns() -> dict:
+    """Column headings of the overview tables, in the current language."""
+    return {
+        "ticker": tr("Ticker"),
+        "name": tr("Name"),
+        "type": tr("Type"),
+        "currency": tr("Currency"),
+        "sector": tr("Sector"),
+        "country": tr("Country"),
+        "quantity": st.column_config.NumberColumn(tr("Quantity"), format="%.6g"),
+        "last_price": _money(tr("Last price")),
+        "average_price": _money(tr("Average buy price"), tr("Of the bought units you still hold.")),
+        "value": _money(tr("Value")),
+        "share": st.column_config.NumberColumn(
+            tr("Share"), format="percent", help=tr("Of the value of all investments.")
+        ),
+        "cost_basis": _money(
+            tr("Cost"), tr("What the units you still hold cost. Oldest units are sold first.")
+        ),
+        "unrealised_profit": _money(
+            tr("Unrealised"), tr("Value minus cost of what you still hold.")
+        ),
+        "price_profit": _money(tr("From price"), tr("Part of the unrealised profit.")),
+        "fx_profit": _money(tr("From exchange rate"), tr("Part of the unrealised profit.")),
+        "rewards": _money(
+            tr("Staking rewards"), tr("Staking units you still hold, at today's price.")
+        ),
+        "realised_profit": _money(
+            tr("Realised"), tr("On units sold: what you got minus what they cost.")
+        ),
+        "total_profit": _money(tr("Profit"), tr("Unrealised plus realised.")),
+        "dividends": _money(tr("Dividends")),
+        "fees": _money(tr("Fees")),
+        "net_profit": _money(tr("Net profit"), tr("Profit plus dividends minus fees.")),
+        "invested": _money(tr("Bought / deposited")),
+        "returned": _money(tr("Sold / withdrawn")),
+    }
+
+
 _ROUNDED = (
     "value", "cost_basis", "unrealised_profit", "price_profit", "fx_profit", "rewards",
     "realised_profit", "total_profit", "dividends", "fees", "net_profit", "invested", "returned",
@@ -71,32 +82,32 @@ def _headline(rows: list[OverviewRow], *, investments: bool) -> None:
     cost = total["cost_basis"]
     if investments:
         cells = [*st.columns(4), *st.columns(4)]
-        cells[0].metric("Value", common.number(total["value"]))
-        cells[1].metric("Cost of holdings", common.number(cost))
+        cells[0].metric(tr("Value"), common.number(total["value"]))
+        cells[1].metric(tr("Cost of holdings"), common.number(cost))
         cells[2].metric(
-            "Unrealised profit",
+            tr("Unrealised profit"),
             common.number(total["unrealised_profit"], signed=True),
             delta=_share(total["unrealised_profit"], cost),
-            help="Value minus cost of what you still hold. The percentage is of that cost.",
+            help=tr("Value minus cost of what you still hold. The percentage is of that cost."),
         )
-        cells[3].metric("Realised profit", common.number(total["realised_profit"], signed=True))
-        cells[4].metric("Dividends", common.number(total["dividends"]))
-        cells[5].metric("Fees", common.number(total["fees"]))
-        cells[6].metric("Net profit", common.number(total["net_profit"], signed=True))
+        cells[3].metric(tr("Realised profit"), common.number(total["realised_profit"], signed=True))
+        cells[4].metric(tr("Dividends"), common.number(total["dividends"]))
+        cells[5].metric(tr("Fees"), common.number(total["fees"]))
+        cells[6].metric(tr("Net profit"), common.number(total["net_profit"], signed=True))
     else:
         cells = st.columns(4)
-        cells[0].metric("Value", common.number(total["value"]))
-        cells[1].metric("Still deposited", common.number(cost))
+        cells[0].metric(tr("Value"), common.number(total["value"]))
+        cells[1].metric(tr("Still deposited"), common.number(cost))
         cells[2].metric(
-            "Profit",
+            tr("Profit"),
             common.number(total["total_profit"], signed=True),
             delta=_share(total["total_profit"], cost),
-            help="Value minus the money still deposited; the percentage is relative to it.",
+            help=tr("Value minus the money still deposited; the percentage is relative to it."),
         )
     if total["missing"]:
         st.warning(
-            "No price or exchange rate for: " + ", ".join(total["missing"])
-            + ". They count as zero in the totals."
+            tr("No price or exchange rate for: {tickers}. They count as zero in the totals.",
+               tickers=", ".join(total["missing"]))
         )  # fmt: skip
 
 
@@ -118,32 +129,38 @@ def _tinted(rows: list[dict], by: str = "total_profit"):
 def _sales(loaded: common.Loaded, include_inactive: bool) -> None:
     rows = [
         {
-            "Date": sale.date,
-            "Ticker": sale.ticker,
-            "Type": sale.type,
-            "Quantity": sale.quantity,
-            "Received": round(sale.proceeds),
-            "Cost": round(sale.cost),
-            "Profit": round(sale.profit),
-            "Held (days)": round(sale.held_days),
+            "date": sale.date,
+            "ticker": sale.ticker,
+            "type": sale.type,
+            "quantity": sale.quantity,
+            "received": round(sale.proceeds),
+            "cost": round(sale.cost),
+            "profit": round(sale.profit),
+            "held": round(sale.held_days),
         }
         for sale in sales(loaded.data, loaded.today, include_inactive=include_inactive)
         if not common.is_separate(sale.type)
     ]
     if not rows:
         return
-    st.subheader("Sales")
+    st.subheader(tr("Sales"))
     st.caption(
-        "Every sale and what it realised: what you received minus what those units had cost, "
-        "oldest units first. Units lost (sold at price 0) show their cost as a loss."
+        tr(
+            "Every sale and what it realised: what you received minus what those units had "
+            "cost, oldest units first. Units lost (sold at price 0) show their cost as a loss."
+        )
     )
     st.dataframe(
-        _tinted(rows, "Profit"),
+        _tinted(rows, "profit"),
         column_config={
-            "Quantity": st.column_config.NumberColumn(format="%.6g"),
-            "Received": _money("Received"),
-            "Cost": _money("Cost"),
-            "Profit": _money("Profit"),
+            "date": tr("Date"),
+            "ticker": tr("Ticker"),
+            "type": tr("Type"),
+            "quantity": st.column_config.NumberColumn(tr("Quantity"), format="%.6g"),
+            "received": _money(tr("Received")),
+            "cost": _money(tr("Cost")),
+            "profit": _money(tr("Profit")),
+            "held": tr("Held (days)"),
         },
         hide_index=True,
     )
@@ -171,43 +188,53 @@ def _against_target(rows: list[OverviewRow], base: str) -> None:
         targets = {name: float(share) / 100 for name, share in repo.list_targets(conn).items()}
     if not targets:
         return
-    st.subheader("Against the target")
+    st.subheader(tr("Against the target"))
     values: dict[str, float] = {}
     for row in rows:
         values[row.type] = values.get(row.type, 0.0) + (row.value or 0.0)
     new_money = st.number_input(
-        f"New money to invest ({base})", min_value=0, value=0, step=1000, key="overview_new_money"
-    )
+        tr("New money to invest ({currency})", currency=base),
+        min_value=0, value=0, step=1000, key="overview_new_money",
+    )  # fmt: skip
     table = [
         {
-            "Type": row.name,
-            "Value": round(row.value),
-            "Share": row.share,
-            "Target": row.target,
-            "Difference": None if row.share is None else row.share - row.target,
-            "To be on target": round(row.to_target),
-            "Buy now": round(row.buy) if new_money else None,
+            "type": row.name,
+            "value": round(row.value),
+            "share": row.share,
+            "target": row.target,
+            "difference": None if row.share is None else row.share - row.target,
+            "to_target": round(row.to_target),
+            "buy": round(row.buy) if new_money else None,
         }
         for row in allocation(values, targets, new_money)
     ]
     st.dataframe(
         table,
         column_config={
-            "Value": _money("Value"),
-            "Share": st.column_config.NumberColumn(format="percent"),
-            "Target": st.column_config.NumberColumn(format="percent", help="Set in Settings."),
-            "Difference": st.column_config.NumberColumn(
-                format="percent", help="Share minus target, in percentage points."
+            "type": tr("Type"),
+            "value": _money(tr("Value")),
+            "share": st.column_config.NumberColumn(tr("Share"), format="percent"),
+            "target": st.column_config.NumberColumn(
+                tr("Target"), format="percent", help=tr("Set in Settings.")
             ),
-            "To be on target": _money(
-                "To be on target",
-                "What to buy to reach the target share at today's value; negative means "
-                "there is that much too many.",
+            "difference": st.column_config.NumberColumn(
+                tr("Difference"),
+                format="percent",
+                help=tr("Share minus target, in percentage points."),
             ),
-            "Buy now": _money(
-                "Buy now",
-                "How to split the new money: it goes to the types that would still be below "
-                "their target, in proportion to how far below. Nothing is sold.",
+            "to_target": _money(
+                tr("To be on target"),
+                tr(
+                    "What to buy to reach the target share at today's value; negative means "
+                    "there is that much too many."
+                ),
+            ),
+            "buy": _money(
+                tr("Buy now"),
+                tr(
+                    "How to split the new money: it goes to the types that would still be "
+                    "below their target, in proportion to how far below. Nothing is sold."
+                ),
             ),
         },
         hide_index=True,
@@ -227,25 +254,29 @@ def _spread(loaded: common.Loaded, rows: list[OverviewRow], whole: float) -> Non
 
         return of
 
-    st.subheader("Spread")
-    by_currency, by_sector, by_country = st.tabs(["By currency", "By sector", "By country"])
+    st.subheader(tr("Spread"))
+    by_currency, by_sector, by_country = st.tabs(
+        [tr("By currency"), tr("By sector"), tr("By country")]
+    )
     for tab, field, note in (
-        (by_currency, "currency", "The currency each instrument is quoted in."),
+        (by_currency, "currency", tr("The currency each instrument is quoted in.")),
         (by_sector, "sector", None),
-        (by_country, "country", "Where each company is based."),
+        (by_country, "country", tr("Where each company is based.")),
     ):
         with tab:
             if note:
                 st.caption(note)
             st.dataframe(
                 _tinted(_groups(rows, field, whole, None if field == "currency" else label(field))),
-                column_config=_COLUMNS,
+                column_config=_columns(),
                 column_order=[field, *_TYPE_COLUMNS[1:]],
                 hide_index=True,
             )
     st.caption(
-        "Sector and country come from Yahoo for shares. Funds and coins have none of their "
-        "own and are listed by type in brackets; you can set theirs in Settings."
+        tr(
+            "Sector and country come from Yahoo for shares. Funds and coins have none of "
+            "their own and are listed by type in brackets; you can set theirs in Settings."
+        )
     )
 
 
@@ -257,35 +288,40 @@ def _lots(loaded: common.Loaded, include_inactive: bool) -> None:
     ]
     if not held:
         return
-    with st.expander("Purchases still held"):
+    with st.expander(tr("Purchases still held")):
         st.caption(
-            "What you hold, purchase by purchase, oldest first. Sales used up the oldest "
-            "units, so these are what remains. The age is what a holding-period rule for "
-            "tax would look at."
+            tr(
+                "What you hold, purchase by purchase, oldest first. Sales used up the oldest "
+                "units, so these are what remains. The age is what a holding-period rule for "
+                "tax would look at."
+            )
         )
-        staking = st.toggle("Show staking rewards", key="overview_lots_staking")
+        staking = st.toggle(tr("Show staking rewards"), key="overview_lots_staking")
         rows = [
             {
-                "Bought": lot.date,
-                "Ticker": lot.ticker,
-                "Type": lot.type,
-                "Age (years)": lot.age_days / 365.25,
-                "Quantity": lot.quantity,
-                "Cost": round(lot.cost),
-                "Value": None if lot.value is None else round(lot.value),
-                "Profit": None if lot.profit is None else round(lot.profit),
+                "bought": lot.date,
+                "ticker": lot.ticker,
+                "type": lot.type,
+                "age": lot.age_days / 365.25,
+                "quantity": lot.quantity,
+                "cost": round(lot.cost),
+                "value": None if lot.value is None else round(lot.value),
+                "profit": None if lot.profit is None else round(lot.profit),
             }
             for lot in held
             if staking or not lot.staking
         ]
         st.dataframe(
-            _tinted(rows, "Profit"),
+            _tinted(rows, "profit"),
             column_config={
-                "Age (years)": st.column_config.NumberColumn(format="%.1f"),
-                "Quantity": st.column_config.NumberColumn(format="%.6g"),
-                "Cost": _money("Cost"),
-                "Value": _money("Value"),
-                "Profit": _money("Profit"),
+                "bought": tr("Bought"),
+                "ticker": tr("Ticker"),
+                "type": tr("Type"),
+                "age": st.column_config.NumberColumn(tr("Age (years)"), format="%.1f"),
+                "quantity": st.column_config.NumberColumn(tr("Quantity"), format="%.6g"),
+                "cost": _money(tr("Cost")),
+                "value": _money(tr("Value")),
+                "profit": _money(tr("Profit")),
             },
             hide_index=True,
         )
@@ -295,7 +331,7 @@ def _table(rows: list[OverviewRow], columns: list[str]) -> None:
     whole = sum(row.value or 0.0 for row in rows)
     st.dataframe(
         _tinted([_with_share(_rounded(asdict(row)), whole) for row in rows]),
-        column_config=_COLUMNS,
+        column_config=_columns(),
         column_order=columns,
         hide_index=True,
         height=min(38 * (len(rows) + 1) + 2, 900),
@@ -303,13 +339,13 @@ def _table(rows: list[OverviewRow], columns: list[str]) -> None:
 
 
 def render() -> None:
-    st.title("Overview")
+    st.title(tr("Overview"))
     loaded = common.portfolio()
     base = loaded.data.base_currency
-    include_inactive = st.toggle("Include inactive instruments", key="overview_inactive")
+    include_inactive = st.toggle(tr("Include inactive instruments"), key="overview_inactive")
     rows = overview(loaded.data, loaded.today, include_inactive=include_inactive)
     if not rows:
-        st.info("No transactions yet. Add instruments in Settings, then transactions.")
+        st.info(tr("No transactions yet. Add instruments in Settings, then transactions."))
         return
     investments = [row for row in rows if not common.is_separate(row.type)]
     separate = [row for row in rows if common.is_separate(row.type)]
@@ -317,24 +353,31 @@ def render() -> None:
     if investments:
         _headline(investments, investments=True)
         st.caption(
-            f"All amounts in {base}. Sales use up the oldest units first. "
-            "Net profit = unrealised + realised + dividends − fees."
-            + (f" {common.separate_label()} is not included here." if separate else "")
+            tr(
+                "All amounts in {currency}. Sales use up the oldest units first. "
+                "Net profit = unrealised + realised + dividends − fees.",
+                currency=base,
+            )
+            + (
+                " " + tr("{what} is not included here.", what=common.separate_label())
+                if separate
+                else ""
+            )
         )
 
         whole = sum(row.value or 0.0 for row in investments)
-        st.subheader("By type")
+        st.subheader(tr("By type"))
         st.dataframe(
             _tinted(_groups(investments, "type", whole)),
-            column_config=_COLUMNS,
+            column_config=_columns(),
             column_order=_TYPE_COLUMNS,
             hide_index=True,
         )
         _against_target(investments, base)
         _spread(loaded, investments, whole)
 
-        st.subheader("Instruments")
-        _table(investments, list(_COLUMNS))
+        st.subheader(tr("Instruments"))
+        _table(investments, list(_columns()))
         _sales(loaded, include_inactive)
         _lots(loaded, include_inactive)
 
@@ -342,5 +385,5 @@ def render() -> None:
         st.header(common.separate_label())
         _headline(separate, investments=False)
         if not investments:
-            st.caption(f"All amounts in {base}.")
+            st.caption(tr("All amounts in {currency}.", currency=base))
         _table(separate, _SEPARATE_COLUMNS)

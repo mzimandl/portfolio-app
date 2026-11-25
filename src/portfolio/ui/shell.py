@@ -3,6 +3,7 @@
 import streamlit as st
 
 from portfolio.core import repo
+from portfolio.core.i18n import tr
 from portfolio.core.models import Transaction, TransactionKind
 from portfolio.core.updater import update_market_data
 from portfolio.ui import common
@@ -12,13 +13,17 @@ from portfolio.ui.formatting import parse_decimal
 def sidebar() -> None:
     cfg = common.config()
     with st.sidebar, common.connection() as conn:
+        common.language_picker()
         last_price = max(repo.last_price_dates(conn).values(), default=None)
         last_fx = max(repo.last_fx_dates(conn).values(), default=None)
+        never = tr("never")
         st.caption(
-            f"Prices up to **{last_price or 'never'}**  \nRates up to **{last_fx or 'never'}**"
+            tr("Prices up to **{day}**", day=last_price or never)
+            + "  \n"
+            + tr("Rates up to **{day}**", day=last_fx or never)
         )
-        if st.button("Update prices", width="stretch"):
-            with st.spinner("Downloading prices, exchange rates and company data…"):
+        if st.button(tr("Update prices"), width="stretch"):
+            with st.spinner(tr("Downloading prices, exchange rates and company data…")):
                 st.session_state["update_result"] = update_market_data(
                     conn,
                     common.provider(),
@@ -34,19 +39,23 @@ def sidebar() -> None:
         if result is not None:
             days = sum(result.updated.values())
             st.success(
-                f"{len(result.updated)} series updated, {days} days saved."
+                tr("Series updated: {series}, days saved: {days}.",
+                   series=len(result.updated), days=days)
                 + (
-                    f" Company data for {len(result.fundamentals)} shares."
+                    " " + tr("Company data for shares: {n}.", n=len(result.fundamentals))
                     if result.fundamentals
                     else ""
                 )
-                + (f" SEC results for {len(result.sec)}." if result.sec else "")
-            )
+                + (" " + tr("SEC results: {n}.", n=len(result.sec)) if result.sec else "")
+            )  # fmt: skip
             for ticker in result.new_splits:
-                st.info(f"New split for {ticker}: its price history was downloaded again.")
+                st.info(
+                    tr("New split for {ticker}: its price history was downloaded again.",
+                       ticker=ticker)
+                )  # fmt: skip
             for what, why in result.errors.items():
                 st.error(f"{what}: {why}")
-            if st.button("Dismiss", key="dismiss_update"):
+            if st.button(tr("Dismiss"), key="dismiss_update"):
                 del st.session_state["update_result"]
                 st.rerun()
 
@@ -58,12 +67,15 @@ def pending_splits() -> None:
             ticker = repo.get_instrument(conn, instrument_id).ticker
             with st.container(border=True):
                 st.warning(
-                    f"**{ticker}** had a split of **{ratio:g} for 1** on {day}. Until you decide, "
-                    "its value is wrong. Add the split if your recorded quantities are from "
-                    "before it; dismiss it if you already rewrote them."
-                )
+                    tr(
+                        "**{ticker}** had a split of **{ratio} for 1** on {day}. Until you "
+                        "decide, its value is wrong. Add the split if your recorded quantities "
+                        "are from before it; dismiss it if you already rewrote them.",
+                        ticker=ticker, ratio=f"{ratio:g}", day=day,
+                    )
+                )  # fmt: skip
                 add, dismiss, _ = st.columns([1, 1, 4])
-                if add.button("Add split", key=f"split_add_{instrument_id}_{day}"):
+                if add.button(tr("Add split"), key=f"split_add_{instrument_id}_{day}"):
                     with conn:
                         repo.add_transaction(
                             conn,
@@ -71,7 +83,7 @@ def pending_splits() -> None:
                                         split_ratio=parse_decimal(repr(ratio))),
                         )  # fmt: skip
                     st.rerun()
-                if dismiss.button("Dismiss", key=f"split_dismiss_{instrument_id}_{day}"):
+                if dismiss.button(tr("Dismiss"), key=f"split_dismiss_{instrument_id}_{day}"):
                     with conn:
                         repo.dismiss_split(conn, instrument_id, day)
                     st.rerun()

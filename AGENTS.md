@@ -42,8 +42,8 @@ or better through `portfolio.core.repo` and `load_data`.
 
 ## The user and the data
 
-- The user writes in Czech; answer in Czech. Code, UI texts, docs and commit messages are in
-  English. Base currency is CZK, locale `cs`.
+- The user writes in Czech; answer in Czech. Code, docs and commit messages are in English.
+  Base currency is CZK, locale `cs`. The UI is in Czech and English (see below).
 - `portfolio.db` in the project folder is the user's **real data**. It is git-ignored, as are
   `config.toml` and every `*.db`. Never put its contents into a commit, a test or a fixture.
 - **Before changing data in it**: ask unless the user already said to, copy the file first
@@ -117,6 +117,20 @@ tests/             one file per core module, plus test_ui_smoke.py
   already run it. Each runs in a transaction. Write a test like the ones in `tests/test_db.py`
   that runs the earlier migrations, inserts old-style rows, then migrates.
 - No WAL mode: the database must stay a single file because it may live in a synced folder.
+
+## Texts in two languages
+
+- Write every text the user sees in English inside `tr("…")`, with `{name}` placeholders and
+  the values as keywords: `tr("Sales in {year}", year=year)`, never an f-string. A text kept
+  in a constant is marked with `N_("…")` and translated with `tr(constant)` where it is shown.
+  Then add the Czech text to `core/i18n_cs.py`; `tests/test_i18n.py` fails until it is there
+  and fails on entries no longer used.
+- Do not name a variable `tr`. Czech plurals: put the number after a colon ("Transakcí: 3")
+  instead of forms that depend on it.
+- Select boxes and radios get stable option values and a `format_func` that translates;
+  tables get stable column keys and translated labels in `column_config`. Tests address
+  both by those keys. A new glossary term goes into `glossary_cs.py` as well.
+- Things stored in the database (check identities, kinds) stay English.
 
 ## Conventions the numbers rely on
 

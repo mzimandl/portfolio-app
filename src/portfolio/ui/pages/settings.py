@@ -8,36 +8,43 @@ from decimal import Decimal
 import streamlit as st
 
 from portfolio.core import repo
+from portfolio.core.i18n import N_, tr
 from portfolio.core.models import Instrument, Profile, ValuationMethod
 from portfolio.core.updater import BENCHMARK_TYPE
 from portfolio.ui import common
 
-_NEW = "New instrument"
+_NEW = ""  # the choice of a new instrument; no ticker is empty
 _VALUATION_LABELS = {
-    ValuationMethod.YAHOO: "Quantity × price from Yahoo",
-    ValuationMethod.MANUAL: "Value entered by hand",
+    ValuationMethod.YAHOO: N_("Quantity × price from Yahoo"),
+    ValuationMethod.MANUAL: N_("Value entered by hand"),
 }
 
 
 def render() -> None:
-    st.title("Settings")
+    st.title(tr("Settings"))
     message = st.session_state.pop("flash", None)
     if message:
         st.success(message)
     cfg = common.config()
     st.caption(
-        f"Database: `{cfg.db_path}` · Base currency: **{cfg.base_currency}** · "
-        f"Benchmark: **{cfg.benchmark or 'not set'}** (set in the config file)"
-    )
+        tr(
+            "Database: `{path}` · Base currency: **{currency}** · Benchmark: **{benchmark}** "
+            "(set in the config file)",
+            path=cfg.db_path, currency=cfg.base_currency,
+            benchmark=cfg.benchmark or tr("not set"),
+        )
+    )  # fmt: skip
     with common.connection() as conn:
         instruments_column, lists_column = st.columns([3, 1])
         with instruments_column:
             _instruments(conn)
         with lists_column:
-            _simple_list(conn, "Currencies", "Code, e.g. USD", repo.list_currencies,
-                         repo.add_currency, repo.delete_currency, upper=True)  # fmt: skip
-            _simple_list(conn, "Instrument types", "Name, e.g. etf", repo.list_instrument_types,
-                         repo.add_instrument_type, repo.delete_instrument_type)  # fmt: skip
+            _simple_list(conn, "currencies", tr("Currencies"), tr("Code, e.g. USD"),
+                         repo.list_currencies, repo.add_currency, repo.delete_currency,
+                         upper=True)  # fmt: skip
+            _simple_list(conn, "instrument_types", tr("Instrument types"), tr("Name, e.g. etf"),
+                         repo.list_instrument_types, repo.add_instrument_type,
+                         repo.delete_instrument_type)  # fmt: skip
         _targets(conn)
         _profiles(conn)
 
@@ -53,20 +60,22 @@ def _profiles(conn: sqlite3.Connection) -> None:
     ]
     if not instruments:
         return
-    st.subheader("Sector and country")
+    st.subheader(tr("Sector and country"))
     st.caption(
-        "Used for the spread on the Overview. Update prices fills them in from Yahoo for "
-        "shares; funds and coins have none, so give them your own (e.g. World, Crypto). "
-        "What you enter here is kept; clear both cells to let Yahoo fill them again."
+        tr(
+            "Used for the spread on the Overview. Update prices fills them in from Yahoo for "
+            "shares; funds and coins have none, so give them your own (e.g. World, Crypto). "
+            "What you enter here is kept; clear both cells to let Yahoo fill them again."
+        )
     )
     stored = repo.list_profiles(conn)
     rows = [
         {
-            "Ticker": i.ticker,
-            "Sector": stored[i.id].sector if i.id in stored else None,
-            "Country": stored[i.id].country if i.id in stored else None,
-            "Entered by": (
-                ("hand" if stored[i.id].manual else "Yahoo") if i.id in stored else None
+            "ticker": i.ticker,
+            "sector": stored[i.id].sector if i.id in stored else None,
+            "country": stored[i.id].country if i.id in stored else None,
+            "entered_by": (
+                (tr("hand") if stored[i.id].manual else "Yahoo") if i.id in stored else None
             ),
         }
         for i in instruments
@@ -74,21 +83,23 @@ def _profiles(conn: sqlite3.Connection) -> None:
     edited = st.data_editor(
         rows,
         column_config={
-            "Ticker": st.column_config.TextColumn(disabled=True),
-            "Entered by": st.column_config.TextColumn(disabled=True),
+            "ticker": st.column_config.TextColumn(tr("Ticker"), disabled=True),
+            "sector": st.column_config.TextColumn(tr("Sector")),
+            "country": st.column_config.TextColumn(tr("Country")),
+            "entered_by": st.column_config.TextColumn(tr("Entered by"), disabled=True),
         },
         hide_index=True,
         key="settings_profiles",
         height=min(38 * (len(rows) + 1) + 2, 420),
     )
-    if not st.button("Save sector and country", key="settings_profiles_save"):
+    if not st.button(tr("Save sector and country"), key="settings_profiles_save"):
         return
     changed = 0
     with conn:
         for instrument, before, after in zip(instruments, rows, edited, strict=True):
-            sector = (after["Sector"] or "").strip() or None
-            country = (after["Country"] or "").strip() or None
-            if (sector, country) == (before["Sector"], before["Country"]):
+            sector = (after["sector"] or "").strip() or None
+            country = (after["country"] or "").strip() or None
+            if (sector, country) == (before["sector"], before["country"]):
                 continue
             changed += 1
             if sector is None and country is None:
@@ -97,7 +108,11 @@ def _profiles(conn: sqlite3.Connection) -> None:
                 repo.save_profile(
                     conn, Profile(instrument.id, sector, country, date.today(), manual=True)
                 )
-    _done(f"Sector and country saved for {changed} instruments." if changed else "No changes.")
+    _done(
+        tr("Sector and country saved for instruments: {count}.", count=changed)
+        if changed
+        else tr("No changes.")
+    )
 
 
 def _targets(conn: sqlite3.Connection) -> None:
@@ -108,11 +123,13 @@ def _targets(conn: sqlite3.Connection) -> None:
     ]
     if not types:
         return
-    st.subheader("Target allocation")
+    st.subheader(tr("Target allocation"))
     st.caption(
-        "The share of your investments each type should have, in percent. The Overview then "
-        "shows how far you are from it and where new money should go. Leave everything at 0 "
-        "for no target."
+        tr(
+            "The share of your investments each type should have, in percent. The Overview "
+            "then shows how far you are from it and where new money should go. Leave "
+            "everything at 0 for no target."
+        )
     )
     current = repo.list_targets(conn)
     cells = st.columns(max(len(types), 4))
@@ -132,11 +149,14 @@ def _targets(conn: sqlite3.Connection) -> None:
     total = sum(shares.values())
     valid = total in (0, 100)
     save, note = st.columns([1, 5], vertical_alignment="center")
-    note.caption(f"Together {total} %." + ("" if valid else " They have to add up to 100."))
-    if save.button("Save targets", disabled=not valid, key="settings_targets_save"):
+    note.caption(
+        tr("Together {total} %.", total=total)
+        + ("" if valid else " " + tr("They have to add up to 100."))
+    )
+    if save.button(tr("Save targets"), disabled=not valid, key="settings_targets_save"):
         with conn:
             repo.set_targets(conn, shares)
-        _done("Target allocation saved." if total else "Target allocation removed.")
+        _done(tr("Target allocation saved.") if total else tr("Target allocation removed."))
 
 
 def _done(message: str) -> None:
@@ -145,19 +165,19 @@ def _done(message: str) -> None:
 
 
 def _instruments(conn: sqlite3.Connection) -> None:
-    st.subheader("Instruments")
+    st.subheader(tr("Instruments"))
     instruments = repo.list_instruments(conn)
     st.dataframe(
         [
             {
-                "Ticker": i.ticker,
-                "Name": i.name,
-                "Type": i.type,
-                "Currency": i.currency,
-                "Dividends in": i.dividend_currency,
-                "Valued by": "Yahoo" if i.valuation is ValuationMethod.YAHOO else "hand",
-                "Yahoo symbol": i.yahoo_symbol,
-                "Active": i.active,
+                tr("Ticker"): i.ticker,
+                tr("Name"): i.name,
+                tr("Type"): i.type,
+                tr("Currency"): i.currency,
+                tr("Dividends in"): i.dividend_currency,
+                tr("Valued by"): "Yahoo" if i.valuation is ValuationMethod.YAHOO else tr("hand"),
+                tr("Yahoo symbol"): i.yahoo_symbol,
+                tr("Active"): i.active,
             }
             for i in instruments
         ],
@@ -168,10 +188,14 @@ def _instruments(conn: sqlite3.Connection) -> None:
     currencies = repo.list_currencies(conn)
     types = repo.list_instrument_types(conn)
     if not currencies or not types:
-        st.info("Add at least one currency and one instrument type first.")
+        st.info(tr("Add at least one currency and one instrument type first."))
         return
     by_ticker = {i.ticker: i for i in instruments}
-    choice = st.selectbox("Add or edit", [_NEW, *by_ticker], key="settings_instrument")
+    choice = st.selectbox(
+        tr("Add or edit"), [_NEW, *by_ticker],
+        format_func=lambda c: tr("New instrument") if c == _NEW else c,
+        key="settings_instrument",
+    )  # fmt: skip
     editing = by_ticker.get(choice)
     key = f"settings_{editing.id if editing else 'new'}"
 
@@ -180,31 +204,40 @@ def _instruments(conn: sqlite3.Connection) -> None:
         return column.selectbox(label, options, index=index, key=f"{key}_{name}", **kw)
 
     a, b, c, d = st.columns(4)
-    ticker = a.text_input("Ticker", value=editing.ticker if editing else "", key=f"{key}_ticker")
-    name = b.text_input("Name", value=(editing.name or "") if editing else "", key=f"{key}_name")
-    type_name = pick("Type", types, editing.type if editing else None, c, "type")
-    currency = pick("Currency", currencies, editing.currency if editing else None, d, "currency")
+    ticker = a.text_input(
+        tr("Ticker"), value=editing.ticker if editing else "", key=f"{key}_ticker"
+    )
+    name = b.text_input(
+        tr("Name"), value=(editing.name or "") if editing else "", key=f"{key}_name"
+    )
+    type_name = pick(tr("Type"), types, editing.type if editing else None, c, "type")
+    currency = pick(
+        tr("Currency"), currencies, editing.currency if editing else None, d, "currency"
+    )
     e, f, g, h = st.columns(4, vertical_alignment="bottom")
-    no_dividends = "Same as instrument"
+    no_dividends = ""  # no currency code is empty
     dividend_currency = pick(
-        "Dividends paid in", [no_dividends, *currencies],
+        tr("Dividends paid in"), [no_dividends, *currencies],
         editing.dividend_currency if editing else None, e, "dividend_currency",
+        format_func=lambda c: tr("Same as instrument") if c == no_dividends else c,
     )  # fmt: skip
     valuation = pick(
-        "Valued by", list(ValuationMethod), editing.valuation if editing else None, f,
-        "valuation", format_func=_VALUATION_LABELS.get,
+        tr("Valued by"), list(ValuationMethod), editing.valuation if editing else None, f,
+        "valuation", format_func=lambda v: tr(_VALUATION_LABELS[v]),
     )  # fmt: skip
     yahoo_symbol = g.text_input(
-        "Yahoo symbol",
+        tr("Yahoo symbol"),
         value=(editing.yahoo_symbol or "") if editing else "",
-        help="Only if it differs from the ticker, e.g. BTC-EUR.",
+        help=tr("Only if it differs from the ticker, e.g. BTC-EUR."),
         disabled=valuation is not ValuationMethod.YAHOO,
         key=f"{key}_yahoo",
     )
-    active = h.checkbox("Active", value=editing.active if editing else True, key=f"{key}_active")
+    active = h.checkbox(
+        tr("Active"), value=editing.active if editing else True, key=f"{key}_active"
+    )
 
     save, delete, _ = st.columns([1, 1, 4])
-    if save.button("Save changes" if editing else "Add instrument", type="primary",
+    if save.button(tr("Save changes") if editing else tr("Add instrument"), type="primary",
                    key=f"{key}_save"):  # fmt: skip
         instrument = Instrument(
             ticker=ticker.strip(),
@@ -227,55 +260,60 @@ def _instruments(conn: sqlite3.Connection) -> None:
         except sqlite3.IntegrityError as error:
             st.error(_explain(error, ticker))
         else:
-            _done(f"{instrument.ticker} saved.")
+            _done(tr("{ticker} saved.", ticker=instrument.ticker))
     if editing:
-        confirmed = delete.checkbox("Really delete", key=f"{key}_confirm")
-        if delete.button("Delete", disabled=not confirmed, key=f"{key}_delete"):
+        confirmed = delete.checkbox(tr("Really delete"), key=f"{key}_confirm")
+        if delete.button(tr("Delete"), disabled=not confirmed, key=f"{key}_delete"):
             try:
                 with conn:
                     repo.delete_instrument(conn, editing.id)
             except sqlite3.IntegrityError:
                 st.error(
-                    f"{editing.ticker} still has transactions. Delete them first, or just make "
-                    "the instrument inactive."
+                    tr(
+                        "{ticker} still has transactions. Delete them first, or just make the "
+                        "instrument inactive.",
+                        ticker=editing.ticker,
+                    )
                 )
             else:
-                _done(f"{editing.ticker} deleted, with its stored prices and valuations.")
+                _done(
+                    tr("{ticker} deleted, with its stored prices and valuations.",
+                       ticker=editing.ticker)
+                )  # fmt: skip
 
 
 def _explain(error: sqlite3.IntegrityError, ticker: str) -> str:
     text = str(error)
     if "UNIQUE" in text:
-        return f"An instrument with ticker '{ticker}' already exists."
+        return tr("An instrument with ticker '{ticker}' already exists.", ticker=ticker)
     if "length(ticker)" in text or "CHECK" in text:
-        return "The ticker must not be empty."
-    return f"Could not save: {text}"
+        return tr("The ticker must not be empty.")
+    return tr("Could not save: {error}", error=text)
 
 
-def _simple_list(conn, title, placeholder, list_items, add_item, delete_item, *, upper=False):
+def _simple_list(conn, slug, title, placeholder, list_items, add_item, delete_item, *, upper=False):
     st.subheader(title)
     items = list_items(conn)
-    slug = title.lower().replace(" ", "_")
     with st.form(f"{slug}_form", clear_on_submit=True, border=False):
         new, button = st.columns([3, 1], vertical_alignment="bottom")
         value = new.text_input(title, placeholder=placeholder, label_visibility="collapsed")
-        if button.form_submit_button("Add"):
+        if button.form_submit_button(tr("Add")):
             value = value.strip().upper() if upper else value.strip()
             try:
                 with conn:
                     add_item(conn, value)
             except sqlite3.IntegrityError:
-                st.error(f"'{value}' is not valid or already exists.")
+                st.error(tr("'{value}' is not valid or already exists.", value=value))
             else:
-                _done(f"{value} added.")
+                _done(tr("{value} added.", value=value))
     for item in items:
         name, remove = st.columns([3, 1])
         name.write(item)
-        if remove.button("✕", key=f"{slug}_delete_{item}", help=f"Delete {item}"):
+        if remove.button("✕", key=f"{slug}_delete_{item}", help=tr("Delete {item}", item=item)):
             try:
                 with conn:
                     delete_item(conn, item)
             except sqlite3.IntegrityError:
-                st.error(f"{item} is in use and cannot be deleted.")
+                st.error(tr("{item} is in use and cannot be deleted.", item=item))
             else:
-                _done(f"{item} deleted.")
+                _done(tr("{item} deleted.", item=item))

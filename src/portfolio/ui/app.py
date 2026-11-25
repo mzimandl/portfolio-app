@@ -3,6 +3,7 @@
 import streamlit as st
 
 from portfolio.core.config import ConfigError
+from portfolio.core.i18n import tr
 from portfolio.ui import common, shell
 from portfolio.ui.pages import (
     charts,
@@ -28,21 +29,22 @@ def main() -> None:
     except ConfigError as e:
         st.error(str(e))
         st.stop()
+    common.start_language()
 
     page = st.navigation(
         [
-            st.Page(overview.render, title="Overview", url_path="overview", default=True),
-            st.Page(performance.render, title="Performance", url_path="performance"),
-            st.Page(charts.render, title="Charts", url_path="charts"),
-            st.Page(dividends.render, title="Dividends", url_path="dividends"),
-            st.Page(fundamentals.render, title="Fundamentals", url_path="fundamentals"),
-            st.Page(taxes.render, title="Taxes", url_path="taxes"),
-            st.Page(transactions.render, title="Transactions", url_path="transactions"),
-            st.Page(prices.render, title="Prices", url_path="prices"),
-            st.Page(checks.render, title="Checks", url_path="checks"),
-            st.Page(data.render, title="Import / export", url_path="data"),
-            st.Page(settings.render, title="Settings", url_path="settings"),
-            st.Page(glossary.render, title="Glossary", url_path="glossary"),
+            st.Page(overview.render, title=tr("Overview"), url_path="overview", default=True),
+            st.Page(performance.render, title=tr("Performance"), url_path="performance"),
+            st.Page(charts.render, title=tr("Charts"), url_path="charts"),
+            st.Page(dividends.render, title=tr("Dividends"), url_path="dividends"),
+            st.Page(fundamentals.render, title=tr("Fundamentals"), url_path="fundamentals"),
+            st.Page(taxes.render, title=tr("Taxes"), url_path="taxes"),
+            st.Page(transactions.render, title=tr("Transactions"), url_path="transactions"),
+            st.Page(prices.render, title=tr("Prices"), url_path="prices"),
+            st.Page(checks.render, title=tr("Checks"), url_path="checks"),
+            st.Page(data.render, title=tr("Import / export"), url_path="data"),
+            st.Page(settings.render, title=tr("Settings"), url_path="settings"),
+            st.Page(glossary.render, title=tr("Glossary"), url_path="glossary"),
         ]
     )
     shell.sidebar()

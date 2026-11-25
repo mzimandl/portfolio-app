@@ -9,6 +9,10 @@ base_currency = "CZK"
 # Locale used for number and currency formatting.
 locale = "cs"
 
+# Optional: language of the app, "cs" or "en"; it can also be switched in the sidebar.
+# Default: the language of the locale, else English.
+# language = "cs"
+
 # Optional: instrument types shown apart from the investments, with their own totals.
 # They are left out of the headline numbers and of the default view of returns and charts.
 separate_types = ["savings"]

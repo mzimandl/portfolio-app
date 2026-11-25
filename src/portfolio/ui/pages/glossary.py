@@ -4,6 +4,9 @@ from dataclasses import dataclass
 
 import streamlit as st
 
+from portfolio.core import i18n
+from portfolio.core.i18n import tr
+
 
 @dataclass(frozen=True)
 class Term:
@@ -333,17 +336,26 @@ SECTIONS: dict[str, list[Term]] = {
 }
 
 
+def sections() -> dict[str, list[Term]]:
+    """The glossary in the current language."""
+    from portfolio.ui.pages.glossary_cs import SECTIONS_CS
+
+    return SECTIONS_CS if i18n.language() == "cs" else SECTIONS
+
+
 def _matches(term: Term, query: str) -> bool:
     text = " ".join((term.name, term.meaning, term.reading, term.where)).lower()
     return all(word in text for word in query.lower().split())
 
 
 def render() -> None:
-    st.title("Glossary")
-    st.caption("What the numbers in this app mean and how to read them.")
-    query = st.text_input("Search", placeholder="e.g. P/E, dividend, drop", key="glossary_q")
+    st.title(tr("Glossary"))
+    st.caption(tr("What the numbers in this app mean and how to read them."))
+    query = st.text_input(
+        tr("Search"), placeholder=tr("e.g. P/E, dividend, drop"), key="glossary_q"
+    )
     found = 0
-    for section, terms in SECTIONS.items():
+    for section, terms in sections().items():
         shown = [t for t in terms if not query or _matches(t, query)]
         if not shown:
             continue
@@ -356,6 +368,6 @@ def render() -> None:
                 if term.reading:
                     st.caption(term.reading)
                 if term.where:
-                    st.caption(f"Shown on: {term.where}")
+                    st.caption(tr("Shown on: {pages}", pages=term.where))
     if not found:
-        st.info("Nothing found. Try another word.")
+        st.info(tr("Nothing found. Try another word."))

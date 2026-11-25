@@ -15,12 +15,12 @@ from portfolio.core.analytics.fundamentals import (
 )
 from portfolio.core.analytics.positions import position_at
 from portfolio.core.analytics.timeseries import thin
+from portfolio.core.i18n import tr
 from portfolio.core.models import Snapshot, Statement, ValuationMethod
 from portfolio.ui import common
 from portfolio.ui.pages.charts import MAX_POINTS
 
 _RATIO = st.column_config.NumberColumn(format="%.1f")
-_PERCENT = st.column_config.NumberColumn(format="percent")
 _DIFFERS = 0.3  # worked-out P/E this far from Yahoo's is pointed out
 
 
@@ -46,7 +46,7 @@ def _latest(snapshots: list[Snapshot]) -> Snapshot | None:
 
 
 def render() -> None:
-    st.title("Fundamentals")
+    st.title(tr("Fundamentals"))
     loaded = common.portfolio()
     data, today = loaded.data, loaded.today
     with common.connection() as conn:
@@ -65,16 +65,20 @@ def render() -> None:
     ]
     if not companies:
         st.info(
-            "No company data yet. Update prices downloads it for the shares you hold; funds "
-            "and coins have none."
+            tr(
+                "No company data yet. Update prices downloads it for the shares you hold; "
+                "funds and coins have none."
+            )
         )
         return
     st.caption(
-        "Ratios worked out for every day from the reported results and the price of that "
-        "day, and the ones Yahoo reports, saved on every day you update prices. Results count "
-        "from the end of their period; earnings and revenue are those of the last twelve "
-        "months. Yahoo keeps results of about the last five years; with SEC EDGAR set up in "
-        "the config file, US companies reach back to about 2009."
+        tr(
+            "Ratios worked out for every day from the reported results and the price of that "
+            "day, and the ones Yahoo reports, saved on every day you update prices. Results "
+            "count from the end of their period; earnings and revenue are those of the last "
+            "twelve months. Yahoo keeps results of about the last five years; with SEC EDGAR "
+            "set up in the config file, US companies reach back to about 2009."
+        )
     )
 
     histories = {}
@@ -83,7 +87,7 @@ def render() -> None:
         rows_i, snaps_i = by_id_statements.get(i, []), by_id_snapshots.get(i, [])
         units[i] = share_units(data, i, rows_i, snaps_i)
         histories[i] = daily_ratios(data, i, rows_i, units=units[i])
-    st.subheader("Your shares")
+    st.subheader(tr("Your shares"))
     rows = []
     differing = []
     for i in companies:
@@ -94,73 +98,100 @@ def render() -> None:
             differing.append(data.instruments[i].ticker)
         rows.append(
             {
-                "Ticker": data.instruments[i].ticker,
-                "P/E": summary.pe,
-                "Typical P/E": summary.pe_median,
-                "P/B": summary.pb,
-                "P/S": summary.ps,
-                "Dividend yield": summary.dividend_yield,
-                "Forward P/E": latest.forward_pe if latest else None,
-                "EV/EBITDA": latest.ev_to_ebitda if latest else None,
-                "P/E by Yahoo": latest.trailing_pe if latest else None,
-                "Since": summary.since,
-                "Results from": _source(by_id_statements.get(i, [])),
+                "ticker": data.instruments[i].ticker,
+                "pe": summary.pe,
+                "pe_median": summary.pe_median,
+                "pb": summary.pb,
+                "ps": summary.ps,
+                "dividend_yield": summary.dividend_yield,
+                "forward_pe": latest.forward_pe if latest else None,
+                "ev_ebitda": latest.ev_to_ebitda if latest else None,
+                "yahoo_pe": latest.trailing_pe if latest else None,
+                "since": summary.since,
+                "source": _source(by_id_statements.get(i, [])),
             }
         )
     st.dataframe(
         rows,
         column_config={
-            "P/E": st.column_config.NumberColumn(
-                format="%.1f", help="Price / earnings per share of the last twelve months."
+            "ticker": tr("Ticker"),
+            "pe": st.column_config.NumberColumn(
+                "P/E",
+                format="%.1f",
+                help=tr("Price / earnings per share of the last twelve months."),
             ),
-            "Typical P/E": st.column_config.NumberColumn(
-                format="%.1f", help="The median P/E over the days it could be worked out."
+            "pe_median": st.column_config.NumberColumn(
+                tr("Typical P/E"),
+                format="%.1f",
+                help=tr("The median P/E over the days it could be worked out."),
             ),
-            "P/B": st.column_config.NumberColumn(format="%.1f", help="Price / equity per share."),
-            "P/S": st.column_config.NumberColumn(
-                format="%.1f", help="Price / revenue per share of the last twelve months."
+            "pb": st.column_config.NumberColumn(
+                "P/B", format="%.1f", help=tr("Price / equity per share.")
             ),
-            "Dividend yield": st.column_config.NumberColumn(
-                format="percent", help="Dividends of the last twelve months / price."
+            "ps": st.column_config.NumberColumn(
+                "P/S",
+                format="%.1f",
+                help=tr("Price / revenue per share of the last twelve months."),
             ),
-            "Forward P/E": st.column_config.NumberColumn(
-                format="%.1f", help="By Yahoo: price / expected earnings of the next year."
+            "dividend_yield": st.column_config.NumberColumn(
+                tr("Dividend yield"),
+                format="percent",
+                help=tr("Dividends of the last twelve months / price."),
             ),
-            "EV/EBITDA": st.column_config.NumberColumn(format="%.1f", help="By Yahoo."),
-            "P/E by Yahoo": st.column_config.NumberColumn(
-                format="%.1f", help="For comparison; Yahoo may count earnings differently."
+            "forward_pe": st.column_config.NumberColumn(
+                tr("Forward P/E"),
+                format="%.1f",
+                help=tr("By Yahoo: price / expected earnings of the next year."),
             ),
-            "Since": st.column_config.DateColumn(help="First day with a P/E worked out."),
+            "ev_ebitda": st.column_config.NumberColumn(
+                "EV/EBITDA", format="%.1f", help=tr("By Yahoo.")
+            ),
+            "yahoo_pe": st.column_config.NumberColumn(
+                tr("P/E by Yahoo"),
+                format="%.1f",
+                help=tr("For comparison; Yahoo may count earnings differently."),
+            ),
+            "since": st.column_config.DateColumn(
+                tr("Since"), help=tr("First day with a P/E worked out.")
+            ),
+            "source": tr("Results from"),
         },
         hide_index=True,
     )
-    st.caption("Empty where a company made a loss, or where results are missing or too old.")
+    st.caption(tr("Empty where a company made a loss, or where results are missing or too old."))
     if differing:
         st.warning(
-            "The P/E worked out differs from Yahoo's by more than 30 % for "
-            + ", ".join(differing)
-            + ". Usually a quarter missing in Yahoo's results, a one-off gain or loss, or "
-            "results reported in other units: look at the reported results below before "
-            "relying on it."
+            tr(
+                "The P/E worked out differs from Yahoo's by more than 30 % for {tickers}. "
+                "Usually a quarter missing in Yahoo's results, a one-off gain or loss, or "
+                "results reported in other units: look at the reported results below before "
+                "relying on it.",
+                tickers=", ".join(differing),
+            )
         )
     adjusted = [data.instruments[i].ticker for i in companies if units[i] != 1.0]
     if adjusted:
         st.caption(
-            "Traded units that are not one reported share each (depositary receipts, other "
-            "share classes) are counted with the ratio Yahoo's market value implies: "
-            + ", ".join(f"{data.instruments[i].ticker} {units[i]:.4g} per share"
-                        for i in companies if units[i] != 1.0)
-            + "."
+            tr(
+                "Traded units that are not one reported share each (depositary receipts, "
+                "other share classes) are counted with the ratio Yahoo's market value "
+                "implies: {ratios}.",
+                ratios=", ".join(
+                    tr("{ticker} {ratio} per share", ticker=data.instruments[i].ticker,
+                       ratio=f"{units[i]:.4g}")
+                    for i in companies if units[i] != 1.0
+                ),
+            )
         )  # fmt: skip
 
     left, right = st.columns(2)
     chosen = left.selectbox(
-        "Instrument",
+        tr("Instrument"),
         companies,
         format_func=lambda i: data.instruments[i].ticker,
         key="fundamentals_instrument",
     )
-    period = right.selectbox("Period", common.PERIODS, key="fundamentals_period")
+    period = common.period_picker(right, "fundamentals_period")
     start = common.period_start(period, today)
     points = [p for p in histories[chosen] if start is None or p.date >= start]
     _charts(points)
@@ -181,61 +212,69 @@ def _frame(points: list[RatioPoint], columns: dict[str, str]) -> pd.DataFrame | 
 def _charts(points: list[RatioPoint]) -> None:
     pe = _frame(points, {"pe": "P/E"})
     if pe is not None:
-        st.subheader("Price / earnings")
+        st.subheader(tr("Price / earnings"))
         st.line_chart(pe)
     others = _frame(points, {"pb": "P/B", "ps": "P/S"})
     if others is not None:
-        st.subheader("Price / book and price / sales")
+        st.subheader(tr("Price / book and price / sales"))
         st.line_chart(others)
-    dividends = _frame(points, {"dividend_yield": "Dividend yield"})
-    if dividends is not None and (dividends["Dividend yield"] > 0).any():
-        st.subheader("Dividend yield")
+    dividends = _frame(points, {"dividend_yield": tr("Dividend yield")})
+    if dividends is not None and (dividends.iloc[:, 0] > 0).any():
+        st.subheader(tr("Dividend yield"))
         st.line_chart(dividends * 100, y_label="%")
     if pe is None and others is None:
-        st.info("No results to work ratios out from in this period.")
+        st.info(tr("No results to work ratios out from in this period."))
 
 
 def _reported(snapshots: list[Snapshot], start: date | None) -> None:
     filled = [s for s in snapshots if not s.empty and (start is None or s.date >= start)]
     if not filled:
         return
-    st.subheader("As reported by Yahoo")
+    st.subheader(tr("As reported by Yahoo"))
+    day, forward, cap = tr("Date"), tr("Forward P/E"), tr("Market cap")
     table = pd.DataFrame(
         {
-            "Date": [s.date for s in filled],
+            day: [s.date for s in filled],
             "P/E": [s.trailing_pe for s in filled],
-            "Forward P/E": [s.forward_pe for s in filled],
+            forward: [s.forward_pe for s in filled],
             "P/B": [s.price_to_book for s in filled],
             "P/S": [s.price_to_sales for s in filled],
             "EV/EBITDA": [s.ev_to_ebitda for s in filled],
-            "Market cap": [s.market_cap for s in filled],
+            cap: [s.market_cap for s in filled],
         }
     )
     if len(filled) > 1:
-        st.line_chart(table.set_index(pd.to_datetime(table["Date"]))[["P/E", "Forward P/E"]])
+        st.line_chart(table.set_index(pd.to_datetime(table[day]))[["P/E", forward]])
     st.dataframe(
         table.iloc[::-1],
-        column_config={name: _RATIO for name in ("P/E", "Forward P/E", "P/B", "P/S", "EV/EBITDA")}
-        | {"Market cap": st.column_config.NumberColumn(format="compact")},
+        column_config={name: _RATIO for name in ("P/E", forward, "P/B", "P/S", "EV/EBITDA")}
+        | {cap: st.column_config.NumberColumn(format="compact")},
         hide_index=True,
     )
-    st.caption("Saved on every day you update prices, so this grows from the first update on.")
+    st.caption(tr("Saved on every day you update prices, so this grows from the first update on."))
 
 
 def _results(statements: list[Statement], quoted_in: str) -> None:
     if not statements:
         return
     currency = statements[-1].currency
-    st.subheader("Reported results")
-    note = f"In {currency}, as the company reports them" + (
-        " in its SEC filings; per-share numbers converted to today's share units."
+    st.subheader(tr("Reported results"))
+    note = (
+        tr(
+            "In {currency}, as the company reports them in its SEC filings; per-share "
+            "numbers converted to today's share units.",
+            currency=currency,
+        )
         if statements[-1].source == "sec"
-        else ", from Yahoo."
+        else tr("In {currency}, as the company reports them, from Yahoo.", currency=currency)
     )
     if currency != quoted_in:
-        note += f" The share is priced in {quoted_in}; ratios convert at the day's rate."
+        note += " " + tr(
+            "The share is priced in {currency}; ratios convert at the day's rate.",
+            currency=quoted_in,
+        )
     st.caption(note)
-    for period, label in (("annual", "By year"), ("quarterly", "By quarter")):
+    for period, label in (("annual", tr("By year")), ("quarterly", tr("By quarter"))):
         rows = [s for s in statements if s.period == period]
         if not rows:
             continue
@@ -243,25 +282,26 @@ def _results(statements: list[Statement], quoted_in: str) -> None:
             st.dataframe(
                 [
                     {
-                        "Period end": s.period_end,
-                        "Revenue": s.revenue,
-                        "Net income": s.net_income,
-                        "Margin": s.net_income / s.revenue
+                        "period_end": s.period_end,
+                        "revenue": s.revenue,
+                        "net_income": s.net_income,
+                        "margin": s.net_income / s.revenue
                         if s.net_income is not None and s.revenue
                         else None,
-                        "EPS": s.eps,
-                        "Equity": s.equity,
-                        "Shares": s.shares,
+                        "eps": s.eps,
+                        "equity": s.equity,
+                        "shares": s.shares,
                     }
                     for s in reversed(rows)
                 ],
                 column_config={
-                    "Revenue": st.column_config.NumberColumn(format="compact"),
-                    "Net income": st.column_config.NumberColumn(format="compact"),
-                    "Margin": _PERCENT,
-                    "EPS": st.column_config.NumberColumn(format="%.2f"),
-                    "Equity": st.column_config.NumberColumn(format="compact"),
-                    "Shares": st.column_config.NumberColumn(format="compact"),
+                    "period_end": tr("Period end"),
+                    "revenue": st.column_config.NumberColumn(tr("Revenue"), format="compact"),
+                    "net_income": st.column_config.NumberColumn(tr("Net income"), format="compact"),
+                    "margin": st.column_config.NumberColumn(tr("Margin"), format="percent"),
+                    "eps": st.column_config.NumberColumn("EPS", format="%.2f"),
+                    "equity": st.column_config.NumberColumn(tr("Equity"), format="compact"),
+                    "shares": st.column_config.NumberColumn(tr("Shares"), format="compact"),
                 },
                 hide_index=True,
             )

@@ -34,6 +34,7 @@ environment variable.
 | `db` | Path of the SQLite database. Relative paths are relative to the config file. Created on first start. |
 | `base_currency` | Currency everything is reported in, e.g. `CZK`. |
 | `locale` | Number formatting: `cs`, `sk`, `de` or `en`. |
+| `language` | Optional. Language of the app: `cs` (Czech) or `en` (English). Default: the language of the locale if it is one of them, else English. It can also be switched in the sidebar; that choice lasts until the browser tab is reloaded. |
 | `benchmark` | Optional Yahoo symbol to compare returns against, e.g. `VWCE.DE`. |
 | `backup_dir` | Optional folder for the automatic backups. Default: `backups` next to the database. |
 | `backup_keep` | Optional number of automatic backups to keep. Default 30; 0 switches them off. |
@@ -46,6 +47,8 @@ environment variable.
 | `separate_types` | Optional list of instrument types reported apart from the investments, e.g. `["savings"]`. They get their own totals on the Overview and are left out of the default view of returns and charts. |
 
 ## Using it
+
+The app speaks Czech and English: pick the language at the top of the sidebar.
 
 Start in **Settings**: add currencies, instrument types and instruments. Then record what
 happens in **Transactions**.

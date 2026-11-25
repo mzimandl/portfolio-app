@@ -7,6 +7,7 @@ from datetime import date, timedelta
 from portfolio.core import repo
 from portfolio.core.analytics.data import PortfolioData, load_data
 from portfolio.core.analytics.positions import position_at
+from portfolio.core.i18n import tr
 from portfolio.core.models import (
     FxRate,
     Instrument,
@@ -103,7 +104,7 @@ def update_market_data(
             benchmark_id = ensure_benchmark(conn, provider, benchmark).id
         except (ProviderError, sqlite3.Error) as e:
             conn.rollback()
-            result.errors[f"benchmark {benchmark}"] = str(e)
+            result.errors[tr("benchmark {symbol}", symbol=benchmark)] = str(e)
 
     data = load_data(conn, base_currency)
     first_dates = [events[0].date for events in data.events.values() if events]
@@ -137,7 +138,7 @@ def update_market_data(
                 _update_profile(conn, provider, instrument, today)
             except (ProviderError, sqlite3.Error) as e:
                 conn.rollback()
-                result.errors[f"sector and country {instrument.ticker}"] = str(e)
+                result.errors[tr("sector and country {ticker}", ticker=instrument.ticker)] = str(e)
             if _asked_today(conn, instrument.id, today):
                 continue
             try:
@@ -145,7 +146,7 @@ def update_market_data(
                     result.fundamentals.append(instrument.ticker)
             except (ProviderError, sqlite3.Error) as e:
                 conn.rollback()
-                result.errors[f"fundamentals {instrument.ticker}"] = str(e)
+                result.errors[tr("fundamentals {ticker}", ticker=instrument.ticker)] = str(e)
                 continue
             if sec is not None:
                 try:
@@ -158,7 +159,7 @@ def update_market_data(
                 saved = _backfill_prices(conn, provider, instrument)
             except (ProviderError, sqlite3.Error) as e:
                 conn.rollback()
-                result.errors[f"older prices {instrument.ticker}"] = str(e)
+                result.errors[tr("older prices {ticker}", ticker=instrument.ticker)] = str(e)
             else:
                 if saved:
                     result.updated[instrument.ticker] = (
@@ -213,7 +214,7 @@ def _update_cnb(
                 repo.save_official_rates(conn, rates)
         except (ProviderError, sqlite3.Error) as e:
             conn.rollback()
-            result.errors[f"ČNB rates {year}"] = str(e)
+            result.errors[tr("ČNB rates {year}", year=year)] = str(e)
             continue
         result.updated[f"ČNB rates {year}"] = len({day for _, day, _ in rates})
 
@@ -237,7 +238,7 @@ def _update_inflation(
             repo.save_inflation(conn, region, months)
     except (ProviderError, sqlite3.Error) as e:
         conn.rollback()
-        result.errors[label] = str(e)
+        result.errors[tr("inflation {region}", region=region)] = str(e)
         return
     result.updated[label] = len(months) - len(stored)
 

@@ -10,6 +10,7 @@ from streamlit.testing.v1 import AppTest
 
 from portfolio.core import db, repo
 from portfolio.core.config import CONFIG_ENV_VAR
+from portfolio.core.i18n_cs import CS
 from portfolio.core.models import (
     FxRate,
     Instrument,
@@ -36,7 +37,7 @@ def database(tmp_path, monkeypatch):
     """A config file and a database with one stock and one savings account."""
     path = tmp_path / "p.db"
     (tmp_path / "config.toml").write_text(
-        'db = "p.db"\nbase_currency = "CZK"\nlocale = "cs"\nbenchmark = "SPY"\n'
+        'db = "p.db"\nbase_currency = "CZK"\nlocale = "cs"\nlanguage = "en"\nbenchmark = "SPY"\n'
     )
     monkeypatch.setenv(CONFIG_ENV_VAR, str(tmp_path / "config.toml"))
     st.cache_resource.clear()
@@ -138,6 +139,54 @@ def test_app_opens_on_the_overview(database):
     assert "2024-06-03" in at.sidebar.caption[0].value
 
 
+def test_language_is_switched_in_the_sidebar(database):
+    def script():
+        from portfolio.ui import common, shell
+
+        common.start_language()
+        shell.sidebar()
+
+    at = clean(AppTest.from_function(script, default_timeout=TIMEOUT).run())
+    assert at.sidebar.button[0].label == "Update prices"
+    at.sidebar.radio(key="language").set_value("cs").run()
+    assert clean(at).sidebar.button[0].label == "Aktualizovat ceny"
+    at.sidebar.radio(key="language").set_value("en").run()
+    assert clean(at).sidebar.button[0].label == "Update prices"
+
+
+def test_app_opens_in_the_language_of_the_config(database, tmp_path):
+    config = tmp_path / "config.toml"
+    config.write_text(config.read_text().replace('language = "en"', 'language = "cs"'))
+    st.cache_resource.clear()
+    at = clean(AppTest.from_file(APP, default_timeout=TIMEOUT).run())
+    assert at.title[0].value == "Přehled"
+    assert at.sidebar.radio(key="language").value == "cs"
+
+
+@pytest.mark.parametrize(
+    "page",
+    ["overview", "performance", "charts", "dividends", "fundamentals", "taxes", "transactions",
+     "prices", "checks", "data", "settings", "glossary"],
+)  # fmt: skip
+def test_every_page_renders_in_czech(database, page):
+    def script(page_name):
+        import importlib
+
+        from portfolio.core import i18n
+
+        i18n.set_language("cs")
+        importlib.import_module(f"portfolio.ui.pages.{page_name}").render()
+
+    at = clean(AppTest.from_function(script, args=(page,), default_timeout=TIMEOUT).run())
+    english = {
+        "overview": "Overview", "performance": "Performance", "charts": "Charts",
+        "dividends": "Dividends", "fundamentals": "Fundamentals", "taxes": "Taxes",
+        "transactions": "Transactions", "prices": "Prices", "checks": "Checks",
+        "data": "Import / export", "settings": "Settings", "glossary": "Glossary",
+    }[page]  # fmt: skip
+    assert at.title[0].value == CS[english]
+
+
 def test_app_reports_missing_config(monkeypatch, tmp_path):
     st.cache_resource.clear()
     monkeypatch.setenv(CONFIG_ENV_VAR, str(tmp_path / "missing.toml"))
@@ -182,8 +231,8 @@ def test_update_button_downloads_and_reports(database, monkeypatch):
 
     assert not at.exception
     # AAPL, USD/CZK, the ČNB rates of 2023 to this year, the inflation index
-    assert f"{4 + date.today().year - 2023} series updated" in at.sidebar.success[0].value
-    assert "Company data for 1 shares" in at.sidebar.success[0].value
+    assert f"Series updated: {4 + date.today().year - 2023}" in at.sidebar.success[0].value
+    assert "Company data for shares: 1" in at.sidebar.success[0].value
     assert "SPY is unavailable" in at.sidebar.error[0].value
     assert "2024-06-04" in at.sidebar.caption[0].value
     database.rollback()
@@ -240,18 +289,18 @@ def test_performance_page(database):
     assert "Yearly return of your money in SPY" in labels
     assert any(label.startswith("You are ") for label in labels)
     years = at.dataframe[0].value
-    assert list(years["Year"])[:2] == ["2023", "2024"]
+    assert list(years["year"])[:2] == ["2023", "2024"]
     # One instrument only: the per-instrument table disappears.
-    at.selectbox(key="performance_scope").select("AAPL").run()
+    at.selectbox(key="performance_scope").select("instrument:1").run()  # AAPL
     clean(at)
-    at.selectbox(key="performance_period").select("This year").run()
+    at.selectbox(key="performance_period").select("ytd").run()
     clean(at)
 
 
 def test_charts_page(database):
     at = clean(run_page("charts"))
     assert len(at.get("vega_lite_chart")) + len(at.get("arrow_vega_lite_chart")) >= 2
-    at.selectbox(key="charts_scope").select("Type: savings").run()
+    at.selectbox(key="charts_scope").select("type:savings").run()
     clean(at)
 
 
@@ -259,7 +308,7 @@ def test_dividends_page(database):
     at = clean(run_page("dividends"))
     labels = {m.label: m.value for m in at.metric}
     assert labels["Received in total"] == "50"
-    assert list(at.dataframe[0].value["Ticker"]) == ["AAPL"]
+    assert list(at.dataframe[0].value["ticker"]) == ["AAPL"]
     database.execute("DELETE FROM transactions WHERE kind = 'dividend'")
     database.commit()
     assert "No dividends recorded" in run_page("dividends").info[0].value
@@ -300,8 +349,8 @@ def test_taxes_page(database):
     assert [s.value for s in at.subheader][:3] == [
         "What you hold today", "Sales in 2024", "Dividends in 2024",
     ]  # fmt: skip
-    assert list(at.dataframe[0].value["Ticker"]) == ["AAPL"]
-    assert list(at.dataframe[1].value["Ticker"]) == ["AAPL", "Total"]
+    assert list(at.dataframe[0].value["ticker"]) == ["AAPL"]
+    assert list(at.dataframe[1].value["ticker"]) == ["AAPL", "Total"]
 
 
 def test_taxes_page_offers_the_cnb_rates_once_they_are_downloaded(database):
@@ -309,9 +358,9 @@ def test_taxes_page_offers_the_cnb_rates_once_they_are_downloaded(database):
     with database:
         repo.save_official_rates(database, [("USD", date(2023, 1, 2), 21.0)])
     at = clean(run_page("taxes"))
-    assert at.radio(key="taxes_rates").value == "ČNB, rate of each day"
+    assert at.radio(key="taxes_rates").value == "daily"
     assert any("ČNB rate of the day" in c.value for c in at.caption)
-    at.radio(key="taxes_rates").set_value("ČNB, unified rate of the year").run()
+    at.radio(key="taxes_rates").set_value("unified").run()
     clean(at)
     assert any("Unified rates 2024" in c.value or "once the year is over" in c.value
                for c in at.caption)  # fmt: skip
@@ -325,7 +374,7 @@ def test_performance_after_inflation(database):
     # From the start of 2 January 2023 (December's 100) to today (May 2024's 110).
     assert labels["Inflation (CZ)"] == "+10,0\u00a0%"
     assert "Return after inflation" in labels
-    assert "Inflation" in at.dataframe[0].value.columns
+    assert "inflation" in at.dataframe[0].value.columns
 
 
 def test_sector_and_country_are_entered_in_settings_and_spread_on_the_overview(database):
@@ -360,8 +409,8 @@ def test_target_allocation_is_set_in_settings_and_shown_on_the_overview(database
     assert "Against the target" in [s.value for s in at.subheader]
     at.number_input(key="overview_new_money").set_value(1000).run()
     table = clean(at).dataframe[1].value
-    assert list(table["Type"]) == ["savings", "stock"]
-    assert list(table["Buy now"]) == [1000, 0]  # savings are far below their 40 %
+    assert list(table["type"]) == ["savings", "stock"]
+    assert list(table["buy"]) == [1000, 0]  # savings are far below their 40 %
 
 
 def test_fundamentals_page(database):
@@ -377,10 +426,10 @@ def test_fundamentals_page(database):
     database.commit()
     at = clean(run_page("fundamentals"))
     (row,) = at.dataframe[0].value.to_dict("records")
-    assert row["Ticker"] == "AAPL"
-    assert row["P/E"] == pytest.approx(150 / 6)
-    assert row["P/B"] == pytest.approx(150 / 20)
-    assert row["P/E by Yahoo"] == 24.0
+    assert row["ticker"] == "AAPL"
+    assert row["pe"] == pytest.approx(150 / 6)
+    assert row["pb"] == pytest.approx(150 / 20)
+    assert row["yahoo_pe"] == 24.0
     assert "Price / earnings" in [s.value for s in at.subheader]
     assert "Reported results" in [s.value for s in at.subheader]
 
@@ -408,7 +457,7 @@ def test_prices_and_settings_pages(database):
 
 def test_transactions_page_adds_a_buy(database):
     at = clean(run_page("transactions"))
-    assert "3 transactions" in at.caption[0].value
+    assert "Transactions: 3." in at.caption[0].value
     at.text_input(key="tx_form_new_buy_quantity").set_value("1,5")
     at.text_input(key="tx_form_new_buy_price").set_value("160")
     at.run()
@@ -442,7 +491,7 @@ def test_transactions_page_explains_bad_input(database):
     at.text_input(key="tx_form_new_buy_quantity").set_value("abc")
     at.button(key="tx_form_new_save").click().run()
     assert not at.exception
-    assert "not a valid Quantity" in at.error[0].value
+    assert "not a valid quantity" in at.error[0].value
 
     at.text_input(key="tx_form_new_buy_quantity").set_value("2")
     at.button(key="tx_form_new_save").click().run()
@@ -494,11 +543,11 @@ def test_export_downloads_and_csv_import(database):
     )
     at.file_uploader[0].upload("new.csv", csv_text.encode(), "text/csv").run()
     clean(at)
-    assert any("**2** usable" in m.value for m in at.markdown)
+    assert any("Usable: **2**" in m.value for m in at.markdown)
     assert at.dataframe[0].value["already there"].tolist() == [False, True]
     at.button(key="import_go").click().run()
     clean(at)
-    assert "1 transactions imported" in at.success[0].value
+    assert "Transactions imported: 1." in at.success[0].value
     database.rollback()
     newest = repo.list_transactions(database, kinds=[K.BUY])[-1]
     assert (newest.date, newest.quantity, newest.fx_rate) == (date(2024, 7, 1), D("0.5"), D("23.2"))
@@ -540,7 +589,7 @@ def test_overview_keeps_separate_types_out_of_the_headline(savings_apart):
     assert by_label["Profit"] == ("+40", "+4,0\u00a0%")
     assert [h.value for h in at.header] == ["Savings"]
     by_type, by_currency, by_sector, by_country, instruments, purchases, savings = at.dataframe
-    assert list(purchases.value["Ticker"]) == ["AAPL"]
+    assert list(purchases.value["ticker"]) == ["AAPL"]
     assert list(by_type.value["type"]) == ["stock"]
     assert list(by_currency.value["currency"]) == ["USD"]
     assert list(by_currency.value["share"]) == [1.0]
@@ -553,7 +602,7 @@ def test_returns_and_charts_default_to_investments_only(savings_apart):
     for page, key in (("performance", "performance_scope"), ("charts", "charts_scope")):
         at = clean(run_page(page))
         picker = at.selectbox(key=key)
-        assert picker.value == "Investments (without savings)"
+        assert picker.value == "investments"
         assert picker.options[:3] == [
             "Investments (without savings)",
             "All active",
@@ -561,7 +610,7 @@ def test_returns_and_charts_default_to_investments_only(savings_apart):
         ]
     at = clean(run_page("performance"))
     without = at.metric[2].value
-    at.selectbox(key="performance_scope").select("All active").run()
+    at.selectbox(key="performance_scope").select("active").run()
     assert clean(at).metric[2].value != without
 
 

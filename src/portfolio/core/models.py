@@ -5,6 +5,8 @@ from datetime import date
 from decimal import Decimal
 from enum import StrEnum
 
+from portfolio.core.i18n import tr
+
 
 class ValidationError(ValueError):
     """A record does not satisfy the rules for its kind."""
@@ -99,23 +101,30 @@ class Transaction:
             allowed = required or kind in _ALLOWED.get(field, ())
             if value is None:
                 if required:
-                    raise ValidationError(f"A {kind} transaction needs '{field}'")
+                    raise ValidationError(
+                        tr("A {kind} transaction needs '{field}'", kind=kind, field=field)
+                    )
                 continue
             if not allowed:
-                raise ValidationError(f"A {kind} transaction cannot have '{field}'")
+                raise ValidationError(
+                    tr("A {kind} transaction cannot have '{field}'", kind=kind, field=field)
+                )
             if field != "currency":
                 self._check_number(field, value, strictly_positive=field in _STRICTLY_POSITIVE)
         self._check_number("fee", self.fee, strictly_positive=False)
         if kind is K.FEE and self.fee == 0:
-            raise ValidationError("A fee transaction needs a 'fee' greater than zero")
+            raise ValidationError(tr("A fee transaction needs a 'fee' greater than zero"))
 
     @staticmethod
     def _check_number(field: str, value: Decimal, *, strictly_positive: bool) -> None:
         if not isinstance(value, Decimal) or not value.is_finite():
-            raise ValidationError(f"'{field}' must be a finite decimal number")
+            raise ValidationError(tr("'{field}' must be a finite decimal number", field=field))
         if value < 0 or (strictly_positive and value == 0):
-            limit = "greater than zero" if strictly_positive else "zero or more"
-            raise ValidationError(f"'{field}' must be {limit}")
+            raise ValidationError(
+                tr("'{field}' must be greater than zero", field=field)
+                if strictly_positive
+                else tr("'{field}' must be zero or more", field=field)
+            )
 
 
 @dataclass(frozen=True)

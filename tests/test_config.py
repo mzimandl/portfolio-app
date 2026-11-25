@@ -109,3 +109,16 @@ def test_inflation_region_goes_with_the_base_currency_unless_set(tmp_path):
     assert load_config(write(tmp_path, VALID + 'inflation_region = ""\n')).inflation_region is None
     with pytest.raises(ConfigError, match="inflation_region"):
         load_config(write(tmp_path, VALID + "inflation_region = 1\n"))
+
+
+def test_language_defaults_to_the_locale_and_can_be_set(tmp_path):
+    path = tmp_path / "config.toml"
+    path.write_text(VALID)
+    assert load_config(path).language == "cs"
+    path.write_text(VALID.replace('locale = "cs"', 'locale = "de"'))
+    assert load_config(path).language == "en"
+    path.write_text(VALID + 'language = "en"\n')
+    assert load_config(path).language == "en"
+    path.write_text(VALID + 'language = "de"\n')
+    with pytest.raises(ConfigError, match="language"):
+        load_config(path)

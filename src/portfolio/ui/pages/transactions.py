@@ -6,6 +6,7 @@ from datetime import date
 import streamlit as st
 
 from portfolio.core import repo
+from portfolio.core.i18n import N_, tr
 from portfolio.core.models import (
     Instrument,
     Transaction,
@@ -18,34 +19,24 @@ from portfolio.core.models import (
 from portfolio.ui import common
 from portfolio.ui.formatting import decimal_text, parse_decimal
 
-_KIND_LABELS = {
-    TransactionKind.BUY: "Buy",
-    TransactionKind.SELL: "Sell",
-    TransactionKind.DEPOSIT: "Deposit",
-    TransactionKind.WITHDRAWAL: "Withdrawal",
-    TransactionKind.DIVIDEND: "Dividend",
-    TransactionKind.STAKING_REWARD: "Staking reward",
-    TransactionKind.STAKING_CORRECTION: "Staking correction",
-    TransactionKind.SPLIT: "Split",
-    TransactionKind.FEE: "Fee only",
-}
+_KIND_LABELS = common.KIND_LABELS
 _FIELD_LABELS = {
-    "quantity": "Quantity",
-    "price": "Price per unit",
-    "amount": "Amount",
-    "tax": "Tax withheld",
-    "split_ratio": "New units per old unit",
+    "quantity": N_("Quantity"),
+    "price": N_("Price per unit"),
+    "amount": N_("Amount"),
+    "tax": N_("Tax withheld"),
+    "split_ratio": N_("New units per old unit"),
 }
-_ALL = "All"
+_ALL = "*"  # the filter's value for no filter
 
 
 def render() -> None:
-    st.title("Transactions")
-    ledger, valuations = st.tabs(["Ledger", "Manual valuations"])
+    st.title(tr("Transactions"))
+    ledger, valuations = st.tabs([tr("Ledger"), tr("Manual valuations")])
     with common.connection() as conn:
         instruments = repo.list_instruments(conn)
         if not instruments:
-            st.info("Add an instrument in Settings first.")
+            st.info(tr("Add an instrument in Settings first."))
             return
         with ledger:
             _ledger(conn, instruments)
@@ -75,13 +66,17 @@ def _ledger(conn: sqlite3.Connection, instruments: list[Instrument]) -> None:
     by_ticker = {i.ticker: i for i in instruments}
 
     f1, f2, f3, f4 = st.columns(4)
-    ticker = f1.selectbox("Instrument", [_ALL, *by_ticker], key="tx_filter_instrument")
+    ticker = f1.selectbox(
+        tr("Instrument"), [_ALL, *by_ticker], format_func=lambda t: tr("All") if t == _ALL else t,
+        key="tx_filter_instrument",
+    )  # fmt: skip
     kind = f2.selectbox(
-        "Kind", [_ALL, *_KIND_LABELS], format_func=lambda k: _KIND_LABELS.get(k, k),
+        tr("Kind"), [_ALL, *_KIND_LABELS],
+        format_func=lambda k: tr("All") if k == _ALL else common.kind_label(k),
         key="tx_filter_kind",
     )  # fmt: skip
-    date_from = f3.date_input("From", value=None, key="tx_filter_from")
-    date_to = f4.date_input("To", value=None, key="tx_filter_to")
+    date_from = f3.date_input(tr("From"), value=None, key="tx_filter_from")
+    date_to = f4.date_input(tr("To"), value=None, key="tx_filter_to")
     rows = repo.list_transactions(
         conn,
         instrument_id=None if ticker == _ALL else by_ticker[ticker].id,
@@ -96,22 +91,22 @@ def _ledger(conn: sqlite3.Connection, instruments: list[Instrument]) -> None:
 
     table = [
         {
-            "Date": t.date,
-            "Instrument": by_id[t.instrument_id].ticker,
-            "Kind": _KIND_LABELS[t.kind],
-            "Quantity": number(t.quantity),
-            "Price": number(t.price),
-            "Amount": number(t.amount),
-            "Currency": t.currency,
-            "Rate": number(t.fx_rate),
-            "Fee": number(t.fee),
-            "Tax": number(t.tax),
-            "Split": number(t.split_ratio),
-            "Note": t.note,
+            "date": t.date,
+            "instrument": by_id[t.instrument_id].ticker,
+            "kind": common.kind_label(t.kind),
+            "quantity": number(t.quantity),
+            "price": number(t.price),
+            "amount": number(t.amount),
+            "currency": t.currency,
+            "rate": number(t.fx_rate),
+            "fee": number(t.fee),
+            "tax": number(t.tax),
+            "split": number(t.split_ratio),
+            "note": t.note,
         }
         for t in rows
     ]
-    st.caption(f"{len(rows)} transactions. Select a row to edit or delete it.")
+    st.caption(tr("Transactions: {count}. Select a row to edit or delete it.", count=len(rows)))
     version = st.session_state.get("tx_version", 0)
     table_key = f"tx_table_{version}_{ticker}_{kind}_{date_from}_{date_to}"
     event = st.dataframe(
@@ -123,9 +118,18 @@ def _ledger(conn: sqlite3.Connection, instruments: list[Instrument]) -> None:
         # change, because the selection is a row position, not a transaction.
         key=table_key,
         column_config={
-            "Quantity": st.column_config.NumberColumn(format="%.8g"),
-            "Price": st.column_config.NumberColumn(format="%.8g"),
-            "Rate": st.column_config.NumberColumn(format="%.6g"),
+            "date": tr("Date"),
+            "instrument": tr("Instrument"),
+            "kind": tr("Kind"),
+            "quantity": st.column_config.NumberColumn(tr("Quantity"), format="%.8g"),
+            "price": st.column_config.NumberColumn(tr("Price"), format="%.8g"),
+            "amount": tr("Amount"),
+            "currency": tr("Currency"),
+            "rate": st.column_config.NumberColumn(tr("Rate"), format="%.6g"),
+            "fee": tr("Fee"),
+            "tax": tr("Tax"),
+            "split": tr("Split"),
+            "note": tr("Note"),
         },
     )
     selected_rows = event.selection.rows if event else []
@@ -144,13 +148,13 @@ def _transaction_form(
     by_id = {i.id: i for i in instruments}
     # Widget keys include the edited row, so choosing another row refills the form.
     key = f"tx_form_{editing.id if editing else 'new'}"
-    st.subheader("Edit transaction" if editing else "Add transaction")
+    st.subheader(tr("Edit transaction") if editing else tr("Add transaction"))
 
     choices = instruments if editing else [i for i in instruments if i.active] or instruments
     preset = by_id[editing.instrument_id] if editing else default_instrument
     top = st.columns(3)
     instrument = top[0].selectbox(
-        "Instrument",
+        tr("Instrument"),
         choices,
         index=choices.index(preset) if preset in choices else 0,
         format_func=lambda i: i.ticker,
@@ -158,14 +162,14 @@ def _transaction_form(
     )
     kinds = list(_KIND_LABELS)
     kind = top[1].selectbox(
-        "Kind",
+        tr("Kind"),
         kinds,
         index=kinds.index(editing.kind) if editing else 0,
-        format_func=_KIND_LABELS.get,
+        format_func=common.kind_label,
         key=f"{key}_kind",
     )
     day = top[2].date_input(
-        "Date", value=editing.date if editing else date.today(), key=f"{key}_date"
+        tr("Date"), value=editing.date if editing else date.today(), key=f"{key}_date"
     )
 
     required, optional = fields_for(kind)
@@ -174,9 +178,9 @@ def _transaction_form(
     cells = st.columns(4)
     position = 0
     for field in shown:
-        suffix = "" if field in required else " (optional)"
+        suffix = "" if field in required else " " + tr("(optional)")
         values[field] = cells[position % 4].text_input(
-            _FIELD_LABELS[field] + suffix,
+            tr(_FIELD_LABELS[field]) + suffix,
             value=decimal_text(getattr(editing, field)) if editing else "",
             key=f"{key}_{kind}_{field}",
         )
@@ -192,7 +196,7 @@ def _transaction_form(
         else:
             suggested = _last_trade_currency(conn, instrument) or instrument.currency
         currency = cells[position % 4].selectbox(
-            "Currency",
+            tr("Currency"),
             currencies,
             index=currencies.index(suggested) if suggested in currencies else 0,
             key=f"{key}_{kind}_{instrument.id}_currency",
@@ -203,35 +207,36 @@ def _transaction_form(
             values["fx_rate"] = "1"
         else:
             values["fx_rate"] = cells[position % 4].text_input(
-                f"{base} per 1 {currency}" + ("" if rate_required else " (optional)"),
+                tr("{base} per 1 {currency}", base=base, currency=currency)
+                + ("" if rate_required else " " + tr("(optional)")),
                 value=decimal_text(editing.fx_rate) if editing else "",
-                help=None if rate_required else "Empty: the market rate of that day is used.",
+                help=None if rate_required else tr("Empty: the market rate of that day is used."),
                 key=f"{key}_{kind}_{currency}_rate",
             )
             position += 1
 
     bottom = st.columns([1, 3])
     fee_text = bottom[0].text_input(
-        f"Fee ({base})",
+        tr("Fee ({currency})", currency=base),
         value=decimal_text(editing.fee) if editing else "0",
         key=f"{key}_fee",
     )
     note = bottom[1].text_input(
-        "Note", value=(editing.note or "") if editing else "", key=f"{key}_note"
+        tr("Note"), value=(editing.note or "") if editing else "", key=f"{key}_note"
     )
 
     save, delete, _ = st.columns([1, 1, 4])
-    if save.button("Save changes" if editing else "Add", type="primary", key=f"{key}_save"):
+    if save.button(tr("Save changes") if editing else tr("Add"), type="primary", key=f"{key}_save"):
         try:
-            numbers = {f: parse_decimal(text, _FIELD_LABELS.get(f, "rate")) for f, text in
-                       values.items()}  # fmt: skip
+            numbers = {f: parse_decimal(text, tr(_FIELD_LABELS.get(f, N_("rate"))).lower())
+                       for f, text in values.items()}  # fmt: skip
             transaction = Transaction(
                 id=editing.id if editing else None,
                 date=day,
                 instrument_id=instrument.id,
                 kind=kind,
                 currency=currency,
-                fee=parse_decimal(fee_text, "fee") or parse_decimal("0"),
+                fee=parse_decimal(fee_text, tr("fee")) or parse_decimal("0"),
                 note=note.strip() or None,
                 **numbers,
             )
@@ -244,16 +249,19 @@ def _transaction_form(
             st.error(str(e))
         else:
             _changed(
-                f"{_KIND_LABELS[kind]} of {instrument.ticker} on {day} "
-                + ("changed." if editing else "added.")
-            )
+                tr("{kind} of {ticker} on {day} changed.", kind=common.kind_label(kind),
+                   ticker=instrument.ticker, day=day)
+                if editing
+                else tr("{kind} of {ticker} on {day} added.", kind=common.kind_label(kind),
+                        ticker=instrument.ticker, day=day)
+            )  # fmt: skip
 
     if editing:
-        confirmed = delete.checkbox("Really delete", key=f"{key}_confirm")
-        if delete.button("Delete", disabled=not confirmed, key=f"{key}_delete"):
+        confirmed = delete.checkbox(tr("Really delete"), key=f"{key}_confirm")
+        if delete.button(tr("Delete"), disabled=not confirmed, key=f"{key}_delete"):
             with conn:
                 repo.delete_transaction(conn, editing.id)
-            _changed("Transaction deleted.")
+            _changed(tr("Transaction deleted."))
 
 
 def _last_trade_currency(conn: sqlite3.Connection, instrument: Instrument) -> str | None:
@@ -280,57 +288,61 @@ def _cash_by_day(conn: sqlite3.Connection, instrument_id: int) -> dict[date, flo
 def _valuations(conn: sqlite3.Connection, instruments: list[Instrument]) -> None:
     manual = [i for i in instruments if i.valuation is ValuationMethod.MANUAL]
     if not manual:
-        st.info("No instrument is valued by hand. Set that in Settings.")
+        st.info(tr("No instrument is valued by hand. Set that in Settings."))
         return
     active = [i for i in manual if i.active] or manual
     st.caption(
-        "The total value of an instrument on a day, in its own currency. Deposits and "
-        "withdrawals made on that day or later are added on top automatically."
+        tr(
+            "The total value of an instrument on a day, in its own currency. Deposits and "
+            "withdrawals made on that day or later are added on top automatically."
+        )
     )
     c1, c2, c3, c4 = st.columns([2, 2, 2, 1], vertical_alignment="bottom")
     instrument = c1.selectbox(
-        "Instrument",
+        tr("Instrument"),
         active,
         format_func=lambda i: f"{i.ticker} ({i.currency})",
         key="val_instrument",
     )
-    day = c2.date_input("Date", value=date.today(), key="val_date")
-    value_text = c3.text_input("Value", key="val_value")
-    if c4.button("Save", type="primary", key="val_save"):
+    day = c2.date_input(tr("Date"), value=date.today(), key="val_date")
+    value_text = c3.text_input(tr("Value"), key="val_value")
+    if c4.button(tr("Save"), type="primary", key="val_save"):
         try:
-            value = parse_decimal(value_text, "value")
+            value = parse_decimal(value_text, tr("value"))
             if value is None:
-                raise ValueError("Enter a value.")
+                raise ValueError(tr("Enter a value."))
             with conn:
                 repo.set_valuation(conn, Valuation(instrument.id, day, value))
         except (ValueError, sqlite3.Error) as e:
             st.error(str(e))
         else:
-            _changed(f"Value of {instrument.ticker} on {day} saved.")
+            _changed(tr("Value of {ticker} on {day} saved.", ticker=instrument.ticker, day=day))
 
     rows = repo.list_valuations(conn, instrument.id)
     rows.reverse()
     same_day = _cash_by_day(conn, instrument.id)
     if any(v.date in same_day for v in rows):
         st.warning(
-            "Some values share their day with a deposit or withdrawal, which is added on top "
-            "of the value. If the value you entered already contained it, it is counted twice "
-            "until the next value: lower the value by that amount, or move the value one day "
-            "later."
+            tr(
+                "Some values share their day with a deposit or withdrawal, which is added on "
+                "top of the value. If the value you entered already contained it, it is "
+                "counted twice until the next value: lower the value by that amount, or move "
+                "the value one day later."
+            )
         )
     event = st.dataframe(
-        [
-            {"Date": v.date, "Value": float(v.value), "Added on top": same_day.get(v.date)}
-            for v in rows
-        ],
+        [{"date": v.date, "value": float(v.value), "on_top": same_day.get(v.date)} for v in rows],
         hide_index=True,
         on_select="rerun",
         selection_mode="single-row",
         key=f"val_table_{instrument.id}_{st.session_state.get('tx_version', 0)}",
         column_config={
-            "Value": st.column_config.NumberColumn(format="localized"),
-            "Added on top": st.column_config.NumberColumn(
-                format="localized", help="Deposits minus withdrawals recorded on the same day."
+            "date": tr("Date"),
+            "value": st.column_config.NumberColumn(tr("Value"), format="localized"),
+            "on_top": st.column_config.NumberColumn(
+                tr("Added on top"),
+                format="localized",
+                help=tr("Deposits minus withdrawals recorded on the same day."),
             ),
         },
         width="content",
@@ -338,7 +350,7 @@ def _valuations(conn: sqlite3.Connection, instruments: list[Instrument]) -> None
     chosen = event.selection.rows if event else []
     if chosen and chosen[0] < len(rows):
         target = rows[chosen[0]]
-        if st.button(f"Delete the value from {target.date}", key="val_delete"):
+        if st.button(tr("Delete the value from {day}", day=target.date), key="val_delete"):
             with conn:
                 repo.delete_valuation(conn, instrument.id, target.date)
-            _changed("Valuation deleted.")
+            _changed(tr("Valuation deleted."))

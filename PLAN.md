@@ -179,6 +179,18 @@ the Overview, and Eurostat's consumer price index for returns after inflation (m
 - **Unified rate** is worked out from the stored daily rates, not typed in from the GFŘ's
   instruction; it matches the published values (checked for 2022–2024).
 
+- **Two languages** — Czech and English, switched in the sidebar, the default from
+  `language` (or the locale) in the config. English stays the source: every text in the code
+  is English, wrapped in `tr()` (or marked with `N_()` where it is a constant) and looked up
+  in `core/i18n_cs.py`, a plain dict. No gettext files and no new dependency; a test finds
+  every marked text with `ast` and fails on a missing translation or a changed placeholder.
+  The glossary is prose, so it has its own Czech copy (`glossary_cs.py`). The language is a
+  context variable set at the start of every run, so `core/` translates its own messages
+  without knowing about Streamlit. A check's name and detail stay English in its identity,
+  which is stored when a finding is marked as checked; the page translates them for display.
+  Options of select boxes are stable keys shown through `format_func`, so switching the
+  language keeps the choice; tables use stable column keys and translated labels.
+
 ## Details settled
 
 - **Staking corrections** — the old app stored staking units taken back as negative rewards.

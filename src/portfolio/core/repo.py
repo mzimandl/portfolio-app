@@ -9,6 +9,7 @@ from dataclasses import replace
 from datetime import date
 from decimal import Decimal
 
+from portfolio.core.i18n import tr
 from portfolio.core.models import (
     FxRate,
     Instrument,
@@ -99,9 +100,12 @@ def set_targets(conn: sqlite3.Connection, targets: dict[str, Decimal]) -> None:
     """Replace all targets. Zero shares are left out; an empty dict removes the targets."""
     kept = {name: share for name, share in targets.items() if share}
     if any(share < 0 for share in kept.values()):
-        raise ValueError("A target share cannot be negative")
+        raise ValueError(tr("A target share cannot be negative"))
     if kept and sum(kept.values()) != 100:
-        raise ValueError(f"The target shares must add up to 100, not {sum(kept.values()):f}")
+        raise ValueError(
+            tr("The target shares must add up to 100, not {total}",
+               total=f"{sum(kept.values()):f}")
+        )  # fmt: skip
     conn.execute("DELETE FROM target_allocation")
     conn.executemany(
         "INSERT INTO target_allocation (type, share) VALUES (?, ?)",
@@ -307,7 +311,7 @@ def list_valuations(conn: sqlite3.Connection, instrument_id: int | None = None) 
 def set_valuation(conn: sqlite3.Connection, valuation: Valuation) -> None:
     """Add the valuation, or replace the one already entered for that day."""
     if not valuation.value.is_finite() or valuation.value < 0:
-        raise ValueError("A valuation must be a finite number, zero or more")
+        raise ValueError(tr("A valuation must be a finite number, zero or more"))
     conn.execute(
         "INSERT INTO valuations (instrument_id, date, value) VALUES (?, ?, ?) "
         "ON CONFLICT (instrument_id, date) DO UPDATE SET value = excluded.value",

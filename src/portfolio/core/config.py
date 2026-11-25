@@ -6,6 +6,8 @@ import tomllib
 from dataclasses import dataclass
 from pathlib import Path
 
+from portfolio.core.i18n import LANGUAGES
+
 CONFIG_ENV_VAR = "PORTFOLIO_CONFIG"
 DEFAULT_CONFIG_NAME = "config.toml"
 
@@ -44,6 +46,9 @@ class Config:
     # Eurostat's code of the region whose consumer prices measure inflation ("CZ"); None
     # means none is downloaded. By default the one that goes with the base currency.
     inflation_region: str | None = None
+    # Language of the app ("cs" or "en"); it can be switched in the sidebar for a session.
+    # By default the one of the locale, else English.
+    language: str = "en"
 
 
 def resolve_config_path(path: str | Path | None = None) -> Path:
@@ -123,6 +128,11 @@ def load_config(path: str | Path | None = None) -> Config:
     if not isinstance(region, str):
         raise ConfigError(f"'inflation_region' in {config_path} must be a text such as \"CZ\"")
 
+    default_language = text("locale").replace("-", "_").split("_")[0].lower()
+    language = data.get("language", default_language if default_language in LANGUAGES else "en")
+    if language not in LANGUAGES:
+        raise ConfigError(f"'language' in {config_path} must be one of: {', '.join(LANGUAGES)}")
+
     return Config(
         db_path=db_path,
         base_currency=base_currency,
@@ -137,4 +147,5 @@ def load_config(path: str | Path | None = None) -> Config:
         sec_user_agent=text("sec_user_agent", required=False),
         sec_tickers={k.strip(): v.strip().upper() for k, v in sec_tickers.items()},
         inflation_region=region.strip().upper() or None,
+        language=language,
     )

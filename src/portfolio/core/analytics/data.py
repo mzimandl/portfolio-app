@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 from datetime import date
 
 from portfolio.core import repo
+from portfolio.core.i18n import tr
 from portfolio.core.models import Instrument, Transaction, TransactionKind
 
 
@@ -123,9 +124,12 @@ def _to_event(t: Transaction, data: PortfolioData) -> Event:
         if rate is None:
             ticker = data.instruments[t.instrument_id].ticker
             data.warnings.append(
-                f"{ticker} {t.date}: no {t.currency} exchange rate known for this {t.kind}; "
-                "counted with rate 1"
-            )
+                tr(
+                    "{ticker} {day}: no {currency} exchange rate known for this {kind}; "
+                    "counted with rate 1",
+                    ticker=ticker, day=t.date, currency=t.currency, kind=t.kind,
+                )
+            )  # fmt: skip
             rate = 1.0
     return Event(
         date=t.date,

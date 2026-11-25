@@ -13,6 +13,7 @@ from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 
 from portfolio.core import repo
+from portfolio.core.i18n import tr
 from portfolio.core.models import Transaction, TransactionKind, ValidationError
 
 TRANSACTION_COLUMNS = (
@@ -205,7 +206,7 @@ def _parse_date(text: str) -> date:
             return datetime.strptime(text, pattern).date()
         except ValueError:
             continue
-    raise ValueError(f"date '{text}' is not YYYY-MM-DD or DD.MM.YYYY")
+    raise ValueError(tr("date '{text}' is not YYYY-MM-DD or DD.MM.YYYY", text=text))
 
 
 def _parse_decimal(text: str, column: str, decimal_comma: bool) -> Decimal | None:
@@ -217,7 +218,9 @@ def _parse_decimal(text: str, column: str, decimal_comma: bool) -> Decimal | Non
     try:
         return Decimal(cleaned)
     except InvalidOperation:
-        raise ValueError(f"{column} '{text}' is not a number") from None
+        raise ValueError(
+            tr("{column} '{text}' is not a number", column=column, text=text)
+        ) from None
 
 
 def _duplicate_key(t: Transaction) -> tuple:
@@ -236,12 +239,13 @@ def parse_transactions(text: str, conn: sqlite3.Connection) -> list[ParsedRow]:
     columns = [(name or "").strip().lower() for name in reader.fieldnames or []]
     missing = [name for name in _REQUIRED_COLUMNS if name not in columns]
     if missing:
-        raise CsvError(f"The file needs the columns: {', '.join(missing)}")
+        raise CsvError(tr("The file needs the columns: {columns}", columns=", ".join(missing)))
     unknown = [name for name in columns if name not in (*TRANSACTION_COLUMNS, *_IGNORED_COLUMNS)]
     if unknown:
         raise CsvError(
-            f"Unknown columns: {', '.join(unknown)}. Allowed: {', '.join(TRANSACTION_COLUMNS)}"
-        )
+            tr("Unknown columns: {unknown}. Allowed: {allowed}", unknown=", ".join(unknown),
+               allowed=", ".join(TRANSACTION_COLUMNS))
+        )  # fmt: skip
     reader.fieldnames = columns
 
     instruments = {i.ticker: i for i in repo.list_instruments(conn)}
@@ -251,7 +255,7 @@ def parse_transactions(text: str, conn: sqlite3.Connection) -> list[ParsedRow]:
     for record in reader:
         line = reader.line_num  # the real line in the file, blank lines included
         if None in record:
-            rows.append(ParsedRow(line, None, "", "more values than columns"))
+            rows.append(ParsedRow(line, None, "", tr("more values than columns")))
             continue
         cells = {name: (value or "").strip() for name, value in record.items()}
         if not any(cells.values()):
@@ -260,14 +264,14 @@ def parse_transactions(text: str, conn: sqlite3.Connection) -> list[ParsedRow]:
         try:
             instrument = instruments.get(ticker)
             if instrument is None:
-                raise ValueError(f"unknown instrument '{ticker}'")
+                raise ValueError(tr("unknown instrument '{ticker}'", ticker=ticker))
             try:
                 kind = TransactionKind(cells["kind"].lower())
             except ValueError:
-                raise ValueError(f"unknown kind '{cells['kind']}'") from None
+                raise ValueError(tr("unknown kind '{kind}'", kind=cells["kind"])) from None
             currency = cells.get("currency", "").upper() or None
             if currency and currency not in currencies:
-                raise ValueError(f"unknown currency '{currency}'")
+                raise ValueError(tr("unknown currency '{currency}'", currency=currency))
             numbers = {
                 column: _parse_decimal(cells.get(column, ""), column, delimiter == ";")
                 for column in _DECIMAL_COLUMNS
@@ -296,7 +300,7 @@ def import_transactions(
     """Add the parsed rows. Refuses if any row has an error. Does not commit."""
     bad = [row.line for row in rows if not row.ok]
     if bad:
-        raise CsvError(f"Fix the errors first (lines {', '.join(map(str, bad))}).")
+        raise CsvError(tr("Fix the errors first (lines {lines}).", lines=", ".join(map(str, bad))))
     added = 0
     for row in rows:
         if row.duplicate and skip_duplicates:

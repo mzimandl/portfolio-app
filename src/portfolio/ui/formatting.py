@@ -2,6 +2,8 @@
 
 from decimal import Decimal, InvalidOperation
 
+from portfolio.core.i18n import tr
+
 # locale -> (thousands separator, decimal separator)
 _SEPARATORS = {
     "cs": (" ", ","),
@@ -38,17 +40,18 @@ def percent(value: float | None, locale: str, decimals: int = 1, *, signed: bool
     return f"{number(value * 100, locale, decimals, signed=signed)} %"
 
 
-def parse_decimal(text: str | None, field: str = "number") -> Decimal | None:
+def parse_decimal(text: str | None, field: str | None = None) -> Decimal | None:
     """Accepts "1 234,5" as well as "1234.5". Empty text gives None."""
     cleaned = (text or "").replace(" ", "").replace(" ", "").replace(",", ".")
     if not cleaned:
         return None
+    field = field or tr("number")
     try:
         value = Decimal(cleaned)
     except InvalidOperation:
-        raise ValueError(f"'{text}' is not a valid {field}") from None
+        raise ValueError(tr("'{text}' is not a valid {field}", text=text, field=field)) from None
     if not value.is_finite():
-        raise ValueError(f"'{text}' is not a valid {field}")
+        raise ValueError(tr("'{text}' is not a valid {field}", text=text, field=field))
     return value
 
 
